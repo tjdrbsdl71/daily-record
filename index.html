@@ -1,2 +1,67 @@
-일상기록
-기록하기
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>나의 일상기록</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f4f6fa;margin:0;padding:20px;color:#222}
+main{max-width:650px;margin:auto}
+h1{color:#234b83}
+section{background:white;padding:18px;border-radius:14px;margin:15px 0;box-shadow:0 2px 8px #ddd}
+input,textarea,select,button{box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border:1px solid #ccc;border-radius:8px;font-size:16px}
+button{background:#2463b6;color:white;border:0;font-weight:bold}
+article{border-bottom:1px solid #ddd;padding:12px 0;white-space:pre-wrap}
+small{color:#666}
+</style>
+</head>
+<body>
+<main>
+<h1>📒 나의 일상기록</h1>
+<section>
+<h2>새 기록</h2>
+<input id="date" type="date">
+<select id="category">
+<option>일상</option><option>지출</option><option>병원·보험</option><option>운동</option><option>골프·훌라</option><option>기타</option>
+</select>
+<textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
+<button onclick="saveRecord()">기록 저장</button>
+</section>
+<section>
+<h2>저장된 기록</h2>
+<div id="records"></div>
+</section>
+</main>
+<script>
+const key='daily-record-v1';
+document.getElementById('date').value=new Date().toLocaleDateString('en-CA');
+function getRecords(){try{return JSON.parse(localStorage.getItem(key))||[]}catch(e){return []}}
+function saveRecord(){
+const memo=document.getElementById('memo').value.trim();
+if(!memo){alert('기록을 입력하세요');return}
+const list=getRecords();
+list.unshift({date:document.getElementById('date').value,category:document.getElementById('category').value,memo:memo});
+localStorage.setItem(key,JSON.stringify(list));
+document.getElementById('memo').value='';
+render();
+}
+function render(){
+const target=document.getElementById('records');
+target.replaceChildren();
+getRecords().forEach((r,i)=>{
+const article=document.createElement('article');
+const head=document.createElement('strong');
+head.textContent=r.date+' · '+r.category;
+const p=document.createElement('p');
+p.textContent=r.memo;
+const btn=document.createElement('button');
+btn.textContent='삭제';
+btn.onclick=()=>{if(confirm('삭제할까요?')){const a=getRecords();a.splice(i,1);localStorage.setItem(key,JSON.stringify(a));render()}};
+article.append(head,p,btn);
+target.append(article);
+});
+}
+render();
+</script>
+</body>
+</html>
