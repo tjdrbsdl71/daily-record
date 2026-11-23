@@ -25,6 +25,7 @@ small{color:#666}
 <option>일상</option><option>지출</option><option>병원·보험</option><option>운동</option><option>골프·훌라</option><option>기타</option>
 </select>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
+ <button type="button" onclick="startVoice()">🎤 음성 입력</button> 
 <button onclick="saveRecord()">기록 저장</button>
 </section>
 <section>
@@ -62,6 +63,23 @@ target.append(article);
 });
 }
 render();
+function startVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('이 브라우저는 음성 인식을 지원하지 않습니다.');
+    return;
+  }
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'ko-KR';
+  recognition.onresult = function(event) {
+    const memo = document.getElementById('memo');
+    memo.value += (memo.value ? ' ' : '') + event.results[0][0].transcript;
+  };
+  recognition.onerror = function(event) {
+    alert('음성 인식 오류: ' + event.error);
+  };
+  recognition.start();
+}  
 </script>
 </body>
 </html>
