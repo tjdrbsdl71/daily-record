@@ -17,6 +17,7 @@ button:disabled{opacity:.6}
 [hidden]{display:none!important}
 #error{color:#9b1c1c}
 #status,#voice-status,#error{margin:8px 0}
+#voice-preview{padding:8px 12px;background:#edf4ff;border-radius:8px;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -35,6 +36,7 @@ button:disabled{opacity:.6}
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
 <button id="voice" type="button">🎤 음성 입력 시작</button>
 <p id="voice-status" role="status">음성 입력 대기 중</p>
+<p id="voice-preview" hidden>인식 중인 내용: <span id="voice-draft"></span></p>
 <button id="save" type="submit">기록 저장</button>
 <button id="cancel-edit" type="button" hidden>수정 취소</button>
 </form>
@@ -66,6 +68,8 @@ const fileInput = byId('backup-file');
 const restore = byId('restore');
 const voice = byId('voice');
 const voiceStatus = byId('voice-status');
+const voicePreview = byId('voice-preview');
+const voiceDraft = byId('voice-draft');
 let editingId = null;
 let voiceInput = null;
 
@@ -326,7 +330,13 @@ restore.onclick = async () => {
   }
 };
 
+function showVoiceDraft(text = '') {
+  voiceDraft.textContent = text;
+  voicePreview.hidden = !text;
+}
+
 function finishVoice(message) {
+  showVoiceDraft();
   clearTimeout(voiceInput.timer);
   voiceInput = null;
   voice.disabled = false;
@@ -347,6 +357,7 @@ function startRecognition(input) {
     input.session = session;
     session.lang = 'ko-KR';
     session.continuous = true;
+    session.interimResults = true;
     const isCurrent = () => voiceInput === input && input.session === session;
     let retryDelay = 250;
     let blocked = false;
@@ -357,17 +368,23 @@ function startRecognition(input) {
     };
     session.onresult = event => {
       if (!isCurrent()) return;
-      for (let index = event.resultIndex; index < event.results.length; index++) {
+      const interim = [];
+      for (let index = 0; index < event.results.length; index++) {
         const result = event.results[index];
-        if (!result.isFinal) continue;
         const transcript = result[0].transcript.trim();
         if (!transcript) continue;
-        memo.value = [memo.value.trimEnd(), transcript].filter(Boolean).join(' ');
-        input.hasTranscript = true;
+        if (!result.isFinal) {
+          interim.push(transcript);
+        } else if (index >= event.resultIndex) {
+          memo.value = [memo.value.trimEnd(), transcript].filter(Boolean).join(' ');
+          input.hasTranscript = true;
+        }
       }
+      showVoiceDraft(interim.join(' '));
     };
     session.onerror = event => {
       if (!isCurrent()) return;
+      showVoiceDraft();
       if (event.error === 'no-speech' || event.error === 'aborted') return;
       if (event.error === 'network') {
         retryDelay = 2000;
@@ -385,6 +402,7 @@ function startRecognition(input) {
     session.onend = () => {
       if (!isCurrent()) return;
       input.session = null;
+      showVoiceDraft();
       if (input.stopping) {
         saveVoiceInput();
       } else if (blocked) {
