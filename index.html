@@ -48,12 +48,21 @@ button:disabled{opacity:.6}
 #calendar-section summary{cursor:pointer}
 #pickup-alert{padding:10px;background:#fff3c4;border-radius:8px}
 @media(max-width:420px){#calendar-section{padding:12px}.calendar-day{min-height:54px}}
+.fitness-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:12px 0}
+.fitness-metrics div{padding:9px;background:#edf4ff;border-radius:8px;overflow-wrap:anywhere}
+.fitness-metrics dt{font-size:.86rem}
+.fitness-metrics dd{margin:4px 0 0;font-weight:bold}
+#weight-chart{display:block;width:100%;height:210px}
+#weight-dashboard details{margin:10px 0}
+#weight-dashboard summary{cursor:pointer}
+.weight-table{width:100%;margin-top:8px;text-align:left;border-collapse:collapse}
+.weight-table th,.weight-table td{padding:6px;border-bottom:1px solid #dae1ec}
 </style>
 </head>
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
-<p><a href="#calendar-heading">월간 일정 보기</a></p>
+<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a></p>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -79,8 +88,10 @@ button:disabled{opacity:.6}
 <details id="fitness-details">
 <summary>운동·체중 기록</summary>
 <label for="exercise-type">운동 종류</label>
-<input id="exercise-type" type="text" list="exercise-types" maxlength="100" placeholder="예: 수영">
-<datalist id="exercise-types"><option value="수영"><option value="헬스"><option value="스크린골프"></datalist>
+<select id="exercise-type"></select>
+<label for="exercise-intensity">운동 강도</label>
+<select id="exercise-intensity"><option value="">선택 안 함</option><option value="0">가벼움</option><option value="1">보통</option><option value="2">높음</option></select>
+<p id="calorie-preview" role="status" hidden></p>
 <div class="fields">
 <div><label for="exercise-minutes">운동 시간 (분)</label><input id="exercise-minutes" type="number" min="1" step="1" inputmode="numeric"></div>
 <div><label for="body-weight">체중 (kg)</label><input id="body-weight" type="number" min="0.01" step="0.01" inputmode="decimal"></div>
@@ -95,6 +106,47 @@ button:disabled{opacity:.6}
 <button id="save" type="submit">기록 저장</button>
 <button id="cancel-edit" type="button" hidden>수정 취소</button>
 </form>
+</section>
+<section id="weight-dashboard" aria-labelledby="weight-heading">
+<h2 id="weight-heading">운동·체중 현황</h2>
+<dl id="weight-metrics" class="fitness-metrics">
+<div><dt>시작 체중</dt><dd id="weight-start"></dd></div>
+<div><dt>목표 체중</dt><dd id="weight-target"></dd></div>
+<div><dt>최근 기록 체중</dt><dd id="weight-current"></dd></div>
+<div><dt>총 감량</dt><dd id="weight-lost"></dd></div>
+<div><dt>목표까지 남은 체중</dt><dd id="weight-remaining"></dd></div>
+</dl>
+<details>
+<summary>시작·목표 체중 설정</summary>
+<form id="weight-goals">
+<div class="fields">
+<div><label for="goal-start">시작 체중 (kg)</label><input id="goal-start" type="number" min="0.01" step="0.01" required inputmode="decimal"></div>
+<div><label for="goal-target">목표 체중 (kg)</label><input id="goal-target" type="number" min="0.01" step="0.01" required inputmode="decimal"></div>
+</div>
+<button type="submit">체중 설정 저장</button>
+<p id="weight-goal-status" role="status"></p>
+</form>
+</details>
+<h3>체중 변화</h3>
+<label for="weight-period">집계 단위</label>
+<select id="weight-period">
+<option value="day">일별</option><option value="week">주별</option><option value="month">월별</option>
+</select>
+<p id="weight-chart-note"></p>
+<canvas id="weight-chart" role="img" aria-label="체중 변화 그래프" aria-describedby="weight-chart-note" hidden></canvas>
+<details id="weight-values" hidden>
+<summary>그래프 수치 보기</summary>
+<table class="weight-table"><thead><tr><th scope="col">기준 날짜</th><th scope="col">체중 (kg)</th></tr></thead><tbody id="weight-data"></tbody></table>
+</details>
+<h3>월별 운동 합계</h3>
+<label for="workout-month">조회할 월</label>
+<input id="workout-month" type="month">
+<dl class="fitness-metrics">
+<div><dt>운동 횟수</dt><dd id="workout-count"></dd></div>
+<div><dt>총 운동 시간</dt><dd id="workout-minutes"></dd></div>
+<div><dt>예상 소모 칼로리</dt><dd id="workout-calories"></dd></div>
+</dl>
+<p id="workout-calorie-note"></p>
 </section>
 <section id="calendar-section" aria-labelledby="calendar-heading">
 <h2 id="calendar-heading">월간 일정</h2>
@@ -198,6 +250,7 @@ const category = byId('category');
 const memo = byId('memo');
 const fitnessDetails = byId('fitness-details');
 const exerciseType = byId('exercise-type');
+const exerciseIntensity = byId('exercise-intensity');
 const exerciseMinutes = byId('exercise-minutes');
 const bodyWeight = byId('body-weight');
 const save = byId('save');
@@ -331,11 +384,15 @@ function moneyText(amount) {
 }
 
 function sameFitness(a, b) {
-  return a?.type === b?.type && a?.minutes === b?.minutes && a?.weight === b?.weight;
+  return a?.type === b?.type && a?.minutes === b?.minutes && a?.weight === b?.weight && a?.intensity === b?.intensity;
 }
 
 function showFitnessFields(fitness) {
-  exerciseType.value = fitness?.type ?? '';
+  const type = fitness?.type || '';
+  exerciseType.replaceChildren(option('선택 안 함', ''), ...Object.keys(fitnessTypes).map(name => option(name)));
+  if (type && !Object.hasOwn(fitnessTypes, type)) exerciseType.append(option(type + ' (기존)', type));
+  exerciseType.value = type;
+  exerciseIntensity.value = fitness?.intensity ?? '';
   exerciseMinutes.value = fitness?.minutes ?? '';
   bodyWeight.value = fitness?.weight ?? '';
   fitnessDetails.open = Boolean(fitness);
@@ -351,6 +408,7 @@ function updateAnalysis() {
     category.value = /스크린\s*골프/.test(type) ? '스크린골프' :
       type ? '운동' : bodyWeight.value ? '체중' : result.category;
   }
+  renderCaloriePreview();
   const preview = byId('amount-preview');
   preview.hidden = !result.income && !result.expense;
   preview.textContent = '추출된 금액 · 수입 ' + moneyText(result.income) + ' / 지출 ' + moneyText(result.expense);
@@ -363,6 +421,9 @@ category.addEventListener('change', () => {
 memo.addEventListener('input', updateAnalysis);
 exerciseType.addEventListener('input', updateAnalysis);
 bodyWeight.addEventListener('input', updateAnalysis);
+exerciseMinutes.addEventListener('input', renderCaloriePreview);
+exerciseIntensity.addEventListener('change', renderCaloriePreview);
+date.addEventListener('change', renderCaloriePreview);
 byId('auto-category').onclick = () => {
   categoryOverride = false;
   updateAnalysis();
@@ -466,6 +527,7 @@ function summaryCard(title, amounts) {
 }
 
 function render(records) {
+  renderFitnessDashboard(records);
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
@@ -535,6 +597,8 @@ function render(records) {
     const details = [
       typeof fitness?.type === 'string' ? fitness.type : '',
       Number.isFinite(fitness?.minutes) ? fitness.minutes + '분' : '',
+      fitnessIntensities[fitness?.intensity] ?? '',
+      Number.isFinite(fitness?.calories) ? '예상 ' + currency.format(fitness.calories) + 'kcal' : '',
       Number.isFinite(fitness?.weight) ? '체중 ' + fitness.weight + 'kg' : '',
     ].filter(Boolean);
     if (details.length) {
@@ -587,6 +651,7 @@ async function saveEditor({fromVoice = false} = {}) {
     draft.fitness = {
       ...(type ? {type} : {}),
       ...(exerciseMinutes.value ? {minutes} : {}),
+      ...(type && exerciseIntensity.value !== '' ? {intensity: Number(exerciseIntensity.value)} : {}),
       ...(bodyWeight.value ? {weight} : {}),
     };
   }
@@ -618,11 +683,13 @@ async function saveEditor({fromVoice = false} = {}) {
         const index = records.findIndex(record => record.id === previousId);
         if (index === -1) throw new Error('다른 탭에서 삭제된 기록입니다. 내용을 새 기록으로 저장하려면 복사해 주세요.');
         const original = records[index];
+        withWorkoutCalories(draft, records, original);
         const updated = {...original, ...draft};
         if (original.memo !== draft.memo) delete updated.receiptAmount;
         if (!draft.fitness) delete updated.fitness;
         records[index] = updated;
       } else {
+        withWorkoutCalories(draft, records);
         records.unshift({...draft, id: newId()});
       }
       writeRecords(records);
@@ -1190,6 +1257,255 @@ byId('clear-filters').onclick = () => {
 window.addEventListener('storage', event => {
   if (event.key === key || event.key === null) refresh();
 });
+const weightGoalKey = 'daily-record-weight-goals-v1';
+const weightDefaults = {start: 89, target: 75};
+const fitnessTypes = {
+  '수영': [4.8, 6, 9.8],
+  '실내자전거': [3.5, 6.8, 8.8],
+  '러닝머신': [3.5, 6, 9.8],
+  '걷기': [2.8, 3.8, 5.5],
+  '기타': [2.5, 4, 6],
+};
+const fitnessIntensities = ['가벼움', '보통', '높음'];
+const weightNumber = new Intl.NumberFormat('ko-KR', {maximumFractionDigits: 2});
+const weightPeriod = byId('weight-period');
+const workoutMonth = byId('workout-month');
+const weightCanvas = byId('weight-chart');
+let dashboardRecords = [];
+let weightPoints = [];
+
+function weightGoals() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(weightGoalKey));
+    if (saved && Number.isFinite(saved.start) && saved.start > 0 &&
+        Number.isFinite(saved.target) && saved.target > 0) return saved;
+  } catch {
+    // Keep the dashboard usable when the browser cannot read the preferences.
+  }
+  return weightDefaults;
+}
+
+function recordedWeight(record) {
+  const weight = record.fitness?.weight;
+  if (Number.isFinite(weight) && weight > 0) return weight;
+  // Recover simple measurements made before dedicated weight fields were available.
+  if (record.category !== '체중' || /목표|시작|감량|증량|이상|이하|까지/.test(record.memo)) return null;
+  const matches = [...record.memo.matchAll(/(?<![\d.])(\d+(?:[.,]\d{1,2})?)\s*(?:kg\b|킬로(?:그램)?|키로)/gi)];
+  const value = matches.length === 1 ? Number(matches[0][1].replace(',', '.')) : 0;
+  return value > 0 && Number.isFinite(value) ? value : null;
+}
+
+function dailyWeights(records) {
+  const days = new Map();
+  for (const record of records) {
+    if (!validScheduleDate(record.date) || days.has(record.date)) continue;
+    const value = recordedWeight(record);
+    if (value !== null) days.set(record.date, value);
+  }
+  return Array.from(days, ([date, value]) => ({date, value})).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function weightBucket(date, period) {
+  if (period === 'month') return date.slice(0, 7) + '-01';
+  if (period === 'week') {
+    const day = new Date(date + 'T00:00:00Z');
+    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 6) % 7);
+    return day.toISOString().slice(0, 10);
+  }
+  return date;
+}
+
+function groupedWeights(days, period) {
+  const buckets = new Map();
+  for (const {date, value} of days) {
+    const key = weightBucket(date, period);
+    const group = buckets.get(key) ?? {sum: 0, days: 0};
+    group.sum += value;
+    group.days++;
+    buckets.set(key, group);
+  }
+  return Array.from(buckets, ([date, group]) => ({date, value: group.sum / group.days}));
+}
+
+function kg(value) {
+  return weightNumber.format(value) + 'kg';
+}
+
+function estimatedCalories(fitness, weight) {
+  const metValues = Object.hasOwn(fitnessTypes, fitness.type) ? fitnessTypes[fitness.type] : fitnessTypes['기타'];
+  const met = metValues[fitness.intensity];
+  if (!met || !fitness.minutes) return null;
+  return Math.round(met * 3.5 * weight / 200 * fitness.minutes);
+}
+
+function withWorkoutCalories(draft, records, original) {
+  const fitness = draft.fitness;
+  if (!fitness || !fitness.type || !fitness.minutes || !Number.isInteger(fitness.intensity)) return;
+  if (original?.date === draft.date && sameFitness(original.fitness, fitness) &&
+      Number.isFinite(original.fitness.calories)) {
+    fitness.calories = original.fitness.calories;
+    return;
+  }
+  const latest = dailyWeights(original ? records.filter(record => record.id !== original.id) : records)
+    .findLast(day => day.date <= draft.date);
+  const estimate = estimatedCalories(fitness, fitness.weight ?? latest?.value ?? weightGoals().start);
+  if (estimate !== null) fitness.calories = estimate;
+}
+
+function renderCaloriePreview() {
+  const fitness = {
+    type: exerciseType.value,
+    minutes: exerciseMinutes.valueAsNumber,
+    intensity: exerciseIntensity.value === '' ? undefined : Number(exerciseIntensity.value),
+    weight: bodyWeight.valueAsNumber || undefined,
+  };
+  if (exerciseMinutes.validity.valid && bodyWeight.validity.valid && date.value) {
+    withWorkoutCalories({date: date.value, fitness}, dashboardRecords,
+      dashboardRecords.find(record => record.id === editingId));
+  }
+  const preview = byId('calorie-preview');
+  preview.hidden = !Number.isFinite(fitness.calories);
+  preview.textContent = preview.hidden ? '' : '예상 소모 · ' + currency.format(fitness.calories) + 'kcal (운동 강도와 체중 기준)';
+}
+
+function drawWeightChart() {
+  if (!weightPoints.length || weightCanvas.hidden) return;
+  const width = weightCanvas.clientWidth;
+  const height = weightCanvas.clientHeight;
+  if (!width || !height) return;
+  const scale = window.devicePixelRatio || 1;
+  weightCanvas.width = Math.round(width * scale);
+  weightCanvas.height = Math.round(height * scale);
+  const ctx = weightCanvas.getContext('2d');
+  if (!ctx) return;
+  ctx.scale(scale, scale);
+  const plot = {left: 48, right: width - 12, top: 15, bottom: height - 27};
+  let min = Infinity;
+  let max = -Infinity;
+  for (const point of weightPoints) {
+    min = Math.min(min, point.value);
+    max = Math.max(max, point.value);
+  }
+  const low = Math.floor(min - .25);
+  const high = Math.ceil(max + .25);
+  const firstTime = Date.parse(weightPoints[0].date);
+  const lastTime = Date.parse(weightPoints.at(-1).date);
+  const x = date => firstTime === lastTime ? (plot.left + plot.right) / 2
+    : plot.left + (Date.parse(date) - firstTime) / (lastTime - firstTime) * (plot.right - plot.left);
+  const y = value => plot.bottom - (value - low) / (high - low) * (plot.bottom - plot.top);
+  ctx.font = '12px Arial, sans-serif';
+  ctx.fillStyle = '#43536d';
+  ctx.strokeStyle = '#dbe3ee';
+  ctx.textAlign = 'right';
+  for (const value of [low, (low + high) / 2, high]) {
+    ctx.beginPath();
+    ctx.moveTo(plot.left, y(value));
+    ctx.lineTo(plot.right, y(value));
+    ctx.stroke();
+    ctx.fillText(weightNumber.format(value), plot.left - 7, y(value) + 4);
+  }
+  ctx.textAlign = 'left';
+  ctx.fillText(weightPoints[0].date, plot.left, height - 6);
+  if (weightPoints.length > 1) {
+    ctx.textAlign = 'right';
+    ctx.fillText(weightPoints.at(-1).date, plot.right, height - 6);
+  }
+  ctx.strokeStyle = ctx.fillStyle = '#2463b6';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  weightPoints.forEach((point, index) => {
+    if (index) ctx.lineTo(x(point.date), y(point.value));
+    else ctx.moveTo(x(point.date), y(point.value));
+  });
+  ctx.stroke();
+  for (const point of weightPoints) {
+    ctx.beginPath();
+    ctx.arc(x(point.date), y(point.value), 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function renderFitnessDashboard(records) {
+  dashboardRecords = records;
+  renderCaloriePreview();
+  const goals = weightGoals();
+  const days = dailyWeights(records);
+  const latest = days.at(-1);
+  byId('weight-start').textContent = kg(goals.start);
+  byId('weight-target').textContent = kg(goals.target);
+  byId('weight-current').textContent = latest ? kg(latest.value) + ' · ' + latest.date : '기록 없음';
+  const lost = latest ? Math.round((goals.start - latest.value) * 100) / 100 : null;
+  const remaining = latest ? Math.round((latest.value - goals.target) * 100) / 100 : null;
+  byId('weight-lost').textContent = lost === null ? '—' : lost < 0 ? kg(-lost) + ' 증가' : kg(lost);
+  byId('weight-remaining').textContent = remaining === null ? '—' : remaining <= 0 ? '0kg · 목표 도달' : kg(remaining);
+
+  weightPoints = groupedWeights(days, weightPeriod.value);
+  weightCanvas.hidden = !weightPoints.length;
+  byId('weight-values').hidden = !weightPoints.length;
+  const descriptions = {
+    day: '같은 날에는 가장 최근에 추가된 체중 기록을 표시합니다.',
+    week: '월요일을 기준으로 그 주에 기록한 일별 체중의 평균을 표시합니다.',
+    month: '그 달에 기록한 일별 체중의 평균을 표시합니다.',
+  };
+  byId('weight-chart-note').textContent = weightPoints.length ? descriptions[weightPeriod.value] : '표시할 체중 기록이 없습니다.';
+  const rows = byId('weight-data');
+  rows.replaceChildren();
+  for (const point of weightPoints) {
+    const row = rows.insertRow();
+    row.insertCell().textContent = weightPeriod.value === 'month' ? point.date.slice(0, 7) : point.date;
+    row.insertCell().textContent = weightNumber.format(point.value);
+  }
+  drawWeightChart();
+
+  const month = workoutMonth.value || todayDate().slice(0, 7);
+  const workouts = records.filter(record => record.date.slice(0, 7) === month && record.fitness?.type);
+  const minutes = workouts.reduce((total, {fitness}) =>
+    total + (Number.isFinite(fitness.minutes) ? fitness.minutes : 0), 0);
+  const estimates = workouts.filter(({fitness}) => Number.isFinite(fitness.calories));
+  const calories = estimates.reduce((total, {fitness}) => total + fitness.calories, 0);
+  byId('workout-count').textContent = currency.format(workouts.length) + '회';
+  byId('workout-minutes').textContent = currency.format(minutes) + '분';
+  byId('workout-calories').textContent = currency.format(calories) + 'kcal';
+  const missing = workouts.length - estimates.length;
+  byId('workout-calorie-note').textContent = missing ? missing + '건은 운동 시간 또는 강도 정보가 없어 칼로리 합계에서 제외됐습니다.' : '';
+}
+
+function setGoalFields() {
+  const {start, target} = weightGoals();
+  byId('goal-start').value = start;
+  byId('goal-target').value = target;
+}
+
+byId('weight-goals').onsubmit = event => {
+  event.preventDefault();
+  const start = byId('goal-start').valueAsNumber;
+  const target = byId('goal-target').valueAsNumber;
+  const status = byId('weight-goal-status');
+  if (!Number.isFinite(start) || start <= 0 || !Number.isFinite(target) || target <= 0) return;
+  try {
+    localStorage.setItem(weightGoalKey, JSON.stringify({start, target}));
+    renderFitnessDashboard(dashboardRecords);
+    status.textContent = '시작·목표 체중을 저장했습니다.';
+  } catch {
+    status.textContent = '체중 설정을 저장할 수 없습니다.';
+  }
+};
+
+setGoalFields();
+workoutMonth.value = todayDate().slice(0, 7);
+weightPeriod.onchange = workoutMonth.onchange = () => renderFitnessDashboard(dashboardRecords);
+if ('ResizeObserver' in window) {
+  new ResizeObserver(drawWeightChart).observe(weightCanvas);
+} else {
+  window.addEventListener('resize', drawWeightChart);
+}
+window.addEventListener('storage', event => {
+  if (event.key === weightGoalKey || event.key === null) {
+    setGoalFields();
+    renderFitnessDashboard(dashboardRecords);
+  }
+});
+
 setEditor();
 refresh();
 
