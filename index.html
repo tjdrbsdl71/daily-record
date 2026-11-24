@@ -79,12 +79,67 @@ button:disabled{opacity:.6}
 .stats-bar-label{display:block;margin-top:10px}
 .stats-bar{display:block;width:100%;height:12px;accent-color:#2463b6}
 .stats-expense-bar{accent-color:#a64927}
+:root{color-scheme:light;--app-ink:#17304b;--app-border:#d9e3ed;--app-blue:#205698}
+body{padding:12px;background:#f3f6fa;color:var(--app-ink);font-family:system-ui,"Noto Sans KR",sans-serif;line-height:1.45}
+main{max-width:700px}
+section{padding:14px;margin:10px 0;border:1px solid var(--app-border);box-shadow:none}
+h1,h2,h3,h4{line-height:1.25}
+h1{font-size:1.55rem;margin:0}
+h2{font-size:1.16rem;margin:0 0 10px}
+h3{font-size:1rem}
+input,textarea,select,button{padding:8px 10px;margin:4px 0}
+button{min-height:42px;cursor:pointer}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #e79022;outline-offset:2px}
+label{margin-top:6px}
+p{margin:8px 0}
+article{overflow-wrap:anywhere}
+.app-home-header{padding:6px 0 12px}
+#app-today{display:block;margin-top:4px;color:#415a73}
+#app-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.app-menu-button{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;min-width:0;min-height:62px;margin:0;background:white;border:1px solid var(--app-border);color:var(--app-ink);padding:6px 2px;font-size:.84rem;line-height:1.2}
+.app-menu-icon{font-size:1.25rem;line-height:1.25}
+.app-quick{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}
+.app-quick button{font-size:.9rem}
+#app-write,#app-back-home{background:#e8eff8;color:#19497e;border:1px solid #cedceb}
+#app-today-list{list-style:none;padding:0;margin:0}
+#app-today-list li{padding:6px 0}
+#app-today-list li+li{border-top:1px solid var(--app-border)}
+#app-detail-header{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:10px;padding:4px 0 6px;background:#f3f6fa}
+#app-back-home{width:auto;flex:none;margin:0;font-size:.88rem;padding:6px 9px}
+#app-route-heading{font-size:1.22rem}
+#app-screens section,#app-screens form,#app-screens input,main [id="calendar-heading"]{scroll-margin-top:66px}
+.app-records-callout{margin:10px 0}
+.app-stat-block{margin:10px 0;border:1px solid var(--app-border);border-radius:8px;padding:10px}
+.app-stat-block>summary{cursor:pointer;font-weight:700}
+.app-stat-block>h3{margin:10px 0}
+
+@media(max-width:400px){body{padding:9px}section{padding:10px}.app-menu-button{font-size:.78rem}.app-menu-icon{font-size:1.16rem}}
+
+#status:empty,#error:empty{display:none}
 </style>
 </head>
 <body>
 <main>
-<h1>📒 나의 일상기록</h1>
-<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a> · <a href="#cards-heading">카드 사용·한도</a> · <a href="#vehicle-heading">차량 픽업·운행비</a> · <a href="#farm-heading">시골 방문·농사일</a></p>
+<div id="app-home">
+<header class="app-home-header">
+<h1>나의 일상기록</h1>
+<time id="app-today"></time>
+</header>
+<nav id="app-menu" aria-label="관리 메뉴"></nav>
+<div class="app-quick">
+<button id="app-voice" type="button">🎙️ 음성으로 기록하기</button>
+<button id="app-write" type="button">✏️ 직접 기록하기</button>
+</div>
+<section id="app-today-section" aria-labelledby="app-today-heading">
+<h2 id="app-today-heading">오늘 일정</h2>
+<ul id="app-today-list"></ul>
+</section>
+</div>
+<header id="app-detail-header" hidden>
+<button id="app-back-home" type="button">‹ 홈으로</button>
+<h1 id="app-route-heading" tabindex="-1"></h1>
+</header>
+<div id="app-screens"></div>
 <section id="unified-section" aria-labelledby="unified-heading">
 <h2 id="unified-heading">종합 현황</h2>
 <div id="unified-home" class="totals"></div>
@@ -147,7 +202,7 @@ button:disabled{opacity:.6}
 <div id="improvement-sent"></div>
 </details>
 </section>
-<section>
+<section id="editor-section">
 <h2 id="editor-title">새 기록</h2>
 <form id="editor" novalidate>
 <label for="date">날짜</label>
@@ -524,7 +579,7 @@ button:disabled{opacity:.6}
 <p id="pickup-alert" role="status" hidden></p>
 <p id="farm-alert" role="status" hidden></p>
 </section>
-<section>
+<section id="receipt-section">
 <h2>영수증으로 지출 기록</h2>
 <form id="receipt-form">
 <label for="receipt-photo">영수증 촬영 또는 사진 선택</label>
@@ -542,7 +597,7 @@ button:disabled{opacity:.6}
 </fieldset>
 </form>
 </section>
-<section>
+<section id="backup-section">
 <h2>백업 및 복원</h2>
 <details><summary>실제 데이터 초기 등록</summary><label for="setup-import-text">초기 등록 JSON</label><textarea id="setup-import-text" rows="6" spellcheck="false"></textarea><button type="button" id="setup-import">실제 데이터 등록</button><p>현재 브라우저에 추가하고 같은 기록은 건너뜁니다.</p></details>
 <button id="backup" type="button">JSON 백업 다운로드</button>
@@ -553,16 +608,16 @@ button:disabled{opacity:.6}
 </section>
 <p id="status" role="status"></p>
 <p id="error" role="alert"></p>
-<section>
+<section id="saved-records-section">
 <h2>저장된 기록</h2>
 <div class="fields">
 <div><label for="filter-date">조회 날짜</label><input id="filter-date" type="date"></div>
 <div><label for="filter-category">조회 분류</label><select id="filter-category"></select></div>
 </div>
 <button id="clear-filters" type="button">조회 조건 초기화</button>
-<h3>수입·지출 합계</h3>
-<p>날짜를 선택하면 해당 일과 월의 합계를 표시합니다. 분류 필터는 기록 목록에 적용됩니다.</p>
-<div class="totals" id="totals"></div>
+<details id="legacy-totals" class="app-stat-block"><summary>일별·월별 수입·지출 합계</summary>
+<label for="app-total-date">합계 기준 날짜</label><input id="app-total-date" type="date">
+<div class="totals" id="totals"></div></details>
 <div id="records"></div>
 </section>
 </main>
@@ -876,10 +931,11 @@ function render(records) {
   renderVehicle(records);
   renderFarm(records);
   renderUnified(records);
+  if (layoutReady) renderLayoutRecords();
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
-  const day = filterDate.value || todayDate();
+  const day = byId('app-total-date').value || filterDate.value || todayDate();
   const month = day.slice(0, 7);
   const daily = {income: 0, expense: 0};
   const monthly = {income: 0, expense: 0};
@@ -939,6 +995,7 @@ function renderRecordArticle(record, amounts) {
       openGolfEditor(record);
       return;
     }
+    openAppScreen('entry');
     setEditor(record);
     report();
     memo.focus();
@@ -2224,6 +2281,7 @@ function openGolfEditor(record) {
     report('골프 음성 입력이나 저장을 마친 뒤 게임을 수정해 주세요.');
     return;
   }
+  openAppScreen('golf');
   setGolfEditor(record);
   golfDate.focus();
 }
@@ -2550,6 +2608,7 @@ function openHulaEditor(record) {
     report('훌라 음성 입력이나 저장을 마친 뒤 수정해 주세요.');
     return;
   }
+  openAppScreen('hula');
   setHulaEditor(record);
   hulaDate.focus();
 }
@@ -2902,6 +2961,8 @@ function renderCards(records) {
   const ref = cardReference.value || todayDate();
   const overview = byId('card-overview');
   overview.replaceChildren();
+  const statistics = byId('app-card-stats-list');
+  statistics.replaceChildren();
   const grouped = new Map();
   const cards = new Map(cardSettings.map(card => [card.id, card]));
   for (const record of records) {
@@ -2921,6 +2982,9 @@ function renderCards(records) {
     const title = document.createElement('h3');
     title.textContent = card.name + (card.archived ? ' (삭제됨)' : '');
     box.append(title);
+    const breakdown = document.createElement('div');
+    breakdown.append(title.cloneNode(true));
+    statistics.append(breakdown);
     const stats = cardUsageStats(card, ref, uses);
     const labels = ['일별 ' + moneyText(stats.day), '월별 ' + moneyText(stats.month),
       '분기별 ' + moneyText(stats.quarter), '누적 ' + moneyText(stats.all)];
@@ -2930,7 +2994,8 @@ function renderCards(records) {
       '기준일까지 한도 사용 ' + moneyText(stats.period),
       '남은 한도 ' + moneyText(Math.max(0, stats.limit - stats.period)) +
       (stats.period > stats.limit ? ' · 초과 ' + moneyText(stats.period - stats.limit) : ''));
-    cardLines(box, [cardKind(card.type), ...labels]);
+    cardLines(box, [cardKind(card.type), ...labels.slice(4)]);
+    cardLines(breakdown, [cardKind(card.type), ...labels]);
     if (stats.limit) {
       const percent = stats.period / stats.limit * 100;
       const graph = document.createElement('progress');
@@ -2938,21 +3003,25 @@ function renderCards(records) {
       graph.max = stats.limit;
       graph.value = Math.min(stats.period, stats.limit);
       graph.setAttribute('aria-label', '한도 사용률');
-      box.append(graph);
-      cardLines(box, ['한도 사용률 ' + new Intl.NumberFormat('ko-KR', {maximumFractionDigits: 1}).format(percent) + '%']);
+      breakdown.append(graph);
+      cardLines(breakdown, ['한도 사용률 ' + new Intl.NumberFormat('ko-KR', {maximumFractionDigits: 1}).format(percent) + '%']);
       if (percent >= 80) {
         const warning = document.createElement('p');
         graph.classList.add(percent >= 90 ? 'at-limit' : 'near-limit');
         warning.className = 'card-warning';
         warning.textContent = percent >= 100 ? '한도 소진 또는 초과' : '한도 ' + (percent >= 90 ? '90' : '80') + '% 도달';
         box.append(warning);
+        breakdown.append(warning.cloneNode(true));
       }
     }
-    box.append(scheduleButton('상세 내역 확인', () => {
+    const cardDetails = () => {
+      openAppScreen('cards');
       cardDetailId = card.id;
       showCardDetail(card, uses);
       byId('card-detail').scrollIntoView({block: 'nearest'});
-    }));
+    };
+    box.append(scheduleButton('상세 내역 확인', cardDetails));
+    breakdown.append(scheduleButton('상세 내역 확인', cardDetails));
     if (!card.archived) box.append(scheduleButton('카드 수정', () => setCardConfig(card)),
       scheduleButton('카드 삭제', () => archiveCard(card)));
     overview.append(box);
@@ -3058,6 +3127,7 @@ function openCardUse(record) {
     report('카드 음성 입력이나 저장을 마친 뒤 사용 내역을 수정해 주세요.');
     return;
   }
+  openAppScreen('cards');
   setCardUse(record);
   cardSelect.focus();
 }
@@ -3302,6 +3372,7 @@ function openVehicleEditor(record, event) {
     report('차량 음성 입력이나 저장을 마친 뒤 다시 열어 주세요.');
     return;
   }
+  openAppScreen('vehicle');
   setVehicleEditor(record, event);
   vehicleDate.focus();
 }
@@ -3568,6 +3639,7 @@ function openFarmEditor(record, event) {
     report('시골 음성 입력이나 저장을 마친 뒤 다시 열어 주세요.');
     return;
   }
+  openAppScreen('farm');
   setFarmEditor(record, event);
   farmDate.focus();
 }
@@ -3950,6 +4022,7 @@ function unifiedCard(container, title, lines, detail) {
 }
 
 function openUnifiedDetails(kind, from = '', to = '', keyword = '') {
+  openAppScreen('search');
   const panel = byId('unified-search');
   panel.open = true;
   searchForm.reset();
@@ -3990,7 +4063,7 @@ function renderUnifiedHome() {
     const totals = cardUsageStats(card, now, unifiedRecords.filter(record => record.cardUse?.id === card.id));
     return card.name + ' · ' + moneyText(totals.month) +
       (totals.limit ? ' · 잔여 ' + moneyText(Math.max(0, totals.limit - totals.period)) : ' · 적용 한도 없음');
-  }) : ['등록된 카드 없음'], () => byId('cards-heading').scrollIntoView({block: 'start'}));
+  }) : ['등록된 카드 없음'], () => openAppScreen('cards'));
   unifiedCard(root, '미수령 보험금', [moneyText(unifiedRecords.reduce((sum, record) => sum + insuranceUnpaid(record), 0))],
     () => openUnifiedDetails('unpaid'));
   unifiedCard(root, '미정산 금액', [moneyText(unifiedRecords.reduce((sum, record) => sum + outstandingAmount(record), 0))],
@@ -4362,6 +4435,248 @@ setupButton.onclick = async () => {
   }
 };
 
+const appScreens = {};
+const appMenus = {
+  calendar: ['📅', '월간 일정'], finance: ['💰', '수입·지출'], fitness: ['🏃', '운동·체중'],
+  health: ['🩺', '병원·보험'], golf: ['⛳', '스크린골프'], hula: ['🃏', '전투 훌라'],
+  cards: ['💳', '카드 관리'], vehicle: ['🚗', '차량·픽업'], farm: ['🌱', '시골·농사'],
+  stats: ['📊', '종합 통계'], search: ['🔍', '기록 검색'], settings: ['⚙️', '환경 설정'],
+  entry: ['✏️', '기록하기'],
+};
+const oldAnchors = {'calendar-heading': 'calendar', 'weight-heading': 'stats', 'golf-heading': 'golf',
+  'hula-heading': 'hula', 'cards-heading': 'cards', 'vehicle-heading': 'vehicle', 'farm-heading': 'farm',
+  'unified-heading': 'stats'};
+const layoutListScreens = ['finance', 'fitness', 'health', 'golf', 'hula', 'cards', 'vehicle', 'farm'];
+let activeAppScreen = 'home';
+let layoutReady = false;
+let lastHomeDate = '';
+
+function screenFromLocation() {
+  const name = location.hash.slice(1);
+  return Object.hasOwn(appMenus, name) ? name : oldAnchors[name] ?? 'home';
+}
+
+function displayAppScreen(name, focus = true) {
+  activeAppScreen = name;
+  byId('app-home').hidden = name !== 'home';
+  byId('app-detail-header').hidden = name === 'home';
+  byId('app-route-heading').textContent = appMenus[name]?.[1] ?? '';
+  for (const [key, screen] of Object.entries(appScreens)) screen.hidden = name !== key;
+  if (name === 'home') renderHomeToday();
+  if (name === 'stats') {
+    if (byId('unified-stats').open) renderUnifiedStats();
+    if (!byId('weight-chart').hidden) drawWeightChart();
+  }
+  if (layoutListScreens.includes(name)) renderLayoutRecords();
+  if (focus) {
+    window.scrollTo(0, 0);
+    (name === 'home' ? byId('app-menu').firstElementChild : byId('app-route-heading')).focus({preventScroll: true});
+  }
+}
+
+function openAppScreen(name) {
+  if (!layoutReady || name === activeAppScreen) return;
+  const fragment = name === 'home' ? '#home' : '#' + name;
+  history.pushState(null, '', fragment);
+  displayAppScreen(name);
+}
+
+function syncAppScreen() {
+  const screen = screenFromLocation();
+  if (screen !== activeAppScreen) displayAppScreen(screen);
+}
+
+function renderHomeToday() {
+  if (!layoutReady) return;
+  const today = todayDate();
+  lastHomeDate = today;
+  const title = byId('app-today');
+  title.dateTime = today;
+  title.textContent = new Intl.DateTimeFormat('ko-KR', {dateStyle: 'full'}).format(new Date(today + 'T12:00:00'));
+  const list = byId('app-today-list');
+  list.replaceChildren();
+  const events = calendarEvents.filter(event => event.date === today && event.kind !== 'gym-open');
+  if (!events.length) {
+    const item = document.createElement('li');
+    item.textContent = '등록된 일정이 없습니다.';
+    list.append(item);
+  }
+  for (const event of events) {
+    const item = document.createElement('li');
+    item.textContent = eventLabel(event) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
+    list.append(item);
+  }
+}
+
+function refreshHomeDate() {
+  if (todayDate() !== lastHomeDate) renderHomeToday();
+}
+
+function startLayoutEntry(kind) {
+  openAppScreen('entry');
+  const hasDraft = [memo, exerciseType, exerciseMinutes, bodyWeight,
+    ...['insurance-claim', 'insurance-received', 'tobacco-quantity', 'tobacco-cost'].map(byId)]
+    .some(field => field.value.trim());
+  if (!editingId && !hasDraft && voiceInput?.button !== voice) {
+    setEditor();
+  }
+  if (!editingId && !hasDraft && kind && voiceInput?.button !== voice) {
+    if (kind === '운동') {
+      fitnessDetails.open = true;
+      exerciseType.focus();
+      return;
+    }
+    if (categories.includes(kind)) {
+      category.value = kind;
+      categoryOverride = true;
+    }
+    if (kind === '보험') {
+      trackingOptions.open = true;
+      byId('insurance-claim').focus();
+      return;
+    }
+  }
+  memo.focus();
+}
+
+function renderLayoutRecords() {
+  const screen = appScreens[activeAppScreen];
+  const list = screen?.querySelector('.app-context-records');
+  if (!list) return;
+  const relevant = unifiedRecords.filter(record => {
+    if (activeAppScreen === 'cards') return validCardUse(record.cardUse);
+    if (activeAppScreen === 'vehicle') return validVehicle(record.vehicle);
+    if (activeAppScreen === 'farm') return validFarm(record.farm);
+    if (activeAppScreen === 'golf') return validGolf(record.golf) || record.category === '스크린골프' ||
+      record.category === '골프·훌라' && /골프/.test(record.memo);
+    if (activeAppScreen === 'hula') return validHula(record.hula) || record.category === '훌라' ||
+      record.category === '골프·훌라' && /훌라/.test(record.memo);
+    if (activeAppScreen === 'fitness') return Boolean(record.fitness?.type) || recordedWeight(record) !== null ||
+      ['운동', '체중'].includes(record.category);
+    const amounts = recordAmounts(record);
+    if (activeAppScreen === 'health') return isHospital(record) || validInsurance(record.insurance) ||
+      ['병원', '보험', '병원·보험'].includes(record.category) || insuranceAmount(record, amounts) > 0;
+    return Boolean(amounts.income || amounts.expense);
+  });
+  list.replaceChildren();
+  if (!relevant.length) {
+    list.textContent = '저장된 기록이 없습니다.';
+    return;
+  }
+  for (const record of relevant) list.append(renderRecordArticle(record, recordAmounts(record)));
+}
+
+function appendRouteRecords(name) {
+  const section = document.createElement('section');
+  const heading = document.createElement('h2');
+  const list = document.createElement('div');
+  heading.textContent = '저장된 기록';
+  list.className = 'app-context-records';
+  section.append(heading, list);
+  appScreens[name].append(section);
+}
+
+function appendRouteEntry(name, label, kind) {
+  const button = scheduleButton(label, () => startLayoutEntry(kind));
+  button.className = 'app-records-callout';
+  appScreens[name].append(button);
+}
+
+function moveStatTail(form, label) {
+  const block = document.createElement('details');
+  const summary = document.createElement('summary');
+  block.className = 'app-stat-block';
+  summary.textContent = label;
+  block.append(summary);
+  while (form.nextElementSibling) block.append(form.nextElementSibling);
+  appScreens.stats.append(block);
+}
+
+function initializeLayout() {
+  const nav = byId('app-menu');
+  const root = byId('app-screens');
+  root.before(byId('status'), byId('error'));
+  for (const [key, [icon, title]] of Object.entries(appMenus)) {
+    const screen = document.createElement('div');
+    screen.hidden = true;
+    screen.id = 'app-screen-' + key;
+    appScreens[key] = screen;
+    root.append(screen);
+    if (key === 'entry') continue;
+    const button = scheduleButton('', () => openAppScreen(key));
+    const symbol = document.createElement('span');
+    const label = document.createElement('span');
+    button.className = 'app-menu-button';
+    button.dataset.screen = key;
+    symbol.className = 'app-menu-icon';
+    symbol.setAttribute('aria-hidden', 'true');
+    symbol.textContent = icon;
+    label.textContent = title;
+    button.append(symbol, label);
+    nav.append(button);
+  }
+  appScreens.calendar.append(byId('calendar-section'));
+  appScreens.entry.append(byId('editor-section'));
+  appendRouteEntry('finance', '수입 기록', '수입');
+  appendRouteEntry('finance', '지출 기록', '지출');
+  appScreens.finance.append(byId('receipt-section'));
+  appendRouteEntry('fitness', '운동·체중 기록', '운동');
+  appendRouteEntry('health', '병원 기록', '병원');
+  appendRouteEntry('health', '보험금 기록', '보험');
+  for (const key of ['golf', 'hula', 'cards', 'vehicle', 'farm']) appScreens[key].append(byId(key + '-section'));
+  for (const key of layoutListScreens) appendRouteRecords(key);
+  appScreens.stats.append(byId('unified-section'));
+  const weights = document.createElement('details');
+  const weightLabel = document.createElement('summary');
+  weightLabel.textContent = '운동·체중 상세 통계';
+  weights.className = 'app-stat-block';
+  weights.append(weightLabel, byId('weight-dashboard'));
+  appScreens.stats.append(weights, byId('legacy-totals'));
+  for (const [form, label] of [
+    ['golf-form', '스크린골프 통계'], ['hula-form', '전투 훌라 통계'],
+    ['vehicle-form', '차량 통계'], ['farm-form', '시골 방문·농사 통계'],
+  ]) moveStatTail(byId(form), label);
+
+  const cardStats = document.createElement('details');
+  const cardStatsTitle = document.createElement('summary');
+  const cardStatsContent = document.createElement('div');
+  cardStats.className = 'app-stat-block';
+  cardStatsTitle.textContent = '카드 사용 통계';
+  cardStatsContent.id = 'app-card-stats-list';
+  cardStats.append(cardStatsTitle, document.querySelector('label[for="card-reference"]'), byId('card-reference'),
+    byId('card-corporate-total'), cardStatsContent);
+  appScreens.stats.append(cardStats);
+
+  const searchSection = document.createElement('section');
+  const search = byId('unified-search');
+  search.open = true;
+  searchSection.append(search);
+  appScreens.search.append(searchSection, byId('saved-records-section'));
+  appScreens.settings.append(byId('improvement-toggle'), byId('improvement'), byId('backup-section'));
+  const limits = byId('vehicle-settings').closest('details');
+  const settingsSection = document.createElement('section');
+  settingsSection.append(limits);
+  appScreens.settings.append(settingsSection);
+
+  byId('app-total-date').onchange = refresh;
+  byId('app-back-home').onclick = () => openAppScreen('home');
+  byId('app-write').onclick = () => startLayoutEntry();
+  byId('app-voice').onclick = () => {
+    startLayoutEntry();
+    if (editingId) {
+      report('수정 중인 기록을 저장하거나 취소한 뒤 새 음성 기록을 시작하세요.');
+      return;
+    }
+    voice.click();
+  };
+  window.addEventListener('popstate', syncAppScreen);
+  window.addEventListener('hashchange', syncAppScreen);
+  window.addEventListener('focus', refreshHomeDate);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshHomeDate(); });
+  layoutReady = true;
+  displayAppScreen(screenFromLocation(), false);
+}
+
 initializeFarm();
 initializeGolf();
 initializeHula();
@@ -4570,6 +4885,7 @@ function refreshSchedule() {
     calendarEvents = state.events;
     renderCalendar();
     updateVehiclePlan();
+    renderHomeToday();
     renderUnifiedHome();
     renderUnifiedSearch();
   }).catch(showScheduleError);
@@ -4618,6 +4934,7 @@ function resetScheduleForm() {
 }
 
 function editSchedule(event) {
+  openAppScreen('calendar');
   scheduleEditingId = event.id;
   scheduleDate.value = event.date;
   if (event.kind === 'gym-open' && !scheduleKind.querySelector('option[value="gym-open"]')) {
@@ -4814,6 +5131,7 @@ byId('pickup-notification-test').onclick = async () => {
 };
 
 async function checkPickupAlerts() {
+  refreshHomeDate();
   try {
     const due = await withSchedule(state => {
       const now = Date.now();
@@ -4896,8 +5214,10 @@ window.addEventListener('storage', event => {
   if (event.key === scheduleKey || event.key === null) refreshSchedule();
 });
 setVehicleEditor();
+initializeLayout();
 for (const [id, kind] of [['farm-plan-visit', 'farm-visit'], ['farm-plan-work', 'farm-work']]) {
   byId(id).onclick = () => {
+    openAppScreen('calendar');
     resetScheduleForm();
     scheduleKind.value = kind;
     scheduleFields();
