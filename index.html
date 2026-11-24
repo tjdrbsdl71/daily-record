@@ -11,6 +11,11 @@ h1{color:#234b83}
 section{background:white;padding:18px;border-radius:14px;margin:15px 0;box-shadow:0 2px 8px #ddd}
 input,textarea,select,button{box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border:1px solid #ccc;border-radius:8px;font-size:16px}
 button{background:#2463b6;color:white;border:0;font-weight:bold}
+.fields,.totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.totals h3{margin:0 0 6px;font-size:1rem}
+.totals p{margin:4px 0;overflow-wrap:anywhere}
+.totals>div{padding:12px;background:#edf4ff;border-radius:8px}
+@media(max-width:400px){.fields,.totals{grid-template-columns:1fr}}
 article{border-bottom:1px solid #ddd;padding:12px 0;white-space:pre-wrap}
 label{display:block;margin-top:8px}
 button:disabled{opacity:.6}
@@ -42,13 +47,15 @@ button:disabled{opacity:.6}
 <input id="date" type="date">
 <label for="category">분류</label>
 <select id="category">
-<option>일상</option><option>지출</option><option>병원·보험</option><option>운동</option><option>골프·훌라</option><option>기타</option>
+<option>일상</option>
 </select>
+<button id="auto-category" type="button">메모로 자동 분류</button>
 <label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
 <button id="voice" type="button">🎤 음성 입력 시작</button>
 <p id="voice-status" role="status">음성 입력 대기 중</p>
 <p id="voice-preview" hidden>인식 중인 내용: <span id="voice-draft"></span></p>
+<p id="amount-preview" role="status" hidden></p>
 <button id="save" type="submit">기록 저장</button>
 <button id="cancel-edit" type="button" hidden>수정 취소</button>
 </form>
@@ -65,6 +72,14 @@ button:disabled{opacity:.6}
 <p id="error" role="alert"></p>
 <section>
 <h2>저장된 기록</h2>
+<div class="fields">
+<div><label for="filter-date">조회 날짜</label><input id="filter-date" type="date"></div>
+<div><label for="filter-category">조회 분류</label><select id="filter-category"></select></div>
+</div>
+<button id="clear-filters" type="button">조회 조건 초기화</button>
+<h3>수입·지출 합계</h3>
+<p>날짜를 선택하면 해당 일과 월의 합계를 표시합니다. 분류 필터는 기록 목록에 적용됩니다.</p>
+<div class="totals" id="totals"></div>
 <div id="records"></div>
 </section>
 </main>
@@ -84,6 +99,137 @@ const voicePreview = byId('voice-preview');
 const voiceDraft = byId('voice-draft');
 let editingId = null;
 let voiceInput = null;
+let categoryOverride = false;
+const filterDate = byId('filter-date');
+const filterCategory = byId('filter-category');
+const categories = ['일상', '지출', '수입', '운동', '체중', '병원', '보험', '스크린골프',
+  '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
+const categoryRules = [
+  ['스크린골프', /스크린\s*골프|골프존|카카오\s*vx|골프/i],
+  ['훌라', /훌라/],
+  ['보험', /보험|실손|실비/],
+  ['병원', /병원|의원|진료|약국|처방|치과|검진|입원/],
+  ['체중', /체중|몸무게|(?:\d|[킬키])\s*(?:kg\b|킬로(?:그램)?|키로)/i],
+  ['회사 업무', /회사|업무|회의|출근|퇴근|보고서|거래처|프로젝트|출장/],
+  ['운동', /운동|헬스|러닝|달리기|걷기|산책|수영|요가|필라테스|등산|자전거|근력/],
+  ['가족', /가족|엄마|아빠|부모님|어머니|아버지|아들|딸|남편|아내|배우자|아이와/],
+];
+const moneyCue = /(?<income>수입|월급|급여|보너스|환급|환불|입금|매출|용돈을?\s*받|받았|받음|받다|들어왔|들어옴)|(?<expense>지출|결제|구매|구입|출금|이체|납부|지불|소비|썼|씀|냈|낸|냄|사용했)/g;
+const wordDigits = {영: 0, 공: 0, 일: 1, 이: 2, 삼: 3, 사: 4, 오: 5, 육: 6, 칠: 7, 팔: 8, 구: 9};
+const smallUnits = {천: 1000, 백: 100, 십: 10};
+const largeUnits = {억: 100000000, 만: 10000};
+const currency = new Intl.NumberFormat('ko-KR');
+
+function todayDate() {
+  const today = new Date();
+  return new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function option(label, value = label) {
+  const item = document.createElement('option');
+  item.textContent = label;
+  item.value = value;
+  return item;
+}
+
+function setCategories(select, names, selected) {
+  select.replaceChildren(...names.map(name => option(name || '전체 분류', name)));
+  select.value = selected;
+}
+
+function parseWon(text) {
+  let total = 0;
+  let group = 0;
+  let number = null;
+  for (const [token] of text.matchAll(/[\d,]+(?:\.\d+)?|[영공일이삼사오육칠팔구천백십억만]/g)) {
+    if (token in largeUnits) {
+      total += (group + (number ?? (group ? 0 : 1))) * largeUnits[token];
+      group = 0;
+      number = null;
+    } else if (token in smallUnits) {
+      group += (number ?? 1) * smallUnits[token];
+      number = null;
+    } else {
+      number = wordDigits[token] ?? Number(token.replaceAll(',', ''));
+    }
+  }
+  return total + group + (number ?? 0);
+}
+
+function analyze(text, recordedCategory = '') {
+  const totals = {income: 0, expense: 0};
+  const normalized = text.normalize('NFKC');
+  // Keep decimal points and thousands separators inside amounts.
+  const clauses = normalized.split(/\n|[!?;]|(?<!\d)\.(?!\d)|,(?!\d)|\s+(?:그리고|하지만|반면|또는)\s+/);
+  for (const clause of clauses) {
+    const cues = [...clause.matchAll(moneyCue)];
+    const amounts = [...clause.matchAll(/₩\s*([\d,]+(?:\.\d+)?)|([\d영공일이삼사오육칠팔구천백십억만][\d,\.\s영공일이삼사오육칠팔구천백십억만]*?)\s*원(?!장|래|인|본|료)/g)];
+    // A numeric amount without a currency marker needs an explicit nearby money label.
+    for (const cue of cues) {
+      if (!/^(?:수입|지출|월급|급여|보너스|환급|환불|입금|매출|결제|출금|납부)$/.test(cue[0])) continue;
+      const start = cue.index + cue[0].length;
+      const bare = /^\s*[:：]?\s*(\d+(?:,\d{3})*)(?![\d,.%/:\-])(?=\s|$)/.exec(clause.slice(start));
+      if (!bare) continue;
+      const index = start + bare[0].length - bare[1].length;
+      if (amounts.some(amount => amount.index <= index && index < amount.index + amount[0].length)) continue;
+      if (/^\s*(?:개월|시간|분|초|일|월|년|회|명|개|건|번|kg\b|km\b|원|만원|천원|만|천|억)/i.test(clause.slice(index + bare[1].length))) continue;
+      const value = parseWon(bare[1]);
+      if (Number.isSafeInteger(value) && value > 0) totals[cue.groups.income ? 'income' : 'expense'] += value;
+    }
+    for (const [index, amount] of amounts.entries()) {
+      const value = parseWon(amount[1] ?? amount[2]);
+      if (!Number.isSafeInteger(value) || value <= 0) continue;
+      const end = amount.index + amount[0].length;
+      const previous = amounts[index - 1];
+      const lower = previous ? previous.index + previous[0].length : 0;
+      const upper = amounts[index + 1]?.index ?? clause.length;
+      const before = cues.findLast(cue => cue.index >= lower && cue.index < amount.index);
+      const after = cues.find(cue => cue.index >= end && cue.index < upper);
+      // For successive amounts, prefer a verb immediately after the current amount.
+      const gap = after ? clause.slice(end, after.index) : '';
+      const attachesToAmount = /^\s*[을를이가은는]/.test(gap) ||
+        /^(?:받았|받음|받다|들어왔|들어옴|썼|씀|냈|낸|냄|사용했)$/.test(after?.[0] ?? '');
+      const cue = after && (!before || (attachesToAmount && /^[\s을를이가은는]*$/.test(gap))) ? after : before;
+      const type = cue ? (cue.groups.income ? 'income' : 'expense') : null;
+      // Bare amounts count only if the clause contains a purchase context.
+      if (type) totals[type] += value;
+      else if (/식비|점심|저녁|커피|카페|쇼핑|장보기|교통비|택시|주유|병원비|진료비|약값|보험료|이용료|회비|생활비|비용|요금|가격|샀/.test(clause)) {
+        totals.expense += value;
+      } else if (recordedCategory === '지출' || recordedCategory === '수입') {
+        totals[recordedCategory === '수입' ? 'income' : 'expense'] += value;
+      }
+    }
+  }
+  const matched = categoryRules.find(([, pattern]) => pattern.test(normalized));
+  let suggested = matched?.[0] ?? '일상';
+  if (!matched) {
+    if (totals.expense || /지출|결제|구매|구입|납부|샀/.test(normalized)) suggested = '지출';
+    else if (totals.income || /수입|월급|급여|보너스|환급|입금/.test(normalized)) suggested = '수입';
+  }
+  return {...totals, category: suggested};
+}
+
+function moneyText(amount) {
+  return currency.format(amount) + '원';
+}
+
+function updateAnalysis() {
+  const result = analyze(memo.value, categoryOverride ? category.value : '');
+  if (!categoryOverride) category.value = result.category;
+  const preview = byId('amount-preview');
+  preview.hidden = !result.income && !result.expense;
+  preview.textContent = '추출된 금액 · 수입 ' + moneyText(result.income) + ' / 지출 ' + moneyText(result.expense);
+}
+
+category.addEventListener('change', () => {
+  categoryOverride = true;
+  updateAnalysis();
+});
+memo.addEventListener('input', updateAnalysis);
+byId('auto-category').onclick = () => {
+  categoryOverride = false;
+  updateAnalysis();
+};
 
 function report(message = '', isError = false) {
   byId('status').textContent = isError ? '' : message;
@@ -157,24 +303,57 @@ function setEditor(record) {
   stopVoiceForEditor();
   editingId = record?.id ?? null;
   form.reset();
-  const today = new Date();
-  const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
-    .toISOString().slice(0, 10);
-  date.value = record?.date ?? localDate;
-  if (record) {
-    category.value = record.category;
-    memo.value = record.memo;
-  }
+  date.value = record?.date ?? todayDate();
+  const names = [...new Set([...categories, ...(record ? [record.category] : [])])];
+  setCategories(category, names, record?.category ?? '일상');
+  categoryOverride = Boolean(record);
+  if (record) memo.value = record.memo;
+  updateAnalysis();
   byId('editor-title').textContent = record ? '기록 수정' : '새 기록';
   save.textContent = record ? '수정 저장' : '기록 저장';
   byId('cancel-edit').hidden = !record;
 }
 
+function summaryCard(title, amounts) {
+  const card = document.createElement('div');
+  const heading = document.createElement('h3');
+  const income = document.createElement('p');
+  const expense = document.createElement('p');
+  heading.textContent = title;
+  income.textContent = '수입 ' + moneyText(amounts.income);
+  expense.textContent = '지출 ' + moneyText(amounts.expense);
+  card.append(heading, income, expense);
+  return card;
+}
+
 function render(records) {
+  const selected = filterCategory.value;
+  const names = [...new Set([...categories, ...records.map(record => record.category)])];
+  setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
+  const day = filterDate.value || todayDate();
+  const month = day.slice(0, 7);
+  const daily = {income: 0, expense: 0};
+  const monthly = {income: 0, expense: 0};
+  const visible = [];
+  for (const record of records) {
+    const amounts = analyze(record.memo, record.category);
+    if (record.date === day) {
+      daily.income += amounts.income;
+      daily.expense += amounts.expense;
+    }
+    if (record.date.slice(0, 7) === month) {
+      monthly.income += amounts.income;
+      monthly.expense += amounts.expense;
+    }
+    if ((!filterDate.value || record.date === filterDate.value) &&
+        (!filterCategory.value || record.category === filterCategory.value)) visible.push({record, amounts});
+  }
+  byId('totals').replaceChildren(
+    summaryCard(day + ' 일별', daily), summaryCard(month + ' 월별', monthly));
   const target = byId('records');
   target.replaceChildren();
-  if (!records.length) target.textContent = '저장된 기록이 없습니다.';
-  for (const record of records) {
+  if (!visible.length) target.textContent = records.length ? '조회 조건에 맞는 기록이 없습니다.' : '저장된 기록이 없습니다.';
+  for (const {record, amounts} of visible) {
     const article = document.createElement('article');
     const heading = document.createElement('strong');
     heading.textContent = record.date + ' · ' + record.category;
@@ -212,7 +391,13 @@ function render(records) {
         report(error.message, true);
       }
     };
-    article.append(heading, content, edit, remove);
+    article.append(heading, content);
+    if (amounts.income || amounts.expense) {
+      const finance = document.createElement('p');
+      finance.textContent = '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense);
+      article.append(finance);
+    }
+    article.append(edit, remove);
     target.append(article);
   }
 }
@@ -228,6 +413,7 @@ form.onsubmit = event => {
 
 async function saveEditor() {
   if (save.disabled) return;
+  updateAnalysis();
   const previousId = editingId;
   const draft = {date: date.value, category: category.value, memo: memo.value.trim()};
   if (!draft.memo) {
@@ -256,6 +442,8 @@ async function saveEditor() {
       } else {
         stopVoiceForEditor();
         memo.value = '';
+        categoryOverride = false;
+        updateAnalysis();
       }
       render(records);
       report(previousId ? '수정한 기록을 저장했습니다.' : '기록을 저장했습니다.');
@@ -379,6 +567,7 @@ function appendSpeech(input, text) {
   if (!text) return;
   input.field.value = [input.field.value.trimEnd(), text].filter(Boolean).join(' ');
   input.hasTranscript = true;
+  if (input.field === memo) updateAnalysis();
 }
 
 function preservePendingSpeech(input) {
@@ -597,6 +786,14 @@ improvementVoice.onclick = () => toggleVoice(improvementVoice, improvementText, 
 function refresh() {
   withRecords(render).catch(error => report(error.message, true));
 }
+
+filterDate.addEventListener('change', refresh);
+filterCategory.addEventListener('change', refresh);
+byId('clear-filters').onclick = () => {
+  filterDate.value = '';
+  filterCategory.value = '';
+  refresh();
+};
 
 window.addEventListener('storage', event => {
   if (event.key === key || event.key === null) refresh();
