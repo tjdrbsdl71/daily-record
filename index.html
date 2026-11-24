@@ -23,6 +23,17 @@ button:disabled{opacity:.6}
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
+<button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
+<section id="improvement" hidden aria-labelledby="improvement-title">
+<h2 id="improvement-title">프로그램 개선 요청</h2>
+<p>요청 초안은 이 브라우저에 별도로 저장할 수 있습니다. 코덱스에 전달하려면 요청을 복사해 코덱스 대화에 붙여넣으세요.</p>
+<label for="improvement-text">수정하거나 추가할 기능</label>
+<textarea id="improvement-text" rows="5"></textarea>
+<button id="improvement-voice" type="button">🎤 요청 음성 입력 시작</button>
+<button id="improvement-save" type="button">요청 초안 저장</button>
+<button id="improvement-copy" type="button">요청 복사</button>
+<p id="improvement-status" role="status"></p>
+</section>
 <section>
 <h2 id="editor-title">새 기록</h2>
 <form id="editor" novalidate>
@@ -451,6 +462,10 @@ voice.onclick = () => {
     }
     return;
   }
+  if (improvementRecognition) {
+    report('개선 요청 음성 입력을 먼저 종료해 주세요.', true);
+    return;
+  }
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     report('이 브라우저는 음성 입력을 지원하지 않습니다. 갤럭시에서는 Chrome으로 HTTPS 페이지를 열거나 메모를 직접 입력해 주세요.', true);
@@ -461,6 +476,121 @@ voice.onclick = () => {
   voice.textContent = '음성 입력 종료';
   voiceStatus.textContent = '음성 입력 시작 중…';
   startRecognition(voiceInput);
+};
+
+const improvementKey = 'daily-record-improvement-draft-v1';
+const improvementToggle = byId('improvement-toggle');
+const improvement = byId('improvement');
+const improvementText = byId('improvement-text');
+const improvementVoice = byId('improvement-voice');
+const improvementStatus = byId('improvement-status');
+let improvementRecognition = null;
+let improvementLoaded = false;
+
+function finishImprovementVoice(message) {
+  improvementRecognition = null;
+  improvementVoice.disabled = false;
+  improvementVoice.textContent = '🎤 요청 음성 입력 시작';
+  improvementStatus.textContent = message;
+}
+
+improvementToggle.onclick = () => {
+  improvement.hidden = !improvement.hidden;
+  improvementToggle.setAttribute('aria-expanded', String(!improvement.hidden));
+  if (improvement.hidden) {
+    if (improvementRecognition && !improvementVoice.disabled) improvementVoice.click();
+    return;
+  }
+  if (!improvementLoaded) {
+    improvementLoaded = true;
+    try {
+      improvementText.value = localStorage.getItem(improvementKey) ?? '';
+    } catch {
+      improvementStatus.textContent = '저장된 개선 요청 초안을 읽을 수 없습니다.';
+    }
+  }
+  improvementText.focus();
+};
+
+byId('improvement-save').onclick = () => {
+  try {
+    localStorage.setItem(improvementKey, improvementText.value);
+    improvementStatus.textContent = '이 브라우저에 요청 초안을 저장했습니다.';
+  } catch {
+    improvementStatus.textContent = '요청 초안을 저장하지 못했습니다. 요청을 복사해 보관해 주세요.';
+  }
+};
+
+byId('improvement-copy').onclick = async () => {
+  const text = improvementText.value.trim();
+  if (!text) {
+    improvementStatus.textContent = '복사할 개선 요청을 입력해 주세요.';
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    improvementStatus.textContent = '요청을 복사했습니다. 코덱스 대화에 붙여넣으세요.';
+  } catch {
+    improvementText.focus();
+    improvementText.select();
+    improvementStatus.textContent = '자동으로 복사할 수 없습니다. 선택된 요청을 직접 복사해 주세요.';
+  }
+};
+
+improvementVoice.onclick = () => {
+  if (improvementRecognition) {
+    improvementVoice.disabled = true;
+    improvementStatus.textContent = '요청 음성 입력 종료 중…';
+    try {
+      improvementRecognition.stop();
+    } catch {
+      finishImprovementVoice('음성 입력을 종료하지 못했습니다. 다시 시도해 주세요.');
+    }
+    return;
+  }
+  if (voiceInput) {
+    improvementStatus.textContent = '일상 기록 음성 입력을 먼저 종료해 주세요.';
+    return;
+  }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    improvementStatus.textContent = '이 브라우저는 음성 입력을 지원하지 않습니다. 요청을 직접 입력해 주세요.';
+    return;
+  }
+  try {
+    const session = new SpeechRecognition();
+    improvementRecognition = session;
+    session.lang = 'ko-KR';
+    improvementVoice.textContent = '요청 음성 입력 종료';
+    improvementStatus.textContent = '요청 음성 입력 시작 중…';
+    session.onstart = () => {
+      if (improvementRecognition === session && !improvementVoice.disabled) {
+        improvementStatus.textContent = '요청 음성 입력 중…';
+      }
+    };
+    session.onresult = event => {
+      if (improvementRecognition !== session) return;
+      for (let index = event.resultIndex; index < event.results.length; index++) {
+        const result = event.results[index];
+        if (result.isFinal) {
+          improvementText.value = [improvementText.value.trimEnd(), result[0].transcript.trim()]
+            .filter(Boolean).join(' ');
+        }
+      }
+    };
+    session.onerror = event => {
+      if (improvementRecognition !== session) return;
+      finishImprovementVoice(event.error === 'not-allowed'
+        ? '마이크 권한을 허용한 뒤 다시 시도해 주세요.'
+        : '요청을 인식하지 못했습니다. 다시 시도하거나 직접 입력해 주세요.');
+    };
+    session.onend = () => {
+      if (improvementRecognition === session) finishImprovementVoice('요청 음성 입력이 끝났습니다.');
+    };
+    session.start();
+  } catch {
+    finishImprovementVoice('음성 입력을 시작하지 못했습니다. 마이크 설정을 확인해 주세요.');
+  }
 };
 
 function refresh() {
