@@ -57,12 +57,16 @@ button:disabled{opacity:.6}
 #weight-dashboard summary{cursor:pointer}
 .weight-table{width:100%;margin-top:8px;text-align:left;border-collapse:collapse}
 .weight-table th,.weight-table td{padding:6px;border-bottom:1px solid #dae1ec}
+#golf-section details,#golf-players fieldset{min-width:0;padding:10px;margin:10px 0;border:1px solid #dae1ec;border-radius:8px}
+#golf-section summary{cursor:pointer}
+#golf-meal-ranks{display:flex;flex-wrap:wrap;gap:8px}
+#golf-streak{background:#edf4ff;padding:10px;border-radius:8px;color:#234b83}
 </style>
 </head>
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
-<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a></p>
+<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a></p>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -111,6 +115,45 @@ button:disabled{opacity:.6}
 <button id="save" type="submit">기록 저장</button>
 <button id="cancel-edit" type="button" hidden>수정 취소</button>
 </form>
+</section>
+<section id="golf-section" aria-labelledby="golf-heading">
+<h2 id="golf-heading">스크린골프 손익</h2>
+<form id="golf-form">
+<h3 id="golf-form-title">게임 기록</h3>
+<div class="fields">
+<div><label for="golf-date">게임 날짜</label><input id="golf-date" type="date" required></div>
+<div><label for="golf-count">참석 인원</label><select id="golf-count"><option value="4">4명</option><option value="3">3명</option></select></div>
+<div><label for="golf-start">시작 시간</label><input id="golf-start" type="time" required></div>
+<div><label for="golf-end">종료 시간</label><input id="golf-end" type="time" required></div>
+<div><label for="golf-rank">내 순위</label><select id="golf-rank"></select></div>
+<div><label for="golf-advance-method">대신 결제 수단</label><select id="golf-advance-method"></select></div>
+<div><label for="golf-received-method">정산금 수령 수단</label><select id="golf-received-method"></select></div>
+</div>
+<div id="golf-players"></div>
+<p>대신 낸 금액은 내 몫에 포함하지 마세요. 받을 금액을 비우면 대신 낸 금액과 동일하게 계산합니다.</p>
+<details>
+<summary>게임비·식사비 정산 규칙</summary>
+<div id="golf-rules" class="fields"></div>
+<div id="golf-meal-ranks"></div>
+<p id="golf-rule-preview"></p>
+</details>
+<p>내 몫을 비우면 정산 규칙으로 계산한 금액을 적용합니다. 아직 내지 않았으면 0원을 입력하세요. 법인카드 거래는 개인 손익과 일상 수입·지출 합계에서 제외합니다.</p>
+<div id="golf-payments" class="fields"></div>
+<label for="golf-memo">게임 메모</label>
+<textarea id="golf-memo" rows="3" placeholder="예: 4명, 내 순위 2등, 홀당 천 원, 내기 수입 2만 원"></textarea>
+<button id="golf-voice" type="button">🎤 골프 음성 입력 시작</button>
+<p id="golf-voice-status" role="status">말을 마칠 때 “끝”이라고 하면 인식한 항목을 채웁니다. 확인 후 저장하세요.</p>
+<button id="golf-save" type="submit">게임 기록 저장</button>
+<button id="golf-cancel" type="button" hidden>게임 수정 취소</button>
+<p id="golf-status" role="status"></p>
+</form>
+<h3>손익과 경기 성적</h3>
+<div class="fields">
+<div><label for="golf-month">조회 월</label><input id="golf-month" type="month"></div>
+<div><label for="golf-year">조회 연도</label><input id="golf-year" type="number" min="1" max="9999" step="1" inputmode="numeric"></div>
+</div>
+<div id="golf-totals" class="totals"></div>
+<p id="golf-streak" role="status" hidden></p>
 </section>
 <section id="weight-dashboard" aria-labelledby="weight-heading">
 <h2 id="weight-heading">운동·체중 현황</h2>
@@ -378,6 +421,7 @@ function analyze(text, recordedCategory = '') {
 }
 
 function recordAmounts(record) {
+  if (validGolf(record.golf)) return golfCashFlow(record.golf);
   if (Number.isSafeInteger(record.receiptAmount) && record.receiptAmount > 0) {
     return {income: 0, expense: record.receiptAmount};
   }
@@ -441,7 +485,8 @@ function report(message = '', isError = false) {
 
 function validRecord(record) {
   return record && typeof record.date === 'string' &&
-    typeof record.category === 'string' && typeof record.memo === 'string';
+    typeof record.category === 'string' && typeof record.memo === 'string' &&
+    (record.golf === undefined || validGolf(record.golf));
 }
 
 function newId() {
@@ -533,6 +578,7 @@ function summaryCard(title, amounts) {
 
 function render(records) {
   renderFitnessDashboard(records);
+  renderGolf(records);
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
@@ -573,6 +619,10 @@ function render(records) {
         report('음성 입력을 종료한 뒤 기록을 수정해 주세요.');
         return;
       }
+      if (validGolf(record.golf)) {
+        openGolfEditor(record);
+        return;
+      }
       setEditor(record);
       report();
       memo.focus();
@@ -586,10 +636,14 @@ function render(records) {
           if (editingId === record.id && voiceInput?.button === voice) {
             throw new Error('음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
           }
+          if (golfEditingId === record.id && voiceInput?.button === golfVoice) {
+            throw new Error('골프 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
+          }
           const remaining = current.filter(item => item.id !== record.id);
           if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
           writeRecords(remaining);
           if (editingId === record.id) setEditor();
+          if (golfEditingId === record.id) setGolfEditor();
           render(remaining);
           report('기록을 삭제했습니다.');
         });
@@ -598,6 +652,10 @@ function render(records) {
       }
     };
     article.append(heading);
+    if (validGolf(record.golf)) article.append(golfRecordDetails(record));
+    else if (record.category === '스크린골프' || record.category === '골프·훌라' && /골프/.test(record.memo)) {
+      article.append(scheduleButton('스크린골프 손익 기록으로 전환', () => openGolfEditor(record)));
+    }
     const fitness = record.fitness;
     const details = [
       typeof fitness?.type === 'string' ? fitness.type : '',
@@ -744,7 +802,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness);
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf);
 }
 
 function mergeBackup(current, incoming) {
@@ -824,10 +882,11 @@ function completeVoiceInput(input) {
   const {button, hasTranscript} = input;
   finishVoice(hasTranscript ? '음성 입력 종료' : '인식된 음성이 없습니다.');
   if (button === voice && hasTranscript) saveEditor({fromVoice: true});
+  if (button === golfVoice && hasTranscript) fillGolfFromVoice(input.field.value);
 }
 
 function commitSpeech(input, text) {
-  const command = input.button === voice && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
+  const command = (input.button === voice || input.button === golfVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
   const content = command ? text.slice(0, command.index).trimEnd() : text;
   if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
   return Boolean(command);
@@ -949,7 +1008,7 @@ function startRecognition(input) {
 }
 
 function toggleVoice(button, field, status) {
-  if (button === voice && save.disabled) return;
+  if (button === voice && save.disabled || button === golfVoice && byId('golf-save').disabled) return;
   if (voiceInput) {
     const input = voiceInput;
     if (input.button !== button) {
@@ -992,7 +1051,7 @@ function toggleVoice(button, field, status) {
     SpeechRecognition, button, field, status, startLabel: button.textContent,
     session: null, timer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
-  button.textContent = button === voice ? '음성 입력 종료' : '요청 음성 입력 종료';
+  button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' : '요청 음성 입력 종료';
   status.textContent = '음성 입력 시작 중…';
   startRecognition(voiceInput);
 }
@@ -1119,7 +1178,7 @@ improvementConfirm.onclick = () => {
     localStorage.setItem(improvementHistoryKey, JSON.stringify(next));
     renderImprovementHistory(next);
     if (savedDraft !== null && savedDraft.trim() === request.text) localStorage.removeItem(improvementKey);
-    if (improvementText.value === request.draft) improvementText.value = '';
+    if (improvementText.value.trim() === request.text) improvementText.value = '';
     improvementStatus.textContent = '전송 완료를 확인했습니다. 다음 수정 요청을 입력할 수 있습니다.';
     improvementText.focus();
   } catch {
@@ -1574,6 +1633,441 @@ window.addEventListener('storage', event => {
   }
 });
 
+const golfForm = byId('golf-form');
+const golfDate = byId('golf-date');
+const golfCount = byId('golf-count');
+const golfRank = byId('golf-rank');
+const golfMemo = byId('golf-memo');
+const golfVoice = byId('golf-voice');
+const golfVoiceStatus = byId('golf-voice-status');
+const golfStatus = byId('golf-status');
+const golfMonth = byId('golf-month');
+const golfYear = byId('golf-year');
+const golfMethods = {personal: '개인카드', corporate: '법인카드', cash: '현금', transfer: '계좌이체'};
+const golfPaymentFields = {
+  game: '실제 내 몫 게임비', meal: '실제 내 몫 식사비',
+  betIn: '내기 수입', betOut: '내기 지출', hole: '홀당 내기 금액', side: '대판 금액',
+};
+let golfEditingId = null;
+let golfRecords = [];
+
+function golfField(id, labelText, type, container) {
+  const wrapper = document.createElement('div');
+  const label = document.createElement('label');
+  const input = document.createElement(type === 'select' ? 'select' : 'input');
+  label.htmlFor = input.id = id;
+  label.textContent = labelText;
+  if (type !== 'select') input.type = type;
+  if (type === 'number') {
+    input.min = '0';
+    input.max = '1000000000';
+    input.step = '1';
+    input.inputMode = 'numeric';
+  }
+  if (type === 'text') input.maxLength = 80;
+  wrapper.append(label, input);
+  container.append(wrapper);
+  return input;
+}
+
+function golfMethodOptions(select) {
+  select.replaceChildren(...Object.entries(golfMethods).map(([value, label]) => option(label, value)));
+}
+
+function golfNumber(id) {
+  return byId(id).valueAsNumber || 0;
+}
+
+function golfRuleDefaults(count) {
+  return {fullFourth: null, supportSecond: 10000, supportThird: 10000,
+    mealRanks: count === 4 ? [3, 4] : [2, 3],
+    firstTransfer: count === 4 ? [1, 4] : [1, 2], secondTransfer: count === 4 ? [2, 3] : [1, 3]};
+}
+
+function golfRuleAmounts(count, rules, players, mealTotal) {
+  const games = players.map(player => player.gameFee);
+  const meals = players.map(() => 0);
+  const transfer = (from, to, amount) => {
+    const support = Math.min(games[to - 1], amount);
+    games[from - 1] += support;
+    games[to - 1] -= support;
+  };
+  const [payer, recipient] = rules.firstTransfer;
+  transfer(payer, recipient, count === 4 ? rules.fullFourth ?? games[recipient - 1] : rules.supportSecond);
+  transfer(...rules.secondTransfer, rules.supportThird);
+  if (!rules.mealRanks.length) return {games, meals};
+  const portion = Math.floor(mealTotal / rules.mealRanks.length);
+  const remainder = mealTotal % rules.mealRanks.length;
+  rules.mealRanks.forEach((rank, index) => {
+    meals[rank - 1] = portion + (index < remainder ? 1 : 0);
+  });
+  return {games, meals};
+}
+
+function currentGolf() {
+  const count = Number(golfCount.value);
+  const players = Array.from({length: count}, (_, index) => {
+    const rank = index + 1;
+    const advance = golfNumber('golf-advance-' + rank);
+    const due = byId('golf-due-' + rank);
+    return {name: byId('golf-name-' + rank).value.trim(), gameFee: golfNumber('golf-fee-' + rank),
+      advance, due: due.value === '' ? null : golfNumber(due.id), received: golfNumber('golf-received-' + rank)};
+  });
+  const rules = {
+    fullFourth: byId('golf-cover-fourth').value === '' ? null : golfNumber('golf-cover-fourth'),
+    supportSecond: golfNumber('golf-support-second'),
+    supportThird: golfNumber('golf-support-third'),
+    firstTransfer: ['payer', 'recipient'].map(role => Number(byId('golf-first-' + role).value)),
+    secondTransfer: ['payer', 'recipient'].map(role => Number(byId('golf-second-' + role).value)),
+    mealRanks: players.map((_, index) => index + 1).filter(rank => byId('golf-meal-rank-' + rank).checked),
+  };
+  const values = {};
+  const methods = {};
+  for (const key of Object.keys(golfPaymentFields)) {
+    const input = byId('golf-' + key);
+    values[key] = input.value === '' && (key === 'game' || key === 'meal') ? null : golfNumber(input.id);
+    if (byId('golf-method-' + key)) methods[key] = byId('golf-method-' + key).value;
+  }
+  return {start: byId('golf-start').value, end: byId('golf-end').value,
+    myRank: Number(golfRank.value), players, rules, mealTotal: golfNumber('golf-meal-total'),
+    values, methods, advanceMethod: byId('golf-advance-method').value,
+    receivedMethod: byId('golf-received-method').value};
+}
+
+function golfCashFlow(golf) {
+  const {players, myRank, rules, mealTotal, values, methods} = golf;
+  const {games, meals} = golfRuleAmounts(players.length, rules, players, mealTotal);
+  const game = values.game ?? games[myRank - 1];
+  const meal = values.meal ?? meals[myRank - 1];
+  const advances = players.filter((_, index) => index + 1 !== myRank);
+  const advance = advances.reduce((sum, player) => sum + player.advance, 0);
+  const received = advances.reduce((sum, player) => sum + player.received, 0);
+  const pending = advances.reduce((sum, player) => sum + Math.max(0, (player.due ?? player.advance) - player.received), 0);
+  const personal = (amount, method) => method === 'corporate' ? 0 : amount;
+  const income = personal(values.betIn, methods.betIn) + personal(received, golf.receivedMethod);
+  const expense = personal(game, methods.game) + personal(meal, methods.meal) +
+    personal(values.betOut, methods.betOut) + personal(advance, golf.advanceMethod);
+  return {income, expense, game, meal, advance, received, pending, net: income - expense};
+}
+
+function updateGolfPreview() {
+  const golf = currentGolf();
+  golf.players.forEach((_, index) => {
+    const rank = index + 1;
+    for (const key of ['advance', 'due', 'received']) byId('golf-' + key + '-' + rank).disabled = rank === golf.myRank;
+  });
+  const amounts = golfRuleAmounts(golf.players.length, golf.rules, golf.players, golf.mealTotal);
+  const game = byId('golf-game');
+  const meal = byId('golf-meal');
+  game.placeholder = amounts.games[golf.myRank - 1];
+  meal.placeholder = amounts.meals[golf.myRank - 1];
+  byId('golf-rule-preview').textContent = amounts.games.map((fee, index) =>
+    (index + 1) + '등 게임비 ' + moneyText(fee) + ' · 식사비 ' + moneyText(amounts.meals[index])).join(' / ');
+}
+
+function fillGolfPlayers(count, players = [], rank = 1, rules = golfRuleDefaults(count)) {
+  golfRank.replaceChildren(...Array.from({length: count}, (_, index) => option((index + 1) + '등', String(index + 1))));
+  golfRank.value = String(Math.min(rank, count));
+  const group = byId('golf-players');
+  const mealRanks = byId('golf-meal-ranks');
+  group.replaceChildren();
+  mealRanks.replaceChildren();
+  for (let index = 1; index <= count; index++) {
+    const player = players[index - 1] ?? {};
+    const fieldset = document.createElement('fieldset');
+    const legend = document.createElement('legend');
+    const fields = document.createElement('div');
+    legend.textContent = index + '등 참석자';
+    fields.className = 'fields';
+    const name = golfField('golf-name-' + index, '이름', 'text', fields);
+    name.required = true;
+    name.value = player.name ?? '';
+    for (const [key, label] of Object.entries({fee: '기본 게임비 (원)', advance: '대신 낸 금액 (원)',
+      due: '받을 금액 (원)', received: '실제 받은 금액 (원)'})) {
+      const input = golfField('golf-' + key + '-' + index, label, 'number', fields);
+      input.value = player[key === 'fee' ? 'gameFee' : key] ?? '';
+    }
+    fieldset.append(legend, fields);
+    group.append(fieldset);
+    const label = document.createElement('label');
+    const box = document.createElement('input');
+    label.className = 'calendar-check';
+    box.type = 'checkbox';
+    box.id = 'golf-meal-rank-' + index;
+    box.checked = rules.mealRanks.includes(index);
+    label.append(box, index + '등 식사비 부담');
+    mealRanks.append(label);
+  }
+  for (const [step, values] of [['first', rules.firstTransfer], ['second', rules.secondTransfer]]) {
+    for (const [index, role] of ['payer', 'recipient'].entries()) {
+      const select = byId('golf-' + step + '-' + role);
+      select.replaceChildren(...Array.from(golfRank.options, existing => option(existing.label, existing.value)));
+      select.value = String(values[index]);
+    }
+  }
+  byId('golf-cover-fourth').value = rules.fullFourth ?? '';
+  byId('golf-cover-fourth').disabled = count !== 4;
+  byId('golf-support-second').value = rules.supportSecond;
+  byId('golf-support-second').disabled = count !== 3;
+  byId('golf-support-third').value = rules.supportThird;
+  updateGolfPreview();
+}
+
+function setGolfEditor(record) {
+  golfEditingId = record?.id ?? null;
+  golfForm.reset();
+  const golf = record?.golf;
+  golfDate.value = record?.date ?? todayDate();
+  golfCount.value = String(golf?.players.length ?? 4);
+  byId('golf-start').value = golf?.start ?? '';
+  byId('golf-end').value = golf?.end ?? '';
+  golfMemo.value = record?.memo ?? '';
+  byId('golf-meal-total').value = golf?.mealTotal ?? '';
+  for (const key of Object.keys(golfPaymentFields)) {
+    byId('golf-' + key).value = golf?.values[key] ?? '';
+    const method = byId('golf-method-' + key);
+    if (method && golf) method.value = golf.methods[key];
+  }
+  byId('golf-advance-method').value = golf?.advanceMethod ?? 'personal';
+  byId('golf-received-method').value = golf?.receivedMethod ?? 'transfer';
+  fillGolfPlayers(Number(golfCount.value), golf?.players, golf?.myRank, golf?.rules);
+  byId('golf-form-title').textContent = record ? '게임 수정' : '게임 기록';
+  byId('golf-cancel').hidden = !record;
+}
+
+function openGolfEditor(record) {
+  if (voiceInput?.button === golfVoice || byId('golf-save').disabled) {
+    report('골프 음성 입력이나 저장을 마친 뒤 게임을 수정해 주세요.');
+    return;
+  }
+  setGolfEditor(record);
+  golfDate.focus();
+}
+
+function golfSummary(title, records) {
+  const card = document.createElement('div');
+  const heading = document.createElement('h3');
+  heading.textContent = title;
+  card.append(heading);
+  let wins = 0;
+  let profit = 0;
+  let loss = 0;
+  let pending = 0;
+  for (const {golf} of records) {
+    if (golf.myRank === 1) wins++;
+    const {net, pending: due} = golfCashFlow(golf);
+    profit += Math.max(0, net);
+    loss += Math.max(0, -net);
+    pending += due;
+  }
+  const winRate = records.length ? new Intl.NumberFormat('ko-KR', {maximumFractionDigits: 1}).format(wins / records.length * 100) : '0';
+  for (const text of ['게임 ' + records.length + '회 · 1등 ' + wins + '회 · 승률 ' + winRate + '%',
+    '순수익 ' + moneyText(profit) + ' · 순손실 ' + moneyText(loss),
+    '손익 합계 ' + moneyText(profit - loss), '미정산 ' + moneyText(pending)]) {
+    const line = document.createElement('p');
+    line.textContent = text;
+    card.append(line);
+  }
+  return card;
+}
+
+function renderGolf(records) {
+  golfRecords = records.filter(record => validGolf(record.golf));
+  const month = golfMonth.value || todayDate().slice(0, 7);
+  const year = golfYear.value || todayDate().slice(0, 4);
+  byId('golf-totals').replaceChildren(
+    golfSummary(month, golfRecords.filter(record => record.date.slice(0, 7) === month)),
+    golfSummary(year + '년', golfRecords.filter(record => record.date.slice(0, 4) === year)));
+  const chronological = [...golfRecords].sort((a, b) =>
+    (b.date + b.golf.start).localeCompare(a.date + a.golf.start));
+  let streak = 0;
+  for (const {golf} of chronological) {
+    if (golf.myRank !== 1) break;
+    streak++;
+  }
+  const banner = byId('golf-streak');
+  banner.hidden = streak < 3;
+  banner.textContent = streak >= 3 ? streak + '회 연속 1등 · 화이트티에서 블루티로 변경할 차례입니다.' : '';
+}
+
+function validGolf(golf) {
+  if (!golf || ![3, 4].includes(golf.players?.length)) return false;
+  const rank = value => Number.isInteger(value) && value >= 1 && value <= golf.players.length;
+  const money = value => Number.isSafeInteger(value) && value >= 0 && value <= 1000000000;
+  const time = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  const method = value => Object.hasOwn(golfMethods, value);
+  const pair = value => Array.isArray(value) && value.length === 2 &&
+    value.every(rank) && value[0] !== value[1];
+  const rules = golf.rules;
+  return golf.players.every(player => player && typeof player.name === 'string' && player.name.trim() &&
+      [player.gameFee, player.advance, player.received].every(money) && (player.due === null || money(player.due))) &&
+    rank(golf.myRank) && time(golf.start) && time(golf.end) && money(golf.mealTotal) &&
+    Array.isArray(rules?.mealRanks) && rules.mealRanks.every(rank) &&
+    new Set(rules.mealRanks).size === rules.mealRanks.length &&
+    (!golf.mealTotal || rules.mealRanks.length > 0) && pair(rules.firstTransfer) && pair(rules.secondTransfer) &&
+    (rules.fullFourth === null || money(rules.fullFourth)) && money(rules.supportSecond) && money(rules.supportThird) &&
+    golf.values && golf.methods && method(golf.advanceMethod) && method(golf.receivedMethod) &&
+    ['betIn', 'betOut', 'hole', 'side'].every(key => money(golf.values[key])) &&
+    ['game', 'meal'].every(key => golf.values[key] === null || money(golf.values[key])) &&
+    ['game', 'meal', 'betIn', 'betOut'].every(key => method(golf.methods[key]));
+}
+
+function golfRecordDetails(record) {
+  const golf = record.golf;
+  const block = document.createElement('div');
+  const {net, game, meal, pending, advance, received} = golfCashFlow(golf);
+  const {games, meals} = golfRuleAmounts(golf.players.length, golf.rules, golf.players, golf.mealTotal);
+  const method = key => golfMethods[golf.methods[key]];
+  const lines = [
+    golf.start + '–' + golf.end + (golf.end < golf.start ? ' (다음 날 종료)' : '') + ' · ' + golf.players.length + '명 · 내 순위 ' + golf.myRank + '등',
+    '게임비 ' + moneyText(game) + ' (' + method('game') + ') · 식사비 ' + moneyText(meal) + ' (' + method('meal') + ')',
+    '홀당 ' + moneyText(golf.values.hole) + ' · 대판 ' + moneyText(golf.values.side),
+    '내기 수입 ' + moneyText(golf.values.betIn) + ' (' + method('betIn') + ') · 내기 지출 ' + moneyText(golf.values.betOut) + ' (' + method('betOut') + ')',
+    '대신 결제 ' + moneyText(advance) + ' (' + golfMethods[golf.advanceMethod] + ') · 실제 수령 ' + moneyText(received) + ' · 미정산 ' + moneyText(pending),
+    '실제 ' + (net < 0 ? '순손실 ' : '순수익 ') + moneyText(Math.abs(net)),
+  ];
+  for (const [index, player] of golf.players.entries()) {
+    const rank = index + 1;
+    let text = rank + '등 ' + player.name + ' · 정산 게임비 ' + moneyText(games[index]) + ' · 식사비 ' + moneyText(meals[index]);
+    if (rank !== golf.myRank) {
+      const due = player.due ?? player.advance;
+      text += ' · 대신 결제 ' + moneyText(player.advance) + ' · 받을 금액 ' + moneyText(due) +
+        ' · 받은 금액 ' + moneyText(player.received) + ' · 미정산 ' + moneyText(Math.max(0, due - player.received));
+    }
+    lines.push(text);
+  }
+  for (const text of lines) {
+    const line = document.createElement('p');
+    line.textContent = text;
+    block.append(line);
+  }
+  return block;
+}
+
+function fillGolfFromVoice(text) {
+  const spoken = text.normalize('NFKC');
+  const count = /([34])\s*명/.exec(spoken)?.[1];
+  const rank = /(?:내\s*순위\s*[:：]?\s*|내가\s*)?([1-4])\s*등/.exec(spoken)?.[1];
+  if (count) {
+    golfCount.value = count;
+    golfCount.onchange();
+  }
+  if (rank && Number(rank) <= Number(golfCount.value)) golfRank.value = rank;
+  if (/내기|게임비|식사비|대판|홀당/.test(spoken)) {
+    const labels = {game: '게임비', meal: '식사비', betIn: '내기\\s*수입', betOut: '내기\\s*지출',
+      hole: '홀당', side: '대판'};
+    for (const [key, label] of Object.entries(labels)) {
+      const match = new RegExp(label + '\\s*[:：]?\\s*([\\d,영공일이삼사오육칠팔구천백십억만\\s]+)원').exec(spoken);
+      const amount = match ? parseWon(match[1]) : 0;
+      if (Number.isSafeInteger(amount) && amount > 0 && amount <= 1000000000) byId('golf-' + key).value = amount;
+    }
+  }
+  const names = /참석자\s*[:：]?\s*([^.;!?]+?)(?=\s*(?:내\s*순위|게임비|식사비|내기|홀당|대판|시작|종료)|$)/u.exec(spoken);
+  if (names) {
+    names[1].split(/\s*[,·、]\s*|\s+그리고\s+/).slice(0, Number(golfCount.value)).forEach((name, index) => {
+      if (name.trim()) byId('golf-name-' + (index + 1)).value = name.trim();
+    });
+  }
+  const date = /\b(\d{4})[-./]\s*(\d{1,2})[-./]\s*(\d{1,2})\b/.exec(spoken);
+  if (date) {
+    const value = date[1] + '-' + date[2].padStart(2, '0') + '-' + date[3].padStart(2, '0');
+    if (validScheduleDate(value)) golfDate.value = value;
+  }
+  for (const key of ['start', 'end']) {
+    const label = key === 'start' ? '시작' : '종료';
+    const match = new RegExp(label + '\\s*[:：]?\\s*(?:(오전|오후)\\s*)?(\\d{1,2})(?:\\s*[:시]\\s*(\\d{1,2})?)').exec(spoken);
+    if (!match) continue;
+    const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2]);
+    const minute = Number(match[3] ?? 0);
+    if (hour < 24 && minute < 60) byId('golf-' + key).value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+  }
+  updateGolfPreview();
+  golfVoiceStatus.textContent = '인식한 항목과 메모를 채웠습니다. 참석자와 금액을 확인한 후 저장하세요.';
+}
+
+function initializeGolf() {
+  const rules = byId('golf-rules');
+  golfField('golf-meal-total', '전체 식사비 (원)', 'number', rules);
+  golfField('golf-first-payer', '첫 번째 지원 · 부담 순위', 'select', rules);
+  golfField('golf-first-recipient', '첫 번째 지원 · 받는 순위', 'select', rules);
+  golfField('golf-cover-fourth', '4명 · 첫 번째 지원액 (원, 빈칸은 전액)', 'number', rules);
+  golfField('golf-support-second', '3명 · 첫 번째 지원액 (원)', 'number', rules);
+  golfField('golf-second-payer', '두 번째 지원 · 부담 순위', 'select', rules);
+  golfField('golf-second-recipient', '두 번째 지원 · 받는 순위', 'select', rules);
+  golfField('golf-support-third', '두 번째 지원액 (원)', 'number', rules);
+  const payments = byId('golf-payments');
+  for (const [key, label] of Object.entries(golfPaymentFields)) {
+    golfField('golf-' + key, label + ' (원)', 'number', payments);
+    if (key !== 'hole' && key !== 'side') golfMethodOptions(golfField('golf-method-' + key, label + ' 결제 수단', 'select', payments));
+  }
+  golfMethodOptions(byId('golf-advance-method'));
+  golfMethodOptions(byId('golf-received-method'));
+  const now = todayDate();
+  golfMonth.value = now.slice(0, 7);
+  golfYear.value = now.slice(0, 4);
+  setGolfEditor();
+}
+
+golfCount.onchange = () => {
+  const oldCount = golfRank.options.length;
+  const players = Array.from({length: oldCount}, (_, index) => {
+    const rank = index + 1;
+    const read = field => byId('golf-' + field + '-' + rank).value;
+    return {name: read('name'), gameFee: read('fee'), advance: read('advance'), due: read('due'), received: read('received')};
+  });
+  fillGolfPlayers(Number(golfCount.value), players, Number(golfRank.value));
+};
+golfForm.addEventListener('input', updateGolfPreview);
+golfMonth.onchange = golfYear.oninput = () => renderGolf(golfRecords);
+byId('golf-cancel').onclick = () => {
+  if (voiceInput?.button !== golfVoice) setGolfEditor();
+};
+golfVoice.onclick = () => toggleVoice(golfVoice, golfMemo, golfVoiceStatus);
+
+golfForm.onsubmit = async event => {
+  event.preventDefault();
+  if (voiceInput?.button === golfVoice) {
+    golfStatus.textContent = '음성 입력을 종료한 뒤 저장해 주세요.';
+    return;
+  }
+  const button = byId('golf-save');
+  if (button.disabled) return;
+  const golf = currentGolf();
+  if (!validGolf(golf) || !validScheduleDate(golfDate.value)) {
+    golfStatus.textContent = '날짜, 시간, 참석자 이름과 게임비·식사비 부담 순위를 확인해 주세요.';
+    return;
+  }
+  const editing = golfEditingId;
+  const id = editing ?? newId();
+  const draft = {id, date: golfDate.value, category: '스크린골프', memo: golfMemo.value.trim(), golf};
+  button.disabled = true;
+  try {
+    await withRecords(records => {
+      if (editing) {
+        const index = records.findIndex(record => record.id === id);
+        if (index === -1) throw new Error('이미 삭제된 게임입니다.');
+        records[index] = {...records[index], ...draft};
+        delete records[index].receiptAmount;
+        if (editingId === id) setEditor();
+      } else {
+        records.unshift(draft);
+      }
+      writeRecords(records);
+      const month = draft.date.slice(0, 7);
+      golfMonth.value = month;
+      golfYear.value = month.slice(0, 4);
+      setGolfEditor();
+      render(records);
+    });
+    golfStatus.textContent = '스크린골프 게임을 저장했습니다.';
+  } catch (error) {
+    golfStatus.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+
+initializeGolf();
 setEditor();
 refresh();
 
