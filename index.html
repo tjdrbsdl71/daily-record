@@ -61,12 +61,14 @@ button:disabled{opacity:.6}
 #golf-section summary{cursor:pointer}
 #golf-meal-ranks{display:flex;flex-wrap:wrap;gap:8px}
 #golf-streak{background:#edf4ff;padding:10px;border-radius:8px;color:#234b83}
+.hula-profit{color:#174ca3;font-weight:bold}
+.hula-loss{color:#a52626;font-weight:bold}
 </style>
 </head>
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
-<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a></p>
+<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a></p>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -154,6 +156,36 @@ button:disabled{opacity:.6}
 </div>
 <div id="golf-totals" class="totals"></div>
 <p id="golf-streak" role="status" hidden></p>
+</section>
+<section id="hula-section" aria-labelledby="hula-heading">
+<h2 id="hula-heading">전투 훌라 손익</h2>
+<form id="hula-form">
+<h3 id="hula-title">게임 기록</h3>
+<div class="fields">
+<div><label for="hula-date">게임 날짜</label><input id="hula-date" type="date" required></div>
+<div><label for="hula-count">참석 인원</label><input id="hula-count" type="number" min="1" step="1" inputmode="numeric" required></div>
+<div><label for="hula-start">시작 시간</label><input id="hula-start" type="time" required></div>
+<div><label for="hula-end">종료 시간</label><input id="hula-end" type="time" required></div>
+</div>
+<label for="hula-names">참석자 이름</label>
+<textarea id="hula-names" rows="2" placeholder="쉼표나 줄바꿈으로 이름 구분" required></textarea>
+<div id="hula-cash" class="fields"></div>
+<p>별도 지출은 게임 손익과 따로 집계합니다. 남은 현금에서 이미 빠진 지출은 ‘보유 현금으로 낸 별도 지출’에 입력하세요.</p>
+<p id="hula-preview" role="status"></p>
+<label for="hula-memo">게임 메모</label>
+<textarea id="hula-memo" rows="3"></textarea>
+<button id="hula-voice" type="button">🎤 훌라 음성 입력 시작</button>
+<p id="hula-voice-status" role="status">예: “3명, 참석자 민수, 영수, 철수. 시작 19시, 종료 22시, 시작 현금 5만 원, 남은 현금 7만 원. 끝”</p>
+<button id="hula-save" type="submit">훌라 게임 저장</button>
+<button id="hula-cancel" type="button" hidden>훌라 수정 취소</button>
+<p id="hula-status" role="status"></p>
+</form>
+<h3>월별·연간 통계</h3>
+<div class="fields">
+<div><label for="hula-month">조회 월</label><input id="hula-month" type="month"></div>
+<div><label for="hula-year">조회 연도</label><input id="hula-year" type="number" min="1" max="9999" step="1" inputmode="numeric"></div>
+</div>
+<div id="hula-totals" class="totals"></div>
 </section>
 <section id="weight-dashboard" aria-labelledby="weight-heading">
 <h2 id="weight-heading">운동·체중 현황</h2>
@@ -421,6 +453,7 @@ function analyze(text, recordedCategory = '') {
 }
 
 function recordAmounts(record) {
+  if (validHula(record.hula)) return hulaCashFlow(record.hula);
   if (validGolf(record.golf)) return golfCashFlow(record.golf);
   if (Number.isSafeInteger(record.receiptAmount) && record.receiptAmount > 0) {
     return {income: 0, expense: record.receiptAmount};
@@ -486,7 +519,7 @@ function report(message = '', isError = false) {
 function validRecord(record) {
   return record && typeof record.date === 'string' &&
     typeof record.category === 'string' && typeof record.memo === 'string' &&
-    (record.golf === undefined || validGolf(record.golf));
+    (record.golf === undefined || validGolf(record.golf)) && (record.hula === undefined || validHula(record.hula));
 }
 
 function newId() {
@@ -579,6 +612,7 @@ function summaryCard(title, amounts) {
 function render(records) {
   renderFitnessDashboard(records);
   renderGolf(records);
+  renderHula(records);
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
@@ -619,6 +653,10 @@ function render(records) {
         report('음성 입력을 종료한 뒤 기록을 수정해 주세요.');
         return;
       }
+      if (validHula(record.hula)) {
+        openHulaEditor(record);
+        return;
+      }
       if (validGolf(record.golf)) {
         openGolfEditor(record);
         return;
@@ -639,11 +677,15 @@ function render(records) {
           if (golfEditingId === record.id && voiceInput?.button === golfVoice) {
             throw new Error('골프 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
           }
+          if (hulaEditingId === record.id && voiceInput?.button === hulaVoice) {
+            throw new Error('훌라 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
+          }
           const remaining = current.filter(item => item.id !== record.id);
           if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
           writeRecords(remaining);
           if (editingId === record.id) setEditor();
           if (golfEditingId === record.id) setGolfEditor();
+          if (hulaEditingId === record.id) setHulaEditor();
           render(remaining);
           report('기록을 삭제했습니다.');
         });
@@ -652,9 +694,15 @@ function render(records) {
       }
     };
     article.append(heading);
-    if (validGolf(record.golf)) article.append(golfRecordDetails(record));
-    else if (record.category === '스크린골프' || record.category === '골프·훌라' && /골프/.test(record.memo)) {
-      article.append(scheduleButton('스크린골프 손익 기록으로 전환', () => openGolfEditor(record)));
+    if (validHula(record.hula)) article.append(hulaRecordDetails(record.hula));
+    else if (validGolf(record.golf)) article.append(golfRecordDetails(record));
+    else {
+      if (record.category === '스크린골프' || record.category === '골프·훌라' && /골프/.test(record.memo)) {
+        article.append(scheduleButton('스크린골프 손익 기록으로 전환', () => openGolfEditor(record)));
+      }
+      if (record.category === '훌라' || record.category === '골프·훌라' && /훌라/.test(record.memo)) {
+        article.append(scheduleButton('전투 훌라 손익 기록으로 전환', () => openHulaEditor(record)));
+      }
     }
     const fitness = record.fitness;
     const details = [
@@ -802,7 +850,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf);
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula);
 }
 
 function mergeBackup(current, incoming) {
@@ -883,10 +931,11 @@ function completeVoiceInput(input) {
   finishVoice(hasTranscript ? '음성 입력 종료' : '인식된 음성이 없습니다.');
   if (button === voice && hasTranscript) saveEditor({fromVoice: true});
   if (button === golfVoice && hasTranscript) fillGolfFromVoice(input.field.value);
+  if (button === hulaVoice && hasTranscript) fillHulaFromVoice(input.field.value);
 }
 
 function commitSpeech(input, text) {
-  const command = (input.button === voice || input.button === golfVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
+  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
   const content = command ? text.slice(0, command.index).trimEnd() : text;
   if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
   return Boolean(command);
@@ -1008,7 +1057,8 @@ function startRecognition(input) {
 }
 
 function toggleVoice(button, field, status) {
-  if (button === voice && save.disabled || button === golfVoice && byId('golf-save').disabled) return;
+  if (button === voice && save.disabled || button === golfVoice && byId('golf-save').disabled ||
+      button === hulaVoice && byId('hula-save').disabled) return;
   if (voiceInput) {
     const input = voiceInput;
     if (input.button !== button) {
@@ -1051,7 +1101,8 @@ function toggleVoice(button, field, status) {
     SpeechRecognition, button, field, status, startLabel: button.textContent,
     session: null, timer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
-  button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' : '요청 음성 입력 종료';
+  button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' :
+    button === hulaVoice ? '훌라 음성 입력 종료' : '요청 음성 입력 종료';
   status.textContent = '음성 입력 시작 중…';
   startRecognition(voiceInput);
 }
@@ -2067,7 +2118,274 @@ golfForm.onsubmit = async event => {
   }
 };
 
+const hulaForm = byId('hula-form');
+const hulaDate = byId('hula-date');
+const hulaCount = byId('hula-count');
+const hulaNames = byId('hula-names');
+const hulaMemo = byId('hula-memo');
+const hulaVoice = byId('hula-voice');
+const hulaVoiceStatus = byId('hula-voice-status');
+const hulaStatus = byId('hula-status');
+const hulaMonth = byId('hula-month');
+const hulaYear = byId('hula-year');
+const hulaCashLabels = {
+  opening: '시작 전 보유 현금', closing: '종료 후 남은 현금', added: '추가로 가져온 현금',
+  cashExpense: '보유 현금으로 낸 별도 지출', otherExpense: '카드 등으로 낸 별도 지출',
+};
+let hulaEditingId = null;
+let hulaRecords = [];
+
+function hulaDuration(start, end) {
+  const minutes = time => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+  return (minutes(end) - minutes(start) + 1440) % 1440;
+}
+
+function hulaNet(game) {
+  return game.closing - game.opening - game.added + game.cashExpense;
+}
+
+function hulaCashFlow(game) {
+  const net = hulaNet(game);
+  return {income: Math.max(0, net), expense: Math.max(0, -net) + game.cashExpense + game.otherExpense};
+}
+
+function validHula(game) {
+  if (!game || !Array.isArray(game.names) || !game.names.length ||
+      !game.names.every(name => typeof name === 'string' && name.trim())) return false;
+  const time = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  return time(game.start) && time(game.end) && hulaDuration(game.start, game.end) > 0 &&
+    Object.keys(hulaCashLabels).every(key => Number.isSafeInteger(game[key]) && game[key] >= 0 && game[key] <= 1000000000);
+}
+
+function currentHula() {
+  const game = {
+    start: byId('hula-start').value, end: byId('hula-end').value,
+    names: hulaNames.value.split(/[,，·、\n]+/u).map(name => name.trim()).filter(Boolean),
+  };
+  for (const key of Object.keys(hulaCashLabels)) {
+    const input = byId('hula-' + key);
+    game[key] = input.value === '' && !input.required ? 0 : input.valueAsNumber;
+  }
+  return game;
+}
+
+function hulaTimeText(minutes) {
+  return (minutes >= 60 ? Math.floor(minutes / 60) + '시간 ' : '') + minutes % 60 + '분';
+}
+
+function hulaResult(element, net) {
+  element.classList.toggle('hula-profit', net > 0);
+  element.classList.toggle('hula-loss', net < 0);
+}
+
+function hulaResultText(net) {
+  return net > 0 ? '게임 순수익 ' + moneyText(net) : net < 0 ? '게임 순손실 ' + moneyText(-net) : '게임 본전 · 0원';
+}
+
+function updateHulaPreview() {
+  const game = currentHula();
+  const preview = byId('hula-preview');
+  const duration = game.start && game.end ? hulaDuration(game.start, game.end) : 0;
+  const total = hulaNet(game);
+  const showNet = Number.isFinite(total) &&
+    Object.keys(hulaCashLabels).every(key => byId('hula-' + key).validity.valid);
+  preview.textContent = [duration ? '게임 시간 ' + hulaTimeText(duration) +
+    (game.end < game.start ? ' (다음 날 종료)' : '') : '', showNet ? hulaResultText(total) : ''].filter(Boolean).join(' · ');
+  hulaResult(preview, showNet ? total : 0);
+}
+
+function setHulaEditor(record) {
+  hulaEditingId = record?.id ?? null;
+  hulaForm.reset();
+  const game = record?.hula;
+  hulaDate.value = record?.date ?? todayDate();
+  byId('hula-start').value = game?.start ?? '';
+  byId('hula-end').value = game?.end ?? '';
+  hulaCount.value = game?.names.length ?? '';
+  hulaNames.value = game?.names.join(', ') ?? '';
+  hulaMemo.value = record?.memo ?? '';
+  for (const key of Object.keys(hulaCashLabels)) byId('hula-' + key).value = game?.[key] ?? '';
+  byId('hula-title').textContent = record ? '훌라 게임 수정' : '게임 기록';
+  byId('hula-cancel').hidden = !record;
+  updateHulaPreview();
+}
+
+function openHulaEditor(record) {
+  if (voiceInput?.button === hulaVoice || byId('hula-save').disabled) {
+    report('훌라 음성 입력이나 저장을 마친 뒤 수정해 주세요.');
+    return;
+  }
+  setHulaEditor(record);
+  hulaDate.focus();
+}
+
+function hulaRecordDetails(game) {
+  const block = document.createElement('div');
+  const result = document.createElement('strong');
+  const net = hulaNet(game);
+  result.textContent = hulaResultText(net);
+  hulaResult(result, net);
+  block.append(result);
+  const lines = [
+    game.start + '–' + game.end + (game.end < game.start ? ' (다음 날 종료)' : '') +
+      ' · ' + hulaTimeText(hulaDuration(game.start, game.end)),
+    game.names.length + '명 · ' + game.names.join(', '),
+    ...Object.entries(hulaCashLabels).map(([key, label]) => label + ' ' + moneyText(game[key])),
+  ];
+  for (const text of lines) {
+    const line = document.createElement('p');
+    line.textContent = text;
+    block.append(line);
+  }
+  return block;
+}
+
+function hulaSummary(title, records) {
+  const card = document.createElement('div');
+  const heading = document.createElement('h3');
+  heading.textContent = title;
+  card.append(heading);
+  let wins = 0;
+  let losses = 0;
+  let profit = 0;
+  let loss = 0;
+  let minutes = 0;
+  for (const {hula} of records) {
+    const net = hulaNet(hula);
+    if (net > 0) { wins++; profit += net; }
+    if (net < 0) { losses++; loss -= net; }
+    minutes += hulaDuration(hula.start, hula.end);
+  }
+  const net = profit - loss;
+  const rate = records.length ? new Intl.NumberFormat('ko-KR', {maximumFractionDigits: 1}).format(wins / records.length * 100) : '0';
+  const average = minutes ? Math.round(net * 60 / minutes) : 0;
+  const lines = [
+    ['게임 ' + records.length + '회 · 승리 ' + wins + '회 · 패배 ' + losses + '회 · 본전 ' +
+      (records.length - wins - losses) + '회', 0],
+    ['승률 ' + rate + '%', 0],
+    ['총수익 ' + moneyText(profit), profit],
+    ['총손실 ' + moneyText(loss), -loss],
+    ['누적 순손익 ' + moneyText(net), net],
+    ['총 게임 시간 ' + hulaTimeText(minutes), 0],
+    ['시간당 평균 손익 ' + moneyText(average), average],
+  ];
+  for (const [text, amount] of lines) {
+    const line = document.createElement('p');
+    line.textContent = text;
+    hulaResult(line, amount);
+    card.append(line);
+  }
+  return card;
+}
+
+function renderHula(records) {
+  hulaRecords = records.filter(record => validHula(record.hula));
+  const today = todayDate();
+  const month = hulaMonth.value || today.slice(0, 7);
+  const year = hulaYear.value || today.slice(0, 4);
+  byId('hula-totals').replaceChildren(
+    hulaSummary(month, hulaRecords.filter(record => record.date.slice(0, 7) === month)),
+    hulaSummary(year + '년', hulaRecords.filter(record => record.date.slice(0, 4) === year)));
+}
+
+function fillHulaFromVoice(text) {
+  const spoken = text.normalize('NFKC');
+  const count = /(?<!\d)(\d{1,2})\s*명/.exec(spoken)?.[1];
+  if (count) hulaCount.value = count;
+  const names = /참석자\s*[:：]?\s*([^.;!?]+?)(?=\s*(?:시작|종료|보유\s*현금|남은\s*현금|추가\s*현금|식사비)|[.;!?]|$)/u.exec(spoken);
+  if (names) {
+    hulaNames.value = names[1].trim().replace(/[,\s]+$/u, '').replace(/\s+그리고\s+/g, ', ');
+    if (!count) hulaCount.value = currentHula().names.length;
+  }
+  const date = /(?<!\d)(\d{4})\s*(?:[-./]|년)\s*(\d{1,2})\s*(?:[-./]|월)\s*(\d{1,2})(?!\d)/u.exec(spoken);
+  if (date) {
+    const value = date[1] + '-' + date[2].padStart(2, '0') + '-' + date[3].padStart(2, '0');
+    if (validScheduleDate(value)) hulaDate.value = value;
+  }
+  for (const [key, label] of [['start', '시작'], ['end', '종료']]) {
+    const match = new RegExp(label + '\\s*[:：]?\\s*(?:(오전|오후)\\s*)?(\\d{1,2})(?:\\s*[:시]\\s*(\\d{1,2})?)').exec(spoken);
+    if (!match) continue;
+    const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2]);
+    const minute = Number(match[3] ?? 0);
+    if (hour < 24 && minute < 60) byId('hula-' + key).value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+  }
+  const labels = {
+    opening: '시작\\s*(?:전\\s*)?(?:보유\\s*)?현금|보유\\s*현금',
+    closing: '(?:종료\\s*(?:후\\s*)?)?남은\\s*현금|종료\\s*현금',
+    added: '추가(?:로\\s*가져온)?\\s*현금',
+    cashExpense: '현금\\s*(?:별도\\s*지출|식사비)',
+    otherExpense: '(?:카드|계좌이체)\\s*(?:별도\\s*지출|식사비)',
+  };
+  for (const [key, label] of Object.entries(labels)) {
+    const match = new RegExp('(?:' + label + ')\\s*[:：]?\\s*([\\d,영공일이삼사오육칠팔구천백십억만\\s]+)원').exec(spoken);
+    if (!match) continue;
+    const amount = parseWon(match[1]);
+    if (Number.isSafeInteger(amount) && amount >= 0 && amount <= 1000000000) byId('hula-' + key).value = amount;
+  }
+  updateHulaPreview();
+  hulaVoiceStatus.textContent = '인식한 항목을 채웠습니다. 시간과 현금 내역을 확인한 후 저장하세요.';
+}
+
+function initializeHula() {
+  for (const [key, label] of Object.entries(hulaCashLabels)) {
+    const input = golfField('hula-' + key, label + ' (원)', 'number', byId('hula-cash'));
+    input.required = key === 'opening' || key === 'closing';
+  }
+  hulaMonth.value = todayDate().slice(0, 7);
+  hulaYear.value = todayDate().slice(0, 4);
+  setHulaEditor();
+}
+
+hulaForm.addEventListener('input', updateHulaPreview);
+hulaMonth.onchange = hulaYear.oninput = () => renderHula(hulaRecords);
+hulaVoice.onclick = () => toggleVoice(hulaVoice, hulaMemo, hulaVoiceStatus);
+byId('hula-cancel').onclick = () => {
+  if (voiceInput?.button !== hulaVoice) setHulaEditor();
+};
+
+hulaForm.onsubmit = async event => {
+  event.preventDefault();
+  if (voiceInput?.button === hulaVoice) {
+    hulaStatus.textContent = '음성 입력을 종료한 뒤 저장해 주세요.';
+    return;
+  }
+  const button = byId('hula-save');
+  if (button.disabled) return;
+  const hula = currentHula();
+  if (!validScheduleDate(hulaDate.value) || !validHula(hula) || hulaCount.valueAsNumber !== hula.names.length) {
+    hulaStatus.textContent = '참석자 수와 이름이 일치하는지, 시작·종료 시간이 서로 다른지, 현금 금액이 올바른지 확인해 주세요.';
+    return;
+  }
+  const editing = hulaEditingId;
+  const draft = {id: editing ?? newId(), date: hulaDate.value, category: '훌라', memo: hulaMemo.value.trim(), hula};
+  button.disabled = true;
+  try {
+    await withRecords(records => {
+      if (editing) {
+        const index = records.findIndex(record => record.id === editing);
+        if (index === -1) throw new Error('이미 삭제된 게임입니다.');
+        records[index] = {...records[index], ...draft};
+        delete records[index].receiptAmount;
+        if (editingId === editing) setEditor();
+      } else {
+        records.unshift(draft);
+      }
+      writeRecords(records);
+      hulaMonth.value = draft.date.slice(0, 7);
+      hulaYear.value = draft.date.slice(0, 4);
+      setHulaEditor();
+      render(records);
+    });
+    hulaStatus.textContent = '훌라 게임을 저장했습니다.';
+  } catch (error) {
+    hulaStatus.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+
 initializeGolf();
+initializeHula();
 setEditor();
 refresh();
 
