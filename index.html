@@ -73,12 +73,63 @@ button:disabled{opacity:.6}
 .card-progress.at-limit{accent-color:#ae2929}
 .card-warning{color:#9b1c1c;font-weight:bold}
 .card-photo{display:block;max-width:100%;max-height:320px;object-fit:contain}
+#unified-section details,#tracking-options{min-width:0;border:1px solid #dae1ec;border-radius:8px;padding:10px;margin:10px 0}
+#unified-section summary,#tracking-options summary{cursor:pointer}
+#unified-home>div,#stats-summary>div,#stats-comparison>div{min-width:0;overflow-wrap:anywhere}
+.stats-bar-label{display:block;margin-top:10px}
+.stats-bar{display:block;width:100%;height:12px;accent-color:#2463b6}
+.stats-expense-bar{accent-color:#a64927}
 </style>
 </head>
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
 <p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a> · <a href="#cards-heading">카드 사용·한도</a> · <a href="#vehicle-heading">차량 픽업·운행비</a> · <a href="#farm-heading">시골 방문·농사일</a></p>
+<section id="unified-section" aria-labelledby="unified-heading">
+<h2 id="unified-heading">종합 현황</h2>
+<div id="unified-home" class="totals"></div>
+<details id="unified-search">
+<summary>통합 검색</summary>
+<form id="unified-search-form">
+<div class="fields">
+<div><label for="search-from">시작일</label><input id="search-from" type="date"></div>
+<div><label for="search-to">종료일</label><input id="search-to" type="date"></div>
+<div><label for="search-keyword">이름·단어</label><input id="search-keyword" type="search" placeholder="여러 단어는 공백으로 구분"></div>
+<div><label for="search-kind">기록 종류</label><select id="search-kind"></select></div>
+<div><label for="search-min">최소 금액 (원)</label><input id="search-min" type="number" min="0" step="1" inputmode="numeric"></div>
+<div><label for="search-max">최대 금액 (원)</label><input id="search-max" type="number" min="0" step="1" inputmode="numeric"></div>
+</div>
+<button type="submit">검색</button>
+<button id="search-clear" type="button">조건 초기화</button>
+</form>
+<p id="search-status" role="status"></p>
+<div id="search-results"></div>
+<button id="search-more" type="button" hidden>검색 결과 더 보기</button>
+</details>
+<details id="unified-stats">
+<summary>기간별 종합 통계</summary>
+<form id="unified-stats-form">
+<div class="fields">
+<div><label for="stats-period">집계 기간</label><select id="stats-period"><option value="month">월별</option><option value="year">연간</option><option value="custom">기간 직접 선택</option></select></div>
+<div id="stats-month-field"><label for="stats-month">조회 월</label><input id="stats-month" type="month" required></div>
+<div id="stats-year-field" hidden><label for="stats-year">조회 연도</label><input id="stats-year" type="number" min="1" max="9999" step="1" required></div>
+<div id="stats-from-field" hidden><label for="stats-from">시작일</label><input id="stats-from" type="date" required></div>
+<div id="stats-to-field" hidden><label for="stats-to">종료일</label><input id="stats-to" type="date" required></div>
+</div>
+<button type="submit">기간 적용</button>
+</form>
+<p id="stats-status" role="status"></p>
+<div id="stats-summary" class="totals"></div>
+<details>
+<summary>지난달과 이번 달 비교</summary>
+<div id="stats-comparison" class="totals"></div>
+</details>
+<details>
+<summary>항목별 지출 비중과 월별 변화</summary>
+<div id="stats-charts"></div>
+</details>
+</details>
+</section>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -117,6 +168,17 @@ button:disabled{opacity:.6}
 <div><label for="exercise-minutes">운동 시간 (분)</label><input id="exercise-minutes" type="number" min="1" step="1" inputmode="numeric"></div>
 <div><label for="body-weight">체중 (kg)</label><input id="body-weight" type="number" min="0.01" step="0.01" inputmode="decimal"></div>
 </div>
+</details>
+<details id="tracking-options">
+<summary>보험금·담배 구매 기록</summary>
+<div class="fields">
+<div><label for="insurance-claim">보험금 청구액 (원)</label><input id="insurance-claim" type="number" min="0" max="1000000000" step="1"></div>
+<div><label for="insurance-received">실제 수령 보험금 (원)</label><input id="insurance-received" type="number" min="0" max="1000000000" step="1"></div>
+<div><label for="tobacco-quantity">담배 구입 수량</label><input id="tobacco-quantity" type="number" min="1" max="1000000" step="1"></div>
+<div><label for="tobacco-unit">담배 수량 단위</label><select id="tobacco-unit"><option value="갑">갑</option><option value="보루">보루</option><option value="개">개</option></select></div>
+<div><label for="tobacco-cost">담배 구입 지출 (원)</label><input id="tobacco-cost" type="number" min="0" max="1000000000" step="1"></div>
+</div>
+<p>보험금이 들어오면 같은 청구 기록의 수령액을 수정하세요. 담배 비용은 담배 구입만 기록한 항목에 입력하세요.</p>
 </details>
 <label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
@@ -526,7 +588,7 @@ let voiceInput = null;
 let categoryOverride = false;
 const filterDate = byId('filter-date');
 const filterCategory = byId('filter-category');
-const categories = ['일상', '지출', '수입', '차량', '시골·농사', '운동', '체중', '병원', '보험', '스크린골프',
+const categories = ['일상', '지출', '수입', '차량', '시골·농사', '담배', '운동', '체중', '병원', '보험', '스크린골프',
   '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
 const categoryRules = [
   ['스크린골프', /스크린\s*골프|골프존|카카오\s*vx|골프/i],
@@ -638,10 +700,12 @@ function recordAmounts(record) {
   if (validCardUse(record.cardUse)) return cardCashFlow(record.cardUse);
   if (validHula(record.hula)) return hulaCashFlow(record.hula);
   if (validGolf(record.golf)) return golfCashFlow(record.golf);
-  if (Number.isSafeInteger(record.receiptAmount) && record.receiptAmount > 0) {
-    return {income: 0, expense: record.receiptAmount};
-  }
-  return analyze(record.memo, record.category);
+  const flow = Number.isSafeInteger(record.receiptAmount) && record.receiptAmount > 0
+    ? {income: 0, expense: record.receiptAmount} : analyze(record.memo, record.category);
+  if (validInsurance(record.insurance)) flow.income = record.insurance.received;
+  if (validTobacco(record.tobacco) && record.tobacco.cost !== null) flow.expense = record.tobacco.cost;
+  else if (!flow.expense) flow.expense = tobaccoEntry(record, flow)?.cost ?? 0;
+  return flow;
 }
 
 function moneyText(amount) {
@@ -705,7 +769,9 @@ function validRecord(record) {
     (record.golf === undefined || validGolf(record.golf)) && (record.hula === undefined || validHula(record.hula)) &&
     (record.cardUse === undefined || validCardUse(record.cardUse)) &&
     (record.vehicle === undefined || validVehicle(record.vehicle)) &&
-    (record.farm === undefined || validFarm(record.farm));
+    (record.farm === undefined || validFarm(record.farm)) &&
+    (record.insurance === undefined || validInsurance(record.insurance)) &&
+    (record.tobacco === undefined || validTobacco(record.tobacco));
 }
 
 function newId() {
@@ -777,6 +843,7 @@ function setEditor(record) {
   categoryOverride = Boolean(record);
   if (record) memo.value = record.memo;
   showFitnessFields(record?.fitness);
+  trackingFields(record);
   updateAnalysis();
   byId('editor-title').textContent = record ? '기록 수정' : '새 기록';
   save.textContent = record ? '수정 저장' : '기록 저장';
@@ -802,6 +869,7 @@ function render(records) {
   renderCards(records);
   renderVehicle(records);
   renderFarm(records);
+  renderUnified(records);
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
@@ -828,123 +896,136 @@ function render(records) {
   const target = byId('records');
   target.replaceChildren();
   if (!visible.length) target.textContent = records.length ? '조회 조건에 맞는 기록이 없습니다.' : '저장된 기록이 없습니다.';
-  for (const {record, amounts} of visible) {
-    const article = document.createElement('article');
-    const heading = document.createElement('strong');
-    heading.textContent = record.date + ' · ' + record.category;
-    const content = document.createElement('p');
-    content.textContent = record.memo;
-    const edit = document.createElement('button');
-    edit.textContent = '수정';
-    edit.onclick = () => {
-      if (save.disabled) return;
-      if (voiceInput?.button === voice) {
-        report('음성 입력을 종료한 뒤 기록을 수정해 주세요.');
-        return;
-      }
-      if (validFarm(record.farm)) {
-        openFarmEditor(record);
-        return;
-      }
-      if (validVehicle(record.vehicle)) {
-        openVehicleEditor(record);
-        return;
-      }
-      if (validCardUse(record.cardUse)) {
-        openCardUse(record);
-        return;
-      }
-      if (validHula(record.hula)) {
-        openHulaEditor(record);
-        return;
-      }
-      if (validGolf(record.golf)) {
-        openGolfEditor(record);
-        return;
-      }
-      setEditor(record);
-      report();
-      memo.focus();
-    };
-    const remove = document.createElement('button');
-    remove.textContent = '삭제';
-    remove.onclick = async () => {
-      if (!confirm('삭제할까요?')) return;
-      try {
-        await withRecords(current => {
-          if (editingId === record.id && voiceInput?.button === voice) {
-            throw new Error('음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
-          }
-          if (golfEditingId === record.id && voiceInput?.button === golfVoice) {
-            throw new Error('골프 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
-          }
-          if (hulaEditingId === record.id && voiceInput?.button === hulaVoice) {
-            throw new Error('훌라 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
-          }
-          if (cardEditingId === record.id && voiceInput?.button === cardVoice) {
-            throw new Error('카드 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
-          }
-          if (vehicleEditingId === record.id && voiceInput?.button === vehicleVoice) {
-            throw new Error('차량 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
-          }
-          if (farmEditingId === record.id && voiceInput?.button === farmVoice) {
-            throw new Error('시골 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
-          }
-          const remaining = current.filter(item => item.id !== record.id);
-          if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
-          writeRecords(remaining);
-          if (editingId === record.id) setEditor();
-          if (golfEditingId === record.id) setGolfEditor();
-          if (hulaEditingId === record.id) setHulaEditor();
-          if (cardEditingId === record.id) setCardUse();
-          if (vehicleEditingId === record.id) setVehicleEditor();
-          if (farmEditingId === record.id) setFarmEditor();
-          render(remaining);
-          report('기록을 삭제했습니다.');
-        });
-      } catch (error) {
-        report(error.message, true);
-      }
-    };
-    article.append(heading);
-    if (validFarm(record.farm)) article.append(farmRecordDetails(record.farm));
-    else if (validVehicle(record.vehicle)) article.append(vehicleRecordDetails(record.vehicle));
-    else if (validCardUse(record.cardUse)) article.append(cardUseDetails(record.cardUse));
-    else if (validHula(record.hula)) article.append(hulaRecordDetails(record.hula));
-    else if (validGolf(record.golf)) article.append(golfRecordDetails(record));
-    else {
-      if (record.category === '지출' && amounts.expense && !amounts.income) {
-        article.append(scheduleButton('카드 사용 기록으로 전환', () => openCardUse(record)));
-      }
-      if (record.category === '스크린골프' || record.category === '골프·훌라' && /골프/.test(record.memo)) {
-        article.append(scheduleButton('스크린골프 손익 기록으로 전환', () => openGolfEditor(record)));
-      }
-      if (record.category === '훌라' || record.category === '골프·훌라' && /훌라/.test(record.memo)) {
-        article.append(scheduleButton('전투 훌라 손익 기록으로 전환', () => openHulaEditor(record)));
-      }
+  for (const {record, amounts} of visible) target.append(renderRecordArticle(record, amounts));
+}
+
+function renderRecordArticle(record, amounts) {
+  const article = document.createElement('article');
+  const heading = document.createElement('strong');
+  heading.textContent = record.date + ' · ' + record.category;
+  const content = document.createElement('p');
+  content.textContent = record.memo;
+  const edit = document.createElement('button');
+  edit.textContent = '수정';
+  edit.onclick = () => {
+    if (save.disabled) return;
+    if (voiceInput?.button === voice) {
+      report('음성 입력을 종료한 뒤 기록을 수정해 주세요.');
+      return;
     }
-    const fitness = record.fitness;
-    const details = [
-      typeof fitness?.type === 'string' ? fitness.type : '',
-      Number.isFinite(fitness?.minutes) ? fitness.minutes + '분' : '',
-      fitnessIntensities[fitness?.intensity] ?? '',
-      Number.isFinite(fitness?.calories) ? '예상 ' + currency.format(fitness.calories) + 'kcal' : '',
-      Number.isFinite(fitness?.weight) ? '체중 ' + fitness.weight + 'kg' : '',
-    ].filter(Boolean);
-    if (details.length) {
-      const activity = document.createElement('p');
-      activity.textContent = details.join(' · ');
-      article.append(activity);
+    if (validFarm(record.farm)) {
+      openFarmEditor(record);
+      return;
     }
-    if (record.memo) article.append(content);
-    if (amounts.income || amounts.expense) {
-      const finance = document.createElement('p');
-      finance.textContent = '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense);
-      article.append(finance);
+    if (validVehicle(record.vehicle)) {
+      openVehicleEditor(record);
+      return;
     }
-    article.append(edit, remove);
-    target.append(article);
+    if (validCardUse(record.cardUse)) {
+      openCardUse(record);
+      return;
+    }
+    if (validHula(record.hula)) {
+      openHulaEditor(record);
+      return;
+    }
+    if (validGolf(record.golf)) {
+      openGolfEditor(record);
+      return;
+    }
+    setEditor(record);
+    report();
+    memo.focus();
+  };
+  const remove = document.createElement('button');
+  remove.textContent = '삭제';
+  remove.onclick = async () => {
+    if (!confirm('삭제할까요?')) return;
+    try {
+      await withRecords(current => {
+        if (editingId === record.id && voiceInput?.button === voice) {
+          throw new Error('음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
+        }
+        if (golfEditingId === record.id && voiceInput?.button === golfVoice) {
+          throw new Error('골프 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
+        }
+        if (hulaEditingId === record.id && voiceInput?.button === hulaVoice) {
+          throw new Error('훌라 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
+        }
+        if (cardEditingId === record.id && voiceInput?.button === cardVoice) {
+          throw new Error('카드 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
+        }
+        if (vehicleEditingId === record.id && voiceInput?.button === vehicleVoice) {
+          throw new Error('차량 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
+        }
+        if (farmEditingId === record.id && voiceInput?.button === farmVoice) {
+          throw new Error('시골 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
+        }
+        const remaining = current.filter(item => item.id !== record.id);
+        if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
+        writeRecords(remaining);
+        if (editingId === record.id) setEditor();
+        if (golfEditingId === record.id) setGolfEditor();
+        if (hulaEditingId === record.id) setHulaEditor();
+        if (cardEditingId === record.id) setCardUse();
+        if (vehicleEditingId === record.id) setVehicleEditor();
+        if (farmEditingId === record.id) setFarmEditor();
+        render(remaining);
+        report('기록을 삭제했습니다.');
+      });
+    } catch (error) {
+      report(error.message, true);
+    }
+  };
+  article.append(heading);
+  if (validFarm(record.farm)) article.append(farmRecordDetails(record.farm));
+  else if (validVehicle(record.vehicle)) article.append(vehicleRecordDetails(record.vehicle));
+  else if (validCardUse(record.cardUse)) article.append(cardUseDetails(record.cardUse));
+  else if (validHula(record.hula)) article.append(hulaRecordDetails(record.hula));
+  else if (validGolf(record.golf)) article.append(golfRecordDetails(record));
+  else {
+    if (record.category === '지출' && amounts.expense && !amounts.income) {
+      article.append(scheduleButton('카드 사용 기록으로 전환', () => openCardUse(record)));
+    }
+    if (record.category === '스크린골프' || record.category === '골프·훌라' && /골프/.test(record.memo)) {
+      article.append(scheduleButton('스크린골프 손익 기록으로 전환', () => openGolfEditor(record)));
+    }
+    if (record.category === '훌라' || record.category === '골프·훌라' && /훌라/.test(record.memo)) {
+      article.append(scheduleButton('전투 훌라 손익 기록으로 전환', () => openHulaEditor(record)));
+    }
   }
+  const fitness = record.fitness;
+  const details = [
+    typeof fitness?.type === 'string' ? fitness.type : '',
+    Number.isFinite(fitness?.minutes) ? fitness.minutes + '분' : '',
+    fitnessIntensities[fitness?.intensity] ?? '',
+    Number.isFinite(fitness?.calories) ? '예상 ' + currency.format(fitness.calories) + 'kcal' : '',
+    Number.isFinite(fitness?.weight) ? '체중 ' + fitness.weight + 'kg' : '',
+  ].filter(Boolean);
+  if (details.length) {
+    const activity = document.createElement('p');
+    activity.textContent = details.join(' · ');
+    article.append(activity);
+  }
+  if (validInsurance(record.insurance)) {
+    cardLines(article, [
+      ...(record.insurance.claim !== null ? ['청구액 ' + moneyText(record.insurance.claim)] : []),
+      '실제 수령 ' + moneyText(record.insurance.received) + ' · 미수령 ' + moneyText(insuranceUnpaid(record)),
+    ]);
+  }
+  if (validTobacco(record.tobacco)) {
+    const purchase = tobaccoEntry(record, amounts);
+    cardLines(article, ['담배 ' + (purchase.quantity === null ? '수량 미입력' : purchase.quantity + purchase.unit) +
+      ' · 구입 지출 ' + moneyText(purchase.cost)]);
+  }
+  if (record.memo) article.append(content);
+  if (amounts.income || amounts.expense) {
+    const finance = document.createElement('p');
+    finance.textContent = '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense);
+    article.append(finance);
+  }
+  article.append(edit, remove);
+  return article;
 }
 
 form.onsubmit = event => {
@@ -985,8 +1066,13 @@ async function saveEditor({fromVoice = false} = {}) {
       ...(bodyWeight.value ? {weight} : {}),
     };
   }
-  if (!draft.memo && !draft.fitness) {
-    report('메모, 운동 또는 체중을 입력해 주세요.', true);
+  if (!trackingDraft(draft)) {
+    report('보험금과 담배 수량·금액은 입력 범위 안의 정수여야 합니다.', true);
+    trackingOptions.open = true;
+    return;
+  }
+  if (!draft.memo && !draft.fitness && !draft.insurance && !draft.tobacco) {
+    report('메모나 기록 항목을 입력해 주세요.', true);
     memo.focus();
     return;
   }
@@ -1000,10 +1086,11 @@ async function saveEditor({fromVoice = false} = {}) {
     await withRecords(records => {
       const duplicate = fromVoice && !previousId && records.some(record =>
         record.date === draft.date && voiceMemoKey(record.memo) === voiceMemoKey(draft.memo) &&
-        sameFitness(record.fitness, draft.fitness));
+        sameFitness(record.fitness, draft.fitness) && sameTracking(record, draft));
       if (duplicate) {
         memo.value = '';
         showFitnessFields();
+        trackingFields();
         categoryOverride = false;
         updateAnalysis();
         report('같은 날짜에 동일한 내용의 기록이 이미 있습니다.');
@@ -1017,6 +1104,8 @@ async function saveEditor({fromVoice = false} = {}) {
         const updated = {...original, ...draft};
         if (original.memo !== draft.memo) delete updated.receiptAmount;
         if (!draft.fitness) delete updated.fitness;
+        if (!draft.insurance) delete updated.insurance;
+        if (!draft.tobacco) delete updated.tobacco;
         records[index] = updated;
       } else {
         withWorkoutCalories(draft, records);
@@ -1029,6 +1118,7 @@ async function saveEditor({fromVoice = false} = {}) {
         stopVoiceForEditor();
         memo.value = '';
         showFitnessFields();
+        trackingFields();
         categoryOverride = false;
         updateAnalysis();
       }
@@ -1069,7 +1159,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm);
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm) && sameTracking(a, b);
 }
 
 function mergeBackup(current, incoming) {
@@ -1887,6 +1977,7 @@ byId('weight-goals').onsubmit = event => {
   try {
     localStorage.setItem(weightGoalKey, JSON.stringify({start, target}));
     renderFitnessDashboard(dashboardRecords);
+    renderUnifiedHome();
     status.textContent = '시작·목표 체중을 저장했습니다.';
   } catch {
     status.textContent = '체중 설정을 저장할 수 없습니다.';
@@ -1905,6 +1996,7 @@ window.addEventListener('storage', event => {
   if (event.key === weightGoalKey || event.key === null) {
     setGoalFields();
     renderFitnessDashboard(dashboardRecords);
+    renderUnifiedHome();
   }
 });
 
@@ -2645,6 +2737,8 @@ function changeCards(operation) {
     localStorage.setItem(cardKey, JSON.stringify(cards));
     cardSettings = cards;
     renderCards(cardRecords);
+    renderUnifiedHome();
+    renderUnifiedSearch();
   };
   return navigator.locks ? navigator.locks.request(cardKey, run) : Promise.resolve().then(run);
 }
@@ -3069,6 +3163,8 @@ window.addEventListener('storage', event => {
   try {
     cardSettings = readCards();
     renderCards(cardRecords);
+    renderUnifiedHome();
+    renderUnifiedSearch();
   } catch (error) {
     cardRegistryStatus.textContent = error.message;
   }
@@ -3630,6 +3726,501 @@ farmForm.onsubmit = async event => {
   }
 };
 
+const searchForm = byId('unified-search-form');
+const searchKind = byId('search-kind');
+const statsPeriod = byId('stats-period');
+const trackingOptions = byId('tracking-options');
+let unifiedRecords = [];
+let searchCriteria = null;
+let searchLimit = 25;
+let statsRange;
+const initialUnifiedDate = todayDate();
+
+function sameTracking(a, b) {
+  return a.insurance?.claim === b.insurance?.claim && a.insurance?.received === b.insurance?.received &&
+    a.tobacco?.quantity === b.tobacco?.quantity && a.tobacco?.cost === b.tobacco?.cost && a.tobacco?.unit === b.tobacco?.unit;
+}
+
+function validInsurance(value) {
+  const money = n => Number.isSafeInteger(n) && n >= 0 && n <= 1000000000;
+  return value && (value.claim === null || money(value.claim)) && money(value.received);
+}
+
+function validTobacco(value) {
+  return value && (value.quantity === null || Number.isSafeInteger(value.quantity) && value.quantity > 0 && value.quantity <= 1000000) &&
+    ['갑', '보루', '개'].includes(value.unit) &&
+    (value.cost === null || Number.isSafeInteger(value.cost) && value.cost >= 0 && value.cost <= 1000000000);
+}
+
+function trackingFields(record) {
+  byId('insurance-claim').value = record?.insurance?.claim ?? '';
+  byId('insurance-received').value = record?.insurance?.received ?? '';
+  byId('tobacco-quantity').value = record?.tobacco?.quantity ?? '';
+  byId('tobacco-unit').value = record?.tobacco?.unit ?? '갑';
+  byId('tobacco-cost').value = record?.tobacco?.cost ?? '';
+  trackingOptions.open = Boolean(record?.insurance || record?.tobacco);
+}
+
+function trackingDraft(draft) {
+  const number = id => byId(id).value !== '' ? byId(id).valueAsNumber : null;
+  const claim = number('insurance-claim');
+  const received = number('insurance-received');
+  const quantity = number('tobacco-quantity');
+  const cost = number('tobacco-cost');
+  const fields = ['insurance-claim', 'insurance-received', 'tobacco-quantity', 'tobacco-cost'];
+  if (fields.some(id => !byId(id).validity.valid)) return false;
+  if (claim !== null || received !== null) draft.insurance = {claim, received: received ?? 0};
+  if (quantity !== null || cost !== null) draft.tobacco = {quantity, unit: byId('tobacco-unit').value, cost};
+  if (!categoryOverride && !draft.fitness) {
+    if (draft.insurance) draft.category = '보험';
+    else if (draft.tobacco) draft.category = '담배';
+  }
+  return true;
+}
+
+function isHospital(record) {
+  if (record.category === '병원') return true;
+  const text = [record.memo, record.cardUse?.merchant, record.cardUse?.purpose].filter(Boolean).join(' ');
+  return /병원비|진료비|치과|검진비|입원비|수술비|약국|약값|병원\s*결제|의원\s*결제/.test(text) ||
+    record.category === '병원·보험' && /병원|의원|진료|검진|입원|수술/.test(text) ||
+    /병원|의원/.test(record.cardUse?.merchant ?? '');
+}
+
+function insuranceAmount(record, flow) {
+  if (validInsurance(record.insurance)) return record.insurance.received;
+  if (/미수령|미지급|청구\s*예정|보험금\s*예상/.test(record.memo)) return 0;
+  return (record.category === '보험' || record.category === '병원·보험' || /보험금|실비|실손/.test(record.memo)) &&
+    /보험금|보험.*수령|보험.*입금|보험.*지급|실비|실손/.test(record.memo) ? flow.income : 0;
+}
+
+function insuranceUnpaid(record) {
+  return validInsurance(record.insurance) && record.insurance.claim !== null
+    ? Math.max(0, record.insurance.claim - record.insurance.received) : 0;
+}
+
+function tobaccoEntry(record, flow) {
+  if (validTobacco(record.tobacco)) return {...record.tobacco, cost: record.tobacco.cost ?? flow.expense};
+  if (record.category !== '담배' && !/담배|전자담배/.test(record.memo)) return null;
+  // Mixed legacy receipts need an explicit tobacco amount before allocating any of their costs.
+  const clean = record.memo.normalize('NFKC').trim();
+  const purchase = /^(?:담배|전자담배)\s*(?:구입|구매)?\s*(?:(\d+)\s*(갑|보루|개)\s*)?(?:(\d[\d,]*)\s*원\s*)?(?:결제|구입|구매|지출)?[.!?。！？]*$/u.exec(clean);
+  if (!purchase && record.category !== '담배') return null;
+  return {quantity: purchase?.[1] ? Number(purchase[1]) : null, unit: purchase?.[2] ?? '갑', cost: flow.expense || Number(purchase?.[3]?.replaceAll(',', '') || 0)};
+}
+
+function outstandingAmount(record) {
+  if (validGolf(record.golf)) return golfCashFlow(record.golf).pending;
+  if (validCardUse(record.cardUse) && record.cardUse.type === 'personal' && !record.cardUse.onlyCard) {
+    return record.cardUse.advance - record.cardUse.refund;
+  }
+  return 0;
+}
+
+function normalizedSearch(value) {
+  return String(value).normalize('NFKC').toLocaleLowerCase('ko-KR');
+}
+
+function recordSearchText(record) {
+  const {golf, hula, cardUse, vehicle, farm, fitness} = record;
+  return normalizedSearch([record.category, record.memo, golf?.players.map(p => p.name).join(' '),
+    hula?.names.join(' '), cardUse?.name, cardSettings.find(card => card.id === cardUse?.id)?.name,
+    cardUse?.merchant, cardUse?.purpose, cardUse?.people, vehicle?.from, vehicle?.to, vehicle?.purpose,
+    farm?.purpose, farm?.task, farm?.next, fitness?.type].filter(Boolean).join(' '));
+}
+
+function recordSearchAmounts(record, flow) {
+  const {golf, hula, cardUse, vehicle, farm, insurance, tobacco} = record;
+  return [flow.income, flow.expense, cardUse?.amount, cardUse?.advance, cardUse?.refund,
+    golf ? Math.abs(golfCashFlow(golf).net) : null, golf ? golfCashFlow(golf).pending : null,
+    hula ? Math.abs(hulaNet(hula)) : null, vehicle ? vehicleCost(vehicle) : null, farm ? farmCost(farm) : null,
+    insurance?.claim, insurance?.received, insuranceUnpaid(record), outstandingAmount(record), tobacco?.cost,
+    ...(golf ? [...Object.values(golf.values), ...golf.players.flatMap(player => [player.gameFee, player.advance, player.due, player.received])] : []),
+    ...(hula ? Object.keys(hulaCashLabels).map(key => hula[key]) : []),
+    ...(vehicle ? Object.keys(vehicleCosts).map(key => vehicle[key]) : []),
+    ...(farm ? Object.keys(farmCosts).map(key => farm[key]) : [])].filter(value => Number.isFinite(value) && value > 0);
+}
+
+const unifiedTypes = {
+  income: ['개인 수입', (record, flow) => flow.income > 0],
+  expense: ['개인 지출', (record, flow) => flow.expense > 0],
+  corporate: ['법인카드', record => validCardUse(record.cardUse) && record.cardUse.type === 'corporate'],
+  hospital: ['병원비', (record, flow) => isHospital(record) && flow.expense > 0],
+  insurance: ['보험금', (record, flow) => validInsurance(record.insurance) || insuranceAmount(record, flow) > 0],
+  unpaid: ['미수령 보험금', record => insuranceUnpaid(record) > 0],
+  pending: ['미정산 금액', record => outstandingAmount(record) > 0],
+  golf: ['스크린골프', record => validGolf(record.golf) || record.category === '스크린골프'],
+  hula: ['전투 훌라', record => validHula(record.hula) || record.category === '훌라'],
+  workout: ['운동', record => Boolean(record.fitness?.type || record.category === '운동')],
+  weight: ['체중', record => recordedWeight(record) !== null],
+  vehicle: ['차량 운행비', record => validVehicle(record.vehicle) || validFarm(record.farm) && !record.farm.inVehicle && (record.farm.toll > 0 || record.farm.fuel > 0)],
+  farm: ['시골 방문·농사', record => validFarm(record.farm)],
+  tobacco: ['담배 구입', (record, flow) => tobaccoEntry(record, flow) !== null],
+  calendar: ['일정', () => false],
+};
+
+function ledgerGroup(record, flow) {
+  if (validFarm(record.farm)) return '시골·농사';
+  if (validVehicle(record.vehicle)) return '차량';
+  if (validHula(record.hula)) return '훌라';
+  if (validGolf(record.golf)) return '스크린골프';
+  if (tobaccoEntry(record, flow)) return '담배';
+  if (isHospital(record)) return '병원';
+  if (validCardUse(record.cardUse)) return '개인카드';
+  return record.category;
+}
+
+function savedWorkoutMinutes(record) {
+  if (Number.isFinite(record.fitness?.minutes)) return record.fitness.minutes;
+  if (record.category !== '운동') return 0;
+  const match = /(?<![\d.])(?:(\d+)\s*시간(?:\s*(\d+)\s*분)?|(\d+)\s*분)/u.exec(record.memo);
+  return match ? Number(match[1] ?? 0) * 60 + Number(match[2] ?? match[3] ?? 0) : 0;
+}
+
+function unifiedSummary(records) {
+  const totals = {income: 0, expense: 0, corporate: 0, hospital: 0, insurance: 0, golf: 0,
+    hula: 0, workouts: 0, minutes: 0, vehicle: 0, visits: 0, farmMinutes: 0, farmCost: 0,
+    tobaccoCost: 0, tobaccoUnits: {}, expenses: new Map(), weights: []};
+  for (const record of records) {
+    const flow = recordAmounts(record);
+    totals.income += flow.income;
+    totals.expense += flow.expense;
+    if (flow.expense) {
+      const group = ledgerGroup(record, flow);
+      totals.expenses.set(group, (totals.expenses.get(group) ?? 0) + flow.expense);
+    }
+    if (unifiedTypes.corporate[1](record)) totals.corporate += record.cardUse.amount;
+    if (isHospital(record)) totals.hospital += flow.expense;
+    totals.insurance += insuranceAmount(record, flow);
+    if (validGolf(record.golf)) totals.golf += golfCashFlow(record.golf).net;
+    if (validHula(record.hula)) totals.hula += hulaNet(record.hula);
+    if (record.fitness?.type || record.category === '운동') {
+      totals.workouts++;
+      totals.minutes += savedWorkoutMinutes(record);
+    }
+    if (validVehicle(record.vehicle)) totals.vehicle += vehicleCost(record.vehicle);
+    if (validFarm(record.farm)) {
+      if (record.farm.kind === 'visit') totals.visits++;
+      totals.farmMinutes += record.farm.minutes;
+      totals.farmCost += farmCost(record.farm);
+      if (!record.farm.inVehicle) totals.vehicle += record.farm.toll + record.farm.fuel;
+    }
+    const tobacco = tobaccoEntry(record, flow);
+    if (tobacco) {
+      totals.tobaccoCost += tobacco.cost;
+      if (tobacco.quantity !== null) totals.tobaccoUnits[tobacco.unit] = (totals.tobaccoUnits[tobacco.unit] ?? 0) + tobacco.quantity;
+    }
+  }
+  totals.weights = dailyWeights(records);
+  return totals;
+}
+
+function dateGroups(records, from = '', to = '') {
+  return records.filter(record => (!from || record.date >= from) && (!to || record.date <= to));
+}
+
+function unifiedCard(container, title, lines, detail) {
+  const card = document.createElement('div');
+  const heading = document.createElement('h3');
+  heading.textContent = title;
+  card.append(heading);
+  cardLines(card, lines);
+  if (detail) card.append(scheduleButton('상세보기', detail));
+  container.append(card);
+}
+
+function openUnifiedDetails(kind, from = '', to = '', keyword = '') {
+  const panel = byId('unified-search');
+  panel.open = true;
+  searchForm.reset();
+  byId('search-from').value = from;
+  byId('search-to').value = to;
+  byId('search-keyword').value = keyword;
+  searchKind.value = kind;
+  runUnifiedSearch();
+  byId('search-keyword').focus();
+}
+
+function renderUnifiedHome() {
+  const root = byId('unified-home');
+  root.replaceChildren();
+  const now = todayDate();
+  const month = now.slice(0, 7);
+  const monthEnd = calendarDate(month, calendarDayCount(month));
+  const events = [...calendarEvents].sort((a, b) => a.date.localeCompare(b.date));
+  const todayEvents = events.filter(event => event.date === now);
+  const upcoming = events.filter(event => event.date > now);
+  const eventLines = items => items.slice(0, 5).map(event => event.date + ' · ' + eventLabel(event) +
+    (event.pickup ? ' · 픽업 ' + event.pickup : ''));
+  unifiedCard(root, '오늘 일정', todayEvents.length ? eventLines(todayEvents) : ['일정 없음'],
+    () => openUnifiedDetails('calendar', now, now));
+  const day = unifiedSummary(dateGroups(unifiedRecords, now, now));
+  const monthly = unifiedSummary(dateGroups(unifiedRecords, month + '-01', monthEnd));
+  unifiedCard(root, '오늘 수입·지출', ['수입 ' + moneyText(day.income), '지출 ' + moneyText(day.expense)],
+    () => openUnifiedDetails('', now, now));
+  unifiedCard(root, '이번 달 수입·지출', ['수입 ' + moneyText(monthly.income), '지출 ' + moneyText(monthly.expense)],
+    () => openUnifiedDetails('', month + '-01', monthEnd));
+  const latest = dailyWeights(unifiedRecords).at(-1);
+  const lost = latest ? weightGoals().start - latest.value : 0;
+  unifiedCard(root, '최근 체중·총 감량', latest ? [kg(latest.value) + ' · ' + latest.date,
+    lost < 0 ? kg(-lost) + ' 증가' : '감량 ' + kg(lost)] : ['체중 기록 없음'],
+    () => openUnifiedDetails('weight'));
+  const active = cardSettings.filter(card => !card.archived);
+  unifiedCard(root, '카드별 이번 달 사용액·잔여 한도', active.length ? active.map(card => {
+    const totals = cardUsageStats(card, now, unifiedRecords.filter(record => record.cardUse?.id === card.id));
+    return card.name + ' · ' + moneyText(totals.month) +
+      (totals.limit ? ' · 잔여 ' + moneyText(Math.max(0, totals.limit - totals.period)) : ' · 적용 한도 없음');
+  }) : ['등록된 카드 없음'], () => byId('cards-heading').scrollIntoView({block: 'start'}));
+  unifiedCard(root, '미수령 보험금', [moneyText(unifiedRecords.reduce((sum, record) => sum + insuranceUnpaid(record), 0))],
+    () => openUnifiedDetails('unpaid'));
+  unifiedCard(root, '미정산 금액', [moneyText(unifiedRecords.reduce((sum, record) => sum + outstandingAmount(record), 0))],
+    () => openUnifiedDetails('pending'));
+  unifiedCard(root, '다가오는 일정', upcoming.length ? eventLines(upcoming) : ['예정 일정 없음'],
+    () => openUnifiedDetails('calendar', todayDate(new Date(Date.now() + 86400000))));
+}
+
+function unifiedScheduleArticle(event) {
+  const node = document.createElement('article');
+  const heading = document.createElement('strong');
+  heading.textContent = event.date + ' · ' + eventLabel(event);
+  node.append(heading);
+  cardLines(node, [event.supplies ? '준비물 · ' + event.supplies : '',
+    event.pickup ? '픽업 ' + event.pickup : '', event.reminder ? '알림 ' + event.reminder.replace('T', ' ') : ''].filter(Boolean));
+  node.append(scheduleButton('수정', () => {
+    selectedDay = event.date;
+    displayedMonth = event.date.slice(0, 7);
+    bulkMonth.value = displayedMonth;
+    renderCalendar();
+    editSchedule(event);
+  }), scheduleButton('삭제', () => removeSchedule(event)));
+  return node;
+}
+
+function renderUnifiedSearch() {
+  if (!searchCriteria) return;
+  const c = searchCriteria;
+  const dateMatches = value => (!c.from || value >= c.from) && (!c.to || value <= c.to);
+  const terms = normalizedSearch(c.keyword).split(/\s+/).filter(Boolean);
+  const results = [];
+  for (const record of unifiedRecords) {
+    if (!dateMatches(record.date)) continue;
+    const flow = recordAmounts(record);
+    if (c.kind.startsWith('category:') ? record.category !== c.kind.slice(9) :
+        c.kind && !unifiedTypes[c.kind]?.[1](record, flow)) continue;
+    if (terms.length && !terms.every(term => recordSearchText(record).includes(term))) continue;
+    if ((c.min !== null || c.max !== null) && !recordSearchAmounts(record, flow)
+      .some(amount => (c.min === null || amount >= c.min) && (c.max === null || amount <= c.max))) continue;
+    results.push({date: record.date, record, flow});
+  }
+  if ((!c.kind || c.kind === 'calendar') && c.min === null && c.max === null) {
+    for (const event of calendarEvents) {
+      if (dateMatches(event.date) && terms.every(term =>
+        normalizedSearch([eventLabel(event), event.supplies].filter(Boolean).join(' ')).includes(term))) {
+        results.push({date: event.date, event});
+      }
+    }
+  }
+  results.sort((a, b) => c.kind === 'calendar' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+  const target = byId('search-results');
+  target.replaceChildren(...results.slice(0, searchLimit).map(item => item.event
+    ? unifiedScheduleArticle(item.event) : renderRecordArticle(item.record, item.flow)));
+  byId('search-status').textContent = results.length ? results.length + '건 중 ' + Math.min(results.length, searchLimit) + '건 표시' : '검색 결과가 없습니다.';
+  byId('search-more').hidden = results.length <= searchLimit;
+}
+
+function runUnifiedSearch() {
+  const from = byId('search-from').value;
+  const to = byId('search-to').value;
+  const minimum = byId('search-min').valueAsNumber;
+  const maximum = byId('search-max').valueAsNumber;
+  if (from && to && from > to || minimum > maximum) {
+    searchCriteria = null;
+    byId('search-results').replaceChildren();
+    byId('search-more').hidden = true;
+    byId('search-status').textContent = '날짜나 금액의 시작값이 종료값보다 큽니다.';
+    return;
+  }
+  searchCriteria = {from, to, keyword: byId('search-keyword').value, kind: searchKind.value,
+    min: Number.isFinite(minimum) ? minimum : null, max: Number.isFinite(maximum) ? maximum : null};
+  searchLimit = 25;
+  renderUnifiedSearch();
+}
+
+function statsFields() {
+  const selected = statsPeriod.value;
+  for (const [name, enabled] of Object.entries({month: selected === 'month', year: selected === 'year',
+    from: selected === 'custom', to: selected === 'custom'})) {
+    byId('stats-' + name + '-field').hidden = !enabled;
+    byId('stats-' + name).disabled = !enabled;
+  }
+}
+
+function selectedStatsRange() {
+  if (statsPeriod.value === 'month') {
+    const month = byId('stats-month').value;
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return null;
+    return [month + '-01', calendarDate(month, calendarDayCount(month))];
+  }
+  if (statsPeriod.value === 'year') {
+    const number = byId('stats-year').valueAsNumber;
+    if (!Number.isInteger(number) || number < 1 || number > 9999) return null;
+    const year = String(number).padStart(4, '0');
+    return [year + '-01-01', year + '-12-31'];
+  }
+  const from = byId('stats-from').value;
+  const to = byId('stats-to').value;
+  return validScheduleDate(from) && validScheduleDate(to) && from <= to ? [from, to] : null;
+}
+
+function weightChange(weights) {
+  if (!weights.length) return '체중 기록 없음';
+  if (weights.length === 1) return kg(weights[0].value) + ' · ' + weights[0].date;
+  const first = weights[0].value;
+  const last = weights.at(-1).value;
+  const diff = Math.round((last - first) * 100) / 100;
+  return kg(first) + ' → ' + kg(last) + ' (' + (diff > 0 ? '+' : '') + kg(diff) + ')';
+}
+
+function tobaccoCount(totals) {
+  return Object.entries(totals.tobaccoUnits).map(([unit, count]) => currency.format(count) + unit).join(' · ') || '수량 기록 없음';
+}
+
+function statsItems(totals) {
+  return [
+    ['income', ['수입 ' + moneyText(totals.income)]],
+    ['expense', ['지출 ' + moneyText(totals.expense)]],
+    ['corporate', [moneyText(totals.corporate)]],
+    ['hospital', [moneyText(totals.hospital)]],
+    ['insurance', ['수령 ' + moneyText(totals.insurance)]],
+    ['golf', ['정산 기록 순손익 ' + moneyText(totals.golf)]],
+    ['hula', ['게임 기록 순손익 ' + moneyText(totals.hula)]],
+    ['workout', [totals.workouts + '회 · ' + hulaTimeText(totals.minutes)]],
+    ['weight', [weightChange(totals.weights)]],
+    ['vehicle', [moneyText(totals.vehicle)]],
+    ['farm', ['방문 ' + totals.visits + '회 · 작업 ' + hulaTimeText(totals.farmMinutes), '비용 ' + moneyText(totals.farmCost)]],
+    ['tobacco', [tobaccoCount(totals), '구입 지출 ' + moneyText(totals.tobaccoCost)]],
+  ];
+}
+
+function statsBar(container, label, value, max, expense = false) {
+  const text = document.createElement('span');
+  const bar = document.createElement('progress');
+  text.className = 'stats-bar-label';
+  text.textContent = label;
+  bar.className = expense ? 'stats-bar stats-expense-bar' : 'stats-bar';
+  bar.max = max || 1;
+  bar.value = value;
+  bar.setAttribute('aria-label', label);
+  container.append(text, bar);
+}
+
+function renderUnifiedCharts(totals, records) {
+  const charts = byId('stats-charts');
+  charts.replaceChildren();
+  const expenseHeading = document.createElement('h4');
+  expenseHeading.textContent = '개인 지출 비중';
+  charts.append(expenseHeading);
+  for (const [label, amount] of [...totals.expenses].sort((a, b) => b[1] - a[1])) {
+    const percent = new Intl.NumberFormat('ko-KR', {maximumFractionDigits: 1}).format(amount * 100 / totals.expense);
+    statsBar(charts, label + ' · ' + moneyText(amount) + ' · ' + percent + '%', amount, totals.expense, true);
+  }
+  if (!totals.expense) cardLines(charts, ['선택 기간의 개인 지출이 없습니다.']);
+  const trendHeading = document.createElement('h4');
+  trendHeading.textContent = '월별 수입·지출 변화';
+  charts.append(trendHeading);
+  const months = new Map();
+  for (const record of records) {
+    const month = record.date.slice(0, 7);
+    const amounts = months.get(month) ?? {income: 0, expense: 0};
+    const flow = recordAmounts(record);
+    amounts.income += flow.income;
+    amounts.expense += flow.expense;
+    months.set(month, amounts);
+  }
+  let max = 1;
+  for (const amounts of months.values()) max = Math.max(max, amounts.income, amounts.expense);
+  for (const [month, amounts] of [...months].sort(([a], [b]) => a.localeCompare(b))) {
+    statsBar(charts, month + ' 수입 ' + moneyText(amounts.income), amounts.income, max);
+    statsBar(charts, month + ' 지출 ' + moneyText(amounts.expense), amounts.expense, max, true);
+  }
+  if (!months.size) cardLines(charts, ['선택 기간에 기록이 없습니다.']);
+}
+
+function renderUnifiedStats() {
+  if (!statsRange) return;
+  const [from, to] = statsRange;
+  const records = dateGroups(unifiedRecords, from, to);
+  const root = byId('stats-summary');
+  root.replaceChildren();
+  const totals = unifiedSummary(records);
+  for (const [key, lines] of statsItems(totals)) {
+    unifiedCard(root, unifiedTypes[key][0], lines, () => openUnifiedDetails(key, from, to));
+  }
+  renderUnifiedCharts(totals, records);
+  const comparison = byId('stats-comparison');
+  comparison.replaceChildren();
+  const now = new Date();
+  const current = todayDate(now).slice(0, 7);
+  const previous = todayDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)).slice(0, 7);
+  const currentTotals = unifiedSummary(dateGroups(unifiedRecords, current + '-01', calendarDate(current, calendarDayCount(current))));
+  const previousTotals = unifiedSummary(dateGroups(unifiedRecords, previous + '-01', calendarDate(previous, calendarDayCount(previous))));
+  const previousLines = new Map(statsItems(previousTotals));
+  for (const [key, lines] of statsItems(currentTotals)) {
+    unifiedCard(comparison, unifiedTypes[key][0], [
+      previous + ' · ' + previousLines.get(key).join(' · '), current + ' · ' + lines.join(' · '),
+    ], () => openUnifiedDetails(key, previous + '-01', calendarDate(current, calendarDayCount(current))));
+  }
+}
+
+function renderUnified(records) {
+  unifiedRecords = records;
+  const selected = searchKind.value;
+  const labels = [...new Set([...categories, ...records.map(record => record.category)])];
+  searchKind.replaceChildren(option('전체 종류', ''),
+    ...Object.entries(unifiedTypes).map(([key, [title]]) => option(title, key)),
+    ...labels.map(title => option('분류 · ' + title, 'category:' + title)));
+  searchKind.value = Array.from(searchKind.options).some(item => item.value === selected) ? selected : '';
+  renderUnifiedHome();
+  renderUnifiedSearch();
+  if (byId('unified-stats').open) renderUnifiedStats();
+}
+
+searchForm.onsubmit = event => {
+  event.preventDefault();
+  runUnifiedSearch();
+};
+byId('search-clear').onclick = () => {
+  searchForm.reset();
+  runUnifiedSearch();
+};
+byId('search-more').onclick = () => {
+  searchLimit += 25;
+  renderUnifiedSearch();
+};
+statsPeriod.onchange = statsFields;
+byId('unified-stats').addEventListener('toggle', () => {
+  if (byId('unified-stats').open) renderUnifiedStats();
+});
+byId('unified-stats-form').onsubmit = event => {
+  event.preventDefault();
+  const range = selectedStatsRange();
+  const status = byId('stats-status');
+  if (!range) {
+    status.textContent = '올바른 집계 기간을 선택해 주세요.';
+    return;
+  }
+  statsRange = range;
+  status.textContent = range.join(' ~ ');
+  renderUnifiedStats();
+};
+
+byId('stats-month').value = initialUnifiedDate.slice(0, 7);
+byId('stats-year').value = initialUnifiedDate.slice(0, 4);
+byId('stats-from').value = initialUnifiedDate.slice(0, 7) + '-01';
+byId('stats-to').value = initialUnifiedDate;
+statsFields();
+statsRange = selectedStatsRange();
+byId('stats-status').textContent = statsRange.join(' ~ ');
+
 initializeFarm();
 initializeGolf();
 initializeHula();
@@ -3838,6 +4429,8 @@ function refreshSchedule() {
     calendarEvents = state.events;
     renderCalendar();
     updateVehiclePlan();
+    renderUnifiedHome();
+    renderUnifiedSearch();
   }).catch(showScheduleError);
 }
 
@@ -4121,6 +4714,7 @@ async function checkPickupAlerts() {
     if (today !== previousToday) {
       previousToday = today;
       renderCalendar();
+      refresh();
     }
   } catch (error) {
     showScheduleError(error);
