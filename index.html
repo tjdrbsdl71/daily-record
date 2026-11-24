@@ -76,7 +76,7 @@ button:disabled{opacity:.6}
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
-<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a> · <a href="#cards-heading">카드 사용·한도</a></p>
+<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a> · <a href="#cards-heading">카드 사용·한도</a> · <a href="#vehicle-heading">차량 픽업·운행비</a></p>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -257,6 +257,59 @@ button:disabled{opacity:.6}
 <p id="card-use-status" role="status"></p>
 </form>
 </section>
+<section id="vehicle-section" aria-labelledby="vehicle-heading">
+<h2 id="vehicle-heading">차량 픽업·운행비</h2>
+<details>
+<summary>픽업 기본 통행료 설정</summary>
+<form id="vehicle-settings">
+<label for="vehicle-default-toll">왕복 통행료 기본값 (원)</label>
+<input id="vehicle-default-toll" type="number" min="0" max="1000000000" step="1" required>
+<button type="submit">기본 통행료 저장</button>
+<p id="vehicle-settings-status" role="status"></p>
+</form>
+</details>
+<form id="vehicle-form">
+<h3 id="vehicle-title">차량 운행 기록</h3>
+<div class="fields">
+<div><label for="vehicle-kind">운행 종류</label><select id="vehicle-kind"><option value="pickup">자빈이 픽업</option><option value="trip">일반 운행</option></select></div>
+<div><label for="vehicle-date">운행 날짜</label><input id="vehicle-date" type="date" required></div>
+</div>
+<p id="vehicle-plan"></p>
+<div id="vehicle-pickup-fields" class="fields">
+<div><label for="vehicle-leave">집 출발</label><input id="vehicle-leave" type="time"></div>
+<div><label for="vehicle-hospital">병원 도착</label><input id="vehicle-hospital" type="time"></div>
+<div><label for="vehicle-board">자빈이 탑승</label><input id="vehicle-board" type="time"></div>
+<div><label for="vehicle-home">집 도착</label><input id="vehicle-home" type="time"></div>
+</div>
+<div id="vehicle-trip-fields" class="fields" hidden>
+<div><label for="vehicle-from">출발지</label><input id="vehicle-from" maxlength="120"></div>
+<div><label for="vehicle-to">목적지</label><input id="vehicle-to" maxlength="120"></div>
+<div><label for="vehicle-purpose">운행 목적</label><input id="vehicle-purpose" maxlength="200"></div>
+<div><label for="vehicle-start">출발 시간 (선택)</label><input id="vehicle-start" type="time"></div>
+<div><label for="vehicle-end">도착 시간 (선택)</label><input id="vehicle-end" type="time"></div>
+</div>
+<div class="fields">
+<div><label for="vehicle-distance">운행거리 (km)</label><input id="vehicle-distance" type="number" min="0" max="100000" step="0.01" inputmode="decimal" required></div>
+<div><label for="vehicle-toll">통행료 (원)</label><input id="vehicle-toll" type="number" min="0" max="1000000000" step="1" inputmode="numeric"></div>
+<div><label for="vehicle-fuel">주유비 (원)</label><input id="vehicle-fuel" type="number" min="0" max="1000000000" step="1" inputmode="numeric"></div>
+<div><label for="vehicle-parking">주차비 (원)</label><input id="vehicle-parking" type="number" min="0" max="1000000000" step="1" inputmode="numeric"></div>
+<div><label for="vehicle-maintenance">차량 정비비 (원)</label><input id="vehicle-maintenance" type="number" min="0" max="1000000000" step="1" inputmode="numeric"></div>
+</div>
+<label class="calendar-check"><input id="vehicle-linked" type="checkbox"> 이미 지출에 등록됨 · 차량 통계에만 반영</label>
+<p id="vehicle-preview" role="status"></p>
+<label for="vehicle-memo">운행 메모</label>
+<textarea id="vehicle-memo" rows="3"></textarea>
+<button id="vehicle-voice" type="button">🎤 차량 음성 입력 시작</button>
+<p id="vehicle-voice-status" role="status">예: “픽업, 집 출발 21시 30분, 병원 도착 21시 50분, 탑승 22시, 집 도착 22시 25분, 왕복 32킬로, 통행료 2천 원. 끝”</p>
+<button id="vehicle-save" type="submit">운행 기록 저장</button>
+<button id="vehicle-cancel" type="button" hidden>운행 기록 수정 취소</button>
+<p id="vehicle-status" role="status"></p>
+</form>
+<h3>월별 차량 통계</h3>
+<label for="vehicle-month">조회 월</label>
+<input id="vehicle-month" type="month">
+<div id="vehicle-summary" class="totals"></div>
+</section>
 <section id="weight-dashboard" aria-labelledby="weight-heading">
 <h2 id="weight-heading">운동·체중 현황</h2>
 <dl id="weight-metrics" class="fitness-metrics">
@@ -344,7 +397,7 @@ button:disabled{opacity:.6}
 <p id="schedule-status" role="status"></p>
 <details>
 <summary>픽업 알림 설정</summary>
-<p>알림을 받으려면 일정 앱 화면을 열어 두세요. 화면을 닫거나 브라우저가 실행을 중단하면 예약 시각에 알림을 보낼 수 없습니다.</p>
+<p>알림을 받으려면 일정 앱 화면을 열어 두세요. 화면을 닫거나 브라우저가 실행을 중단하면 앱에서 예약 알림을 보낼 수 없습니다. 픽업 일정의 캘린더 알림 파일(.ics)을 휴대폰 캘린더로 가져오고 알림 설정을 확인할 수 있습니다.</p>
 <button id="pickup-notification-test" type="button">알림 허용 및 테스트</button>
 <p id="pickup-notification-status" role="status"></p>
 </details>
@@ -416,7 +469,7 @@ let voiceInput = null;
 let categoryOverride = false;
 const filterDate = byId('filter-date');
 const filterCategory = byId('filter-category');
-const categories = ['일상', '지출', '수입', '운동', '체중', '병원', '보험', '스크린골프',
+const categories = ['일상', '지출', '수입', '차량', '운동', '체중', '병원', '보험', '스크린골프',
   '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
 const categoryRules = [
   ['스크린골프', /스크린\s*골프|골프존|카카오\s*vx|골프/i],
@@ -523,6 +576,7 @@ function analyze(text, recordedCategory = '') {
 }
 
 function recordAmounts(record) {
+  if (validVehicle(record.vehicle)) return {income: 0, expense: record.vehicle.onlyVehicle ? 0 : vehicleCost(record.vehicle)};
   if (validCardUse(record.cardUse)) return cardCashFlow(record.cardUse);
   if (validHula(record.hula)) return hulaCashFlow(record.hula);
   if (validGolf(record.golf)) return golfCashFlow(record.golf);
@@ -591,7 +645,8 @@ function validRecord(record) {
   return record && typeof record.date === 'string' &&
     typeof record.category === 'string' && typeof record.memo === 'string' &&
     (record.golf === undefined || validGolf(record.golf)) && (record.hula === undefined || validHula(record.hula)) &&
-    (record.cardUse === undefined || validCardUse(record.cardUse));
+    (record.cardUse === undefined || validCardUse(record.cardUse)) &&
+    (record.vehicle === undefined || validVehicle(record.vehicle));
 }
 
 function newId() {
@@ -686,6 +741,7 @@ function render(records) {
   renderGolf(records);
   renderHula(records);
   renderCards(records);
+  renderVehicle(records);
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
@@ -726,6 +782,10 @@ function render(records) {
         report('음성 입력을 종료한 뒤 기록을 수정해 주세요.');
         return;
       }
+      if (validVehicle(record.vehicle)) {
+        openVehicleEditor(record);
+        return;
+      }
       if (validCardUse(record.cardUse)) {
         openCardUse(record);
         return;
@@ -760,6 +820,9 @@ function render(records) {
           if (cardEditingId === record.id && voiceInput?.button === cardVoice) {
             throw new Error('카드 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
           }
+          if (vehicleEditingId === record.id && voiceInput?.button === vehicleVoice) {
+            throw new Error('차량 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
+          }
           const remaining = current.filter(item => item.id !== record.id);
           if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
           writeRecords(remaining);
@@ -767,6 +830,7 @@ function render(records) {
           if (golfEditingId === record.id) setGolfEditor();
           if (hulaEditingId === record.id) setHulaEditor();
           if (cardEditingId === record.id) setCardUse();
+          if (vehicleEditingId === record.id) setVehicleEditor();
           render(remaining);
           report('기록을 삭제했습니다.');
         });
@@ -775,7 +839,8 @@ function render(records) {
       }
     };
     article.append(heading);
-    if (validCardUse(record.cardUse)) article.append(cardUseDetails(record.cardUse));
+    if (validVehicle(record.vehicle)) article.append(vehicleRecordDetails(record.vehicle));
+    else if (validCardUse(record.cardUse)) article.append(cardUseDetails(record.cardUse));
     else if (validHula(record.hula)) article.append(hulaRecordDetails(record.hula));
     else if (validGolf(record.golf)) article.append(golfRecordDetails(record));
     else {
@@ -935,7 +1000,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse);
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle);
 }
 
 function mergeBackup(current, incoming) {
@@ -1018,10 +1083,11 @@ function completeVoiceInput(input) {
   if (button === golfVoice && hasTranscript) fillGolfFromVoice(input.field.value);
   if (button === hulaVoice && hasTranscript) fillHulaFromVoice(input.field.value);
   if (button === cardVoice && hasTranscript) fillCardFromVoice(input.field.value);
+  if (button === vehicleVoice && hasTranscript) fillVehicleFromVoice(input.field.value);
 }
 
 function commitSpeech(input, text) {
-  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
+  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice || input.button === vehicleVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
   const content = command ? text.slice(0, command.index).trimEnd() : text;
   if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
   return Boolean(command);
@@ -1144,7 +1210,8 @@ function startRecognition(input) {
 
 function toggleVoice(button, field, status) {
   if (button === voice && save.disabled || button === golfVoice && byId('golf-save').disabled ||
-      button === hulaVoice && byId('hula-save').disabled || button === cardVoice && byId('card-use-save').disabled) return;
+      button === hulaVoice && byId('hula-save').disabled || button === cardVoice && byId('card-use-save').disabled ||
+      button === vehicleVoice && byId('vehicle-save').disabled) return;
   if (voiceInput) {
     const input = voiceInput;
     if (input.button !== button) {
@@ -1188,7 +1255,8 @@ function toggleVoice(button, field, status) {
     session: null, timer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
   button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' :
-    button === hulaVoice ? '훌라 음성 입력 종료' : button === cardVoice ? '카드 음성 입력 종료' : '요청 음성 입력 종료';
+    button === hulaVoice ? '훌라 음성 입력 종료' : button === cardVoice ? '카드 음성 입력 종료' :
+    button === vehicleVoice ? '차량 음성 입력 종료' : '요청 음성 입력 종료';
   status.textContent = '음성 입력 시작 중…';
   startRecognition(voiceInput);
 }
@@ -2936,6 +3004,299 @@ window.addEventListener('storage', event => {
   }
 });
 
+const vehicleTollKey = 'daily-record-pickup-toll-v1';
+const vehicleForm = byId('vehicle-form');
+const vehicleKind = byId('vehicle-kind');
+const vehicleDate = byId('vehicle-date');
+const vehicleMemo = byId('vehicle-memo');
+const vehicleVoice = byId('vehicle-voice');
+const vehicleVoiceStatus = byId('vehicle-voice-status');
+const vehicleStatus = byId('vehicle-status');
+const vehicleMonth = byId('vehicle-month');
+const pickupTimeFields = ['leave', 'hospital', 'board', 'home'];
+const tripTimeFields = ['start', 'end'];
+const vehicleCosts = {toll: '통행료', fuel: '주유비', parking: '주차비', maintenance: '정비비'};
+let vehicleEditingId = null;
+let vehicleRecords = [];
+
+function defaultPickupToll() {
+  try {
+    const value = JSON.parse(localStorage.getItem(vehicleTollKey));
+    if (Number.isSafeInteger(value) && value >= 0 && value <= 1000000000) return value;
+  } catch {
+    // The form can still use the default when settings are inaccessible.
+  }
+  return 2000;
+}
+
+function vehicleTiming(times) {
+  if (!times.every(time => typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time))) return null;
+  const minutes = times.map(time => Number(time.slice(0, 2)) * 60 + Number(time.slice(3)));
+  let duration = 0;
+  let wait = 0;
+  for (let i = 1; i < minutes.length; i++) {
+    const elapsed = (minutes[i] - minutes[i - 1] + 1440) % 1440;
+    duration += elapsed;
+    if (i === 2) wait = elapsed;
+  }
+  return duration > 0 && duration < 1440 ? {duration, wait, overnight: minutes.at(-1) < minutes[0]} : null;
+}
+
+function vehicleCost(record) {
+  return Object.keys(vehicleCosts).reduce((sum, key) => sum + record[key], 0);
+}
+
+function validVehicle(value) {
+  if (!value || !['pickup', 'trip'].includes(value.kind) ||
+      !Number.isFinite(value.distance) || value.distance < 0 || value.distance > 100000 ||
+      !Object.keys(vehicleCosts).every(key => Number.isSafeInteger(value[key]) && value[key] >= 0 && value[key] <= 1000000000) ||
+      typeof value.onlyVehicle !== 'boolean' || typeof value.scheduleId !== 'string' || !Array.isArray(value.times)) return false;
+  if (value.kind === 'pickup') return value.times.length === 4 && !!vehicleTiming(value.times);
+  return ['from', 'to', 'purpose'].every(key => typeof value[key] === 'string' && value[key].trim()) &&
+    (value.times.length === 0 || value.times.length === 2 && !!vehicleTiming(value.times));
+}
+
+function plannedPickup(day) {
+  return calendarEvents.find(event => event.date === day && event.kind === 'e' && event.pickup);
+}
+
+function updateVehiclePlan() {
+  const label = byId('vehicle-plan');
+  const pickup = vehicleKind.value === 'pickup' ? plannedPickup(vehicleDate.value) : null;
+  label.hidden = !pickup;
+  label.textContent = pickup ? '자빈이 이브닝 근무 · 예정 픽업 ' + pickup.pickup + ' · 1시간 전 알림' : '';
+}
+
+function updateVehiclePreview() {
+  const pickup = vehicleKind.value === 'pickup';
+  const keys = pickup ? pickupTimeFields : tripTimeFields;
+  const timing = vehicleTiming(keys.map(key => byId('vehicle-' + key).value));
+  const parts = [];
+  if (timing) {
+    if (pickup) parts.push('병원 대기 ' + hulaTimeText(timing.wait));
+    parts.push('전체 ' + hulaTimeText(timing.duration) + (timing.overnight ? ' (다음 날 도착)' : ''));
+  }
+  byId('vehicle-preview').textContent = parts.join(' · ');
+}
+
+function vehicleFields() {
+  const pickup = vehicleKind.value === 'pickup';
+  for (const [id, keys, enabled] of [['pickup', pickupTimeFields, pickup],
+    ['trip', [...tripTimeFields, 'from', 'to', 'purpose'], !pickup]]) {
+    byId('vehicle-' + id + '-fields').hidden = !enabled;
+    for (const key of keys) {
+      const input = byId('vehicle-' + key);
+      input.disabled = !enabled;
+      input.required = enabled && !tripTimeFields.includes(key);
+    }
+  }
+  updateVehiclePlan();
+  updateVehiclePreview();
+}
+
+function setVehicleEditor(record, event) {
+  vehicleEditingId = record?.id ?? null;
+  vehicleForm.reset();
+  const vehicle = record?.vehicle;
+  vehicleKind.value = vehicle?.kind ?? 'pickup';
+  vehicleDate.value = record?.date ?? event?.date ?? todayDate();
+  const keys = vehicleKind.value === 'pickup' ? pickupTimeFields : tripTimeFields;
+  keys.forEach((key, index) => { byId('vehicle-' + key).value = vehicle?.times[index] ?? ''; });
+  for (const key of ['from', 'to', 'purpose', 'distance', ...Object.keys(vehicleCosts)]) {
+    byId('vehicle-' + key).value = vehicle?.[key] ?? (key === 'toll' && vehicleKind.value === 'pickup' ? defaultPickupToll() : '');
+  }
+  vehicleMemo.value = record?.memo ?? '';
+  byId('vehicle-linked').checked = vehicle?.onlyVehicle ?? false;
+  byId('vehicle-title').textContent = record ? '차량 운행 기록 수정' : '차량 운행 기록';
+  byId('vehicle-cancel').hidden = !record;
+  vehicleFields();
+}
+
+function openVehicleEditor(record, event) {
+  if (voiceInput?.button === vehicleVoice || byId('vehicle-save').disabled) {
+    report('차량 음성 입력이나 저장을 마친 뒤 다시 열어 주세요.');
+    return;
+  }
+  setVehicleEditor(record, event);
+  vehicleDate.focus();
+}
+
+function vehicleRecordDetails(value) {
+  const node = document.createElement('div');
+  const timing = value.times.length ? vehicleTiming(value.times) : null;
+  const labels = value.kind === 'pickup' ? ['집 출발', '병원 도착', '탑승', '집 도착'] : ['출발', '도착'];
+  cardLines(node, [
+    value.kind === 'pickup' ? '자빈이 차량 픽업' : value.from + ' → ' + value.to + ' · ' + value.purpose,
+    ...(timing ? [value.times.map((time, index) => labels[index] + ' ' + time).join(' · ') +
+      (timing.overnight ? ' (다음 날 도착)' : ''), '전체 ' + hulaTimeText(timing.duration) +
+      (value.kind === 'pickup' ? ' · 병원 대기 ' + hulaTimeText(timing.wait) : '')] : []),
+    '운행거리 ' + weightNumber.format(value.distance) + 'km',
+    Object.entries(vehicleCosts).map(([key, label]) => label + ' ' + moneyText(value[key])).join(' · '),
+    '차량 유지비 ' + moneyText(vehicleCost(value)) + (value.onlyVehicle ? ' · 차량 통계에만 반영' : ''),
+  ]);
+  return node;
+}
+
+function renderVehicle(records) {
+  vehicleRecords = records;
+  const month = vehicleMonth.value || todayDate().slice(0, 7);
+  let pickups = 0;
+  let wait = 0;
+  let duration = 0;
+  let distance = 0;
+  let toll = 0;
+  let costs = 0;
+  for (const {date, vehicle} of records) {
+    if (!date.startsWith(month + '-') || !validVehicle(vehicle)) continue;
+    const timing = vehicle.times.length ? vehicleTiming(vehicle.times) : null;
+    if (vehicle.kind === 'pickup') { pickups++; wait += timing.wait; }
+    duration += timing?.duration ?? 0;
+    distance += vehicle.distance;
+    toll += vehicle.toll;
+    costs += vehicleCost(vehicle);
+  }
+  byId('vehicle-summary').replaceChildren();
+  const stats = document.createElement('div');
+  cardLines(stats, [month + ' · 픽업 ' + pickups + '회',
+    '총 대기 ' + hulaTimeText(wait) + ' · 평균 대기 ' + (pickups ? hulaTimeText(Math.round(wait / pickups)) : '—'),
+    '총 운행시간 ' + hulaTimeText(duration) + ' (시간을 기록한 운행)',
+    '총 운행거리 ' + weightNumber.format(distance) + 'km',
+    '총 통행료 ' + moneyText(toll), '총 차량 유지비 ' + moneyText(costs)]);
+  byId('vehicle-summary').append(stats);
+}
+
+function fillVehicleFromVoice(text) {
+  const spoken = text.normalize('NFKC');
+  const mode = /일반\s*운행|출발지|목적지/.test(spoken) ? 'trip' : /픽업|탑승|병원\s*도착/.test(spoken) ? 'pickup' : '';
+  if (mode && mode !== vehicleKind.value) {
+    vehicleKind.value = mode;
+    vehicleKind.onchange();
+  }
+  const date = /(?<!\d)(\d{4})\s*(?:[-./]|년)\s*(\d{1,2})\s*(?:[-./]|월)\s*(\d{1,2})(?!\d)/u.exec(spoken);
+  if (date) {
+    const value = date[1] + '-' + date[2].padStart(2, '0') + '-' + date[3].padStart(2, '0');
+    if (validScheduleDate(value)) vehicleDate.value = value;
+  }
+  const timeLabels = vehicleKind.value === 'pickup'
+    ? {leave: '집(?:에서)?\\s*출발', hospital: '병원\\s*도착', board: '탑승', home: '집(?:에)?\\s*도착'}
+    : {start: '출발\\s*시간', end: '도착\\s*시간'};
+  for (const [key, label] of Object.entries(timeLabels)) {
+    const match = new RegExp(label + '\\s*[:：]?\\s*(?:(오전|오후)\\s*)?(\\d{1,2})\\s*[:시]\\s*(\\d{1,2})?').exec(spoken);
+    if (!match) continue;
+    const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2]);
+    const minute = Number(match[3] ?? 0);
+    if (hour < 24 && minute < 60) byId('vehicle-' + key).value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+  }
+  for (const [key, label] of Object.entries({from: '출발지', to: '목적지', purpose: '목적'})) {
+    const match = new RegExp(label + '\\s*[:：]?\\s*([^,.;!?]+)').exec(spoken);
+    if (match) byId('vehicle-' + key).value = match[1].trim();
+  }
+  const distance = /(\d+(?:\.\d+)?)\s*(?:km\b|[킬키]로(?:미터)?)/i.exec(spoken);
+  if (distance) byId('vehicle-distance').value = distance[1];
+  for (const [key, label] of Object.entries(vehicleCosts)) {
+    const amount = new RegExp(label + '\\s*[:：]?\\s*([\\d,영공일이삼사오육칠팔구천백십억만\\s]+)원').exec(spoken);
+    if (amount) byId('vehicle-' + key).value = parseWon(amount[1]);
+  }
+  vehicleFields();
+  vehicleVoiceStatus.textContent = '인식한 시간·거리·금액을 확인한 뒤 저장하세요.';
+}
+
+function downloadPickupCalendar(event) {
+  const calendarTime = time => time.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const start = calendarTime(pickupMoment(event));
+  const stamp = calendarTime(new Date());
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Daily Record//Pickup//KO', 'BEGIN:VEVENT',
+    'UID:' + event.id + '@daily-record', 'DTSTAMP:' + stamp, 'DTSTART:' + start,
+    'SUMMARY:자빈이 차량 픽업', 'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY',
+    'DESCRIPTION:자빈이 차량 픽업 1시간 전', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'];
+  const url = URL.createObjectURL(new Blob([lines.join('\r\n') + '\r\n'], {type: 'text/calendar;charset=utf-8'}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'pickup-' + event.date + '.ics';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+vehicleKind.onchange = () => {
+  const toll = byId('vehicle-toll');
+  if (!vehicleEditingId && (toll.value === '' || toll.valueAsNumber === defaultPickupToll())) {
+    toll.value = vehicleKind.value === 'pickup' ? defaultPickupToll() : '';
+  }
+  vehicleFields();
+};
+vehicleForm.addEventListener('input', updateVehiclePreview);
+vehicleDate.onchange = updateVehiclePlan;
+vehicleMonth.onchange = () => renderVehicle(vehicleRecords);
+vehicleVoice.onclick = () => toggleVoice(vehicleVoice, vehicleMemo, vehicleVoiceStatus);
+byId('vehicle-cancel').onclick = () => {
+  if (voiceInput?.button !== vehicleVoice && !byId('vehicle-save').disabled) setVehicleEditor();
+};
+
+byId('vehicle-settings').onsubmit = event => {
+  event.preventDefault();
+  const value = byId('vehicle-default-toll').valueAsNumber;
+  const status = byId('vehicle-settings-status');
+  if (!Number.isSafeInteger(value) || value < 0 || value > 1000000000) return;
+  try {
+    const previous = defaultPickupToll();
+    localStorage.setItem(vehicleTollKey, JSON.stringify(value));
+    const toll = byId('vehicle-toll');
+    if (!vehicleEditingId && vehicleKind.value === 'pickup' && toll.valueAsNumber === previous) toll.value = value;
+    status.textContent = '픽업 기본 통행료를 저장했습니다.';
+  } catch {
+    status.textContent = '기본 통행료를 저장하지 못했습니다.';
+  }
+};
+
+vehicleForm.onsubmit = async event => {
+  event.preventDefault();
+  const button = byId('vehicle-save');
+  if (voiceInput?.button === vehicleVoice || button.disabled) return;
+  const kind = vehicleKind.value;
+  const date = vehicleDate.value;
+  const keys = kind === 'pickup' ? pickupTimeFields : tripTimeFields;
+  const times = keys.map(key => byId('vehicle-' + key).value);
+  const editing = vehicleEditingId;
+  const original = vehicleRecords.find(record => record.id === editing);
+  const schedule = kind === 'pickup' ? plannedPickup(date) : null;
+  const value = {kind, times: times.some(Boolean) ? times : [],
+    scheduleId: schedule?.id ?? (kind === 'pickup' && original?.date === date ? original.vehicle?.scheduleId ?? '' : ''),
+    distance: byId('vehicle-distance').valueAsNumber, onlyVehicle: byId('vehicle-linked').checked};
+  for (const key of Object.keys(vehicleCosts)) value[key] = byId('vehicle-' + key).valueAsNumber || 0;
+  if (kind === 'trip') {
+    for (const key of ['from', 'to', 'purpose']) value[key] = byId('vehicle-' + key).value.trim();
+  }
+  if (!validScheduleDate(date) || !validVehicle(value)) {
+    vehicleStatus.textContent = '운행 정보와 시간 순서를 확인해 주세요. 일반 운행 시간은 출발과 도착을 함께 입력할 수 있습니다.';
+    return;
+  }
+  button.disabled = true;
+  try {
+    await withRecords(records => {
+      const draft = {id: editing ?? newId(), date, category: '차량', memo: vehicleMemo.value.trim(), vehicle: value};
+      if (editing) {
+        const index = records.findIndex(record => record.id === editing);
+        if (index === -1) throw new Error('이미 삭제된 운행 기록입니다.');
+        records[index] = {...records[index], ...draft};
+      } else {
+        records.unshift(draft);
+      }
+      writeRecords(records);
+      vehicleMonth.value = date.slice(0, 7);
+      setVehicleEditor();
+      render(records);
+    });
+    vehicleStatus.textContent = '운행 기록을 저장했습니다.';
+  } catch (error) {
+    vehicleStatus.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+
+byId('vehicle-default-toll').value = defaultPickupToll();
+vehicleMonth.value = todayDate().slice(0, 7);
+
 initializeGolf();
 initializeHula();
 initializeCards();
@@ -3104,7 +3465,12 @@ function renderCalendar() {
       info.textContent = '차량 픽업 ' + event.pickup + ' · 알림 ' +
         new Intl.DateTimeFormat('ko-KR', {hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).format(pickupMoment(event, -60)) +
         (todayDate(pickupMoment(event, -60)) !== event.date ? ' (전날)' : '');
-      item.append(info);
+      item.append(info,
+        scheduleButton('실제 픽업 기록', () => {
+          const recorded = vehicleRecords.find(record => record.vehicle?.scheduleId === event.id && record.date === event.date);
+          openVehicleEditor(recorded, event);
+        }),
+        scheduleButton('캘린더 알림 파일 저장', () => downloadPickupCalendar(event)));
     }
     const actions = document.createElement('div');
     actions.className = 'schedule-actions';
@@ -3118,6 +3484,7 @@ function refreshSchedule() {
   return withSchedule(state => {
     calendarEvents = state.events;
     renderCalendar();
+    updateVehiclePlan();
   }).catch(showScheduleError);
 }
 
@@ -3410,6 +3777,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('storage', event => {
   if (event.key === scheduleKey || event.key === null) refreshSchedule();
 });
+setVehicleEditor();
 </script>
 </body>
 </html>
