@@ -61,6 +61,24 @@ button:disabled{opacity:.6}
 </form>
 </section>
 <section>
+<h2>영수증으로 지출 기록</h2>
+<form id="receipt-form">
+<label for="receipt-photo">영수증 촬영 또는 사진 선택</label>
+<input id="receipt-photo" type="file" accept="image/*" capture="environment" aria-describedby="receipt-status">
+<p id="receipt-status" role="status">사진에서 날짜, 사용처, 결제 금액을 읽습니다.</p>
+<fieldset id="receipt-fields" hidden disabled>
+<legend>인식 결과 확인</legend>
+<label for="receipt-date">결제 날짜</label>
+<input id="receipt-date" type="date" required>
+<label for="receipt-merchant">사용처</label>
+<input id="receipt-merchant" type="text" required>
+<label for="receipt-amount">결제 금액 (원)</label>
+<input id="receipt-amount" type="number" inputmode="numeric" min="1" step="1" required>
+<button id="receipt-save" type="submit">지출 기록 저장</button>
+</fieldset>
+</form>
+</section>
+<section>
 <h2>백업 및 복원</h2>
 <button id="backup" type="button">JSON 백업 다운로드</button>
 <label for="backup-file">복원할 JSON 파일</label>
@@ -98,6 +116,7 @@ const voiceStatus = byId('voice-status');
 const voicePreview = byId('voice-preview');
 const voiceDraft = byId('voice-draft');
 let editingId = null;
+let editingReceipt = null;
 let voiceInput = null;
 let categoryOverride = false;
 const filterDate = byId('filter-date');
@@ -209,12 +228,22 @@ function analyze(text, recordedCategory = '') {
   return {...totals, category: suggested};
 }
 
+function recordAmounts(record) {
+  if (Number.isSafeInteger(record.receiptAmount) && record.receiptAmount > 0) {
+    return {income: 0, expense: record.receiptAmount};
+  }
+  return analyze(record.memo, record.category);
+}
+
 function moneyText(amount) {
   return currency.format(amount) + '원';
 }
 
 function updateAnalysis() {
-  const result = analyze(memo.value, categoryOverride ? category.value : '');
+  const text = memo.value.trim();
+  const result = editingReceipt?.memo === text
+    ? {...recordAmounts(editingReceipt), category: '지출'}
+    : analyze(text, categoryOverride ? category.value : '');
   if (!categoryOverride) category.value = result.category;
   const preview = byId('amount-preview');
   preview.hidden = !result.income && !result.expense;
@@ -302,6 +331,7 @@ function stopVoiceForEditor() {
 function setEditor(record) {
   stopVoiceForEditor();
   editingId = record?.id ?? null;
+  editingReceipt = Number.isSafeInteger(record?.receiptAmount) && record.receiptAmount > 0 ? record : null;
   form.reset();
   date.value = record?.date ?? todayDate();
   const names = [...new Set([...categories, ...(record ? [record.category] : [])])];
@@ -336,7 +366,7 @@ function render(records) {
   const monthly = {income: 0, expense: 0};
   const visible = [];
   for (const record of records) {
-    const amounts = analyze(record.memo, record.category);
+    const amounts = recordAmounts(record);
     if (record.date === day) {
       daily.income += amounts.income;
       daily.expense += amounts.expense;
@@ -432,7 +462,10 @@ async function saveEditor() {
       if (previousId) {
         const index = records.findIndex(record => record.id === previousId);
         if (index === -1) throw new Error('다른 탭에서 삭제된 기록입니다. 내용을 새 기록으로 저장하려면 복사해 주세요.');
-        records[index] = {...records[index], ...draft};
+        const original = records[index];
+        const updated = {...original, ...draft};
+        if (original.memo !== draft.memo) delete updated.receiptAmount;
+        records[index] = updated;
       } else {
         records.unshift({...draft, id: newId()});
       }
@@ -782,6 +815,187 @@ improvementCopy.onclick = async () => {
 };
 
 improvementVoice.onclick = () => toggleVoice(improvementVoice, improvementText, improvementStatus);
+
+const receiptForm = byId('receipt-form');
+const receiptPhoto = byId('receipt-photo');
+const receiptStatus = byId('receipt-status');
+const receiptFields = byId('receipt-fields');
+const receiptDate = byId('receipt-date');
+const receiptMerchant = byId('receipt-merchant');
+const receiptAmount = byId('receipt-amount');
+const receiptSave = byId('receipt-save');
+const ocrBase = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1';
+let ocrLibrary;
+
+function loadOcr() {
+  ocrLibrary ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = ocrBase + '/dist/tesseract.min.js';
+    script.onload = () => {
+      if (window.Tesseract?.createWorker) resolve(window.Tesseract);
+      else {
+        script.remove();
+        reject(new Error());
+      }
+    };
+    script.onerror = () => {
+      script.remove();
+      reject(new Error());
+    };
+    document.head.append(script);
+  }).catch(error => {
+    ocrLibrary = undefined;
+    throw error;
+  });
+  return ocrLibrary;
+}
+
+function receiptDetails(text) {
+  const lines = text.normalize('NFKC').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const transactionLabel = /거래\s*일|결제\s*일|구매\s*일|승인\s*일|판매\s*일|발행\s*일|일\s*시|(?:transaction|payment)\s*date/i;
+  const otherDateLabel = /유효\s*기간|제조\s*일|유통\s*기한|재발행|재출력|출력\s*일/;
+  const totalLabels = [
+    /실\s*결제\s*(?:금액|액)?|(?:실제|최종|총)\s*(?:결제|승인)\s*(?:금액|액)?|(?:받을|지불할|청구)\s*금액|amount\s*(?:paid|due)|grand\s*total/i,
+    /(?:결제|승인|지불|신용카드|카드)\s*(?:금액|합계|액)|합\s*계\s*금\s*액|총\s*(?:금액|합계)|(?:구매|판매)\s*합계/i,
+    /합\s*계|\btotal\b/i,
+  ];
+  const excludedTotal = /부가세|부가가치세|공급가액|면세|과세|소계|할인|받은\s*금액|거스름돈|잔액|포인트|sub\s*total|change|tax|discount/i;
+  const merchantLabel = /^(?:가맹점(?:명)?|상\s*호(?:명)?|업체명|판매처|merchant(?:\s*name)?|store\s*name)\s*[:：]?\s*/i;
+  const administrativeLine = /영수증|매출\s*전표|고객용|고객\s*보관|사업자|대표자|연락처|전화|주소|승인|거래|단말기|카드번호|품목|수량|단가|합\s*계|결제|receipt|customer\s*copy|merchant\s*copy|tel[.:]/i;
+  let date = '';
+  let dateRank = 0;
+  let merchant = '';
+  let amount = 0;
+  let amountRank = 0;
+
+  for (const [index, line] of lines.entries()) {
+    const previous = lines[index - 1] ?? '';
+    const next = lines[index + 1] ?? '';
+    const dateLabel = transactionLabel.test(line) || transactionLabel.test(previous);
+    const dateMatch = /(?<!\d)(20\d{2}|\d{2})\s*(?:[./-]|년)\s*(\d{1,2})\s*(?:[./-]|월)\s*(\d{1,2})(?!\d)/.exec(line);
+    if (dateMatch && !otherDateLabel.test(line) && !otherDateLabel.test(previous)) {
+      const [, yearText, monthText, dayText] = dateMatch;
+      const year = Number(yearText.length === 2 ? '20' + yearText : yearText);
+      const month = Number(monthText);
+      const day = Number(dayText);
+      const candidate = new Date(Date.UTC(year, month - 1, day));
+      const rank = dateLabel ? 2 : 1;
+      if (rank > dateRank && candidate.getUTCMonth() === month - 1 && candidate.getUTCDate() === day) {
+        date = candidate.toISOString().slice(0, 10);
+        dateRank = rank;
+      }
+    }
+
+    if (!merchant && merchantLabel.test(line)) {
+      const name = line.replace(merchantLabel, '').split(/\s+(?:사업자|대표자|전화|주소|TEL\b)/i)[0].trim();
+      merchant = name || (!administrativeLine.test(next) && /[가-힣a-z]/i.test(next) ? next : '');
+    }
+
+    const labelIndex = totalLabels.findIndex(pattern => pattern.test(line));
+    if (labelIndex === -1) continue;
+    const label = totalLabels[labelIndex].exec(line);
+    const before = line.slice(0, label.index);
+    const after = line.slice(label.index + label[0].length);
+    if (excludedTotal.test(before) || excludedTotal.test(after)) continue;
+    const numbers = /(?:₩\s*)?(\d+(?:\s*,\s*\d{3})*)\s*원?(?![\d.,%:/-])/g;
+    const valueText = after.trim() && /[0-9]/.test(after) ? after : /^\s*[:=₩\d,\s원]+\s*$/.test(next) ? next : '';
+    const values = [...valueText.matchAll(numbers)];
+    const value = Number(values.at(-1)?.[1].replace(/[,\s]/g, ''));
+    const rank = totalLabels.length - labelIndex;
+    if (Number.isSafeInteger(value) && value > 0 && rank >= amountRank) {
+      amount = value;
+      amountRank = rank;
+    }
+  }
+
+  if (!merchant) {
+    merchant = lines.slice(0, 8).find(line => /[가-힣a-z]/i.test(line) &&
+      !administrativeLine.test(line) && !otherDateLabel.test(line) && !excludedTotal.test(line) &&
+      !/\d\s*원/.test(line) &&
+      !/(?:19|20)\d{2}|^\s*[#*]|[:：]|(?:시|구|동)\s+.*(?:로|길)\s*\d/.test(line)) ?? '';
+  }
+  return {date, merchant, amount};
+}
+
+receiptPhoto.onchange = async () => {
+  const photo = receiptPhoto.files[0];
+  if (!photo) return;
+  receiptPhoto.disabled = true;
+  receiptFields.hidden = true;
+  receiptFields.disabled = true;
+  receiptDate.value = receiptMerchant.value = receiptAmount.value = '';
+  receiptStatus.textContent = '영수증 인식을 준비하고 있습니다…';
+  let worker;
+  try {
+    const ocr = await loadOcr();
+    let rejectWorker;
+    const workerFailure = new Promise((_, reject) => { rejectWorker = reject; });
+    const startup = ocr.createWorker('kor+eng', 1, {
+      errorHandler: rejectWorker,
+      workerPath: ocrBase + '/dist/worker.min.js',
+      logger: progress => {
+        if (progress.status === 'recognizing text') {
+          receiptStatus.textContent = '영수증 인식 중… ' + Math.round(progress.progress * 100) + '%';
+        }
+      },
+    });
+    worker = await Promise.race([startup, workerFailure]);
+    const result = await Promise.race([worker.recognize(photo), workerFailure]);
+    const details = receiptDetails(result.data.text);
+    receiptDate.value = details.date;
+    receiptMerchant.value = details.merchant;
+    receiptAmount.value = details.amount || '';
+    receiptStatus.textContent = details.date && details.merchant && details.amount
+      ? '인식된 날짜, 사용처, 금액을 확인한 뒤 저장하세요.'
+      : '인식하지 못한 항목을 입력하거나 사진을 다시 촬영해 주세요.';
+  } catch {
+    receiptStatus.textContent = '사진을 읽지 못했습니다. 인터넷 연결을 확인하고 다시 촬영하거나 아래 항목을 입력해 주세요.';
+  } finally {
+    if (worker) {
+      try { await worker.terminate(); } catch { /* The worker may already have stopped. */ }
+    }
+    receiptPhoto.value = '';
+    receiptPhoto.disabled = false;
+    receiptFields.hidden = false;
+    receiptFields.disabled = false;
+  }
+};
+
+receiptForm.onsubmit = async event => {
+  event.preventDefault();
+  if (receiptFields.disabled || receiptSave.disabled) return;
+  const amount = receiptAmount.valueAsNumber;
+  const merchant = receiptMerchant.value.trim();
+  if (!receiptDate.value || !receiptDate.validity.valid || !merchant || !Number.isSafeInteger(amount) || amount <= 0) {
+    receiptStatus.textContent = '결제 날짜, 사용처, 1원 이상의 정수 금액을 입력해 주세요.';
+    return;
+  }
+  receiptSave.disabled = true;
+  receiptPhoto.disabled = true;
+  try {
+    const record = {
+      id: newId(),
+      date: receiptDate.value,
+      category: '지출',
+      memo: '사용처: ' + merchant + '\n지출: ' + moneyText(amount),
+      receiptAmount: amount,
+    };
+    await withRecords(records => {
+      const updated = [record, ...records];
+      writeRecords(updated);
+      render(updated);
+    });
+    receiptForm.reset();
+    receiptFields.hidden = true;
+    receiptFields.disabled = true;
+    receiptStatus.textContent = '영수증을 지출 기록으로 저장했습니다.';
+  } catch (error) {
+    receiptStatus.textContent = error.message;
+  } finally {
+    receiptSave.disabled = false;
+    receiptPhoto.disabled = false;
+  }
+};
 
 function refresh() {
   withRecords(render).catch(error => report(error.message, true));
