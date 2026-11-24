@@ -63,12 +63,20 @@ button:disabled{opacity:.6}
 #golf-streak{background:#edf4ff;padding:10px;border-radius:8px;color:#234b83}
 .hula-profit{color:#174ca3;font-weight:bold}
 .hula-loss{color:#a52626;font-weight:bold}
+#cards-section details{border:1px solid #dae1ec;border-radius:8px;padding:10px;margin:12px 0}
+#cards-section summary{cursor:pointer}
+#card-overview>div{min-width:0}
+.card-progress{display:block;width:100%;height:14px;accent-color:#2463b6;margin:8px 0}
+.card-progress.near-limit{accent-color:#a55e04}
+.card-progress.at-limit{accent-color:#ae2929}
+.card-warning{color:#9b1c1c;font-weight:bold}
+.card-photo{display:block;max-width:100%;max-height:320px;object-fit:contain}
 </style>
 </head>
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
-<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a></p>
+<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a> · <a href="#cards-heading">카드 사용·한도</a></p>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -186,6 +194,68 @@ button:disabled{opacity:.6}
 <div><label for="hula-year">조회 연도</label><input id="hula-year" type="number" min="1" max="9999" step="1" inputmode="numeric"></div>
 </div>
 <div id="hula-totals" class="totals"></div>
+</section>
+<section id="cards-section" aria-labelledby="cards-heading">
+<h2 id="cards-heading">카드 사용·한도</h2>
+<label for="card-reference">집계 기준 날짜</label>
+<input id="card-reference" type="date">
+<p id="card-corporate-total"></p>
+<div id="card-overview" class="totals"></div>
+<p id="card-registry-status" role="status"></p>
+<section id="card-detail" hidden>
+<h3 id="card-detail-title"></h3>
+<div id="card-detail-records"></div>
+<div id="card-topups" hidden>
+<h4>법인 한도 충전 내역</h4>
+<div id="card-topup-list"></div>
+<form id="card-topup-form">
+<div class="fields">
+<div><label for="card-topup-date">충전 적용일</label><input id="card-topup-date" type="date" required></div>
+<div><label for="card-topup-amount">추가 한도 (원)</label><input id="card-topup-amount" type="number" min="1" max="1000000000" step="1" required></div>
+</div>
+<button type="submit">한도 추가 충전</button>
+</form>
+</div>
+</section>
+<details id="card-management">
+<summary>카드 추가·수정</summary>
+<form id="card-config">
+<div class="fields">
+<div><label for="card-name">카드 이름</label><input id="card-name" type="text" maxlength="80" required></div>
+<div><label for="card-type">카드 구분</label><select id="card-type"><option value="personal">개인카드</option><option value="corporate">법인카드</option></select></div>
+<div><label for="card-limit">기본 한도 (원)</label><input id="card-limit" type="number" min="1" max="1000000000" step="1" placeholder="한도 없음"></div>
+<div><label for="card-period">한도 적용 기간</label><select id="card-period"><option value="all">누적</option><option value="month">월별</option><option value="quarter">분기별</option><option value="year">연간</option><option value="range">기간 직접 지정</option></select></div>
+<div><label for="card-from">한도 적용 시작일</label><input id="card-from" type="date"></div>
+<div><label for="card-to">한도 적용 종료일</label><input id="card-to" type="date"></div>
+</div>
+<button type="submit" id="card-config-save">카드 추가</button>
+<button type="button" id="card-config-cancel" hidden>카드 수정 취소</button>
+</form>
+</details>
+<h3 id="card-use-title">카드 사용 기록</h3>
+<form id="card-use">
+<div class="fields">
+<div><label for="card-use-card">카드</label><select id="card-use-card" required></select></div>
+<div><label for="card-use-date">사용 날짜</label><input id="card-use-date" type="date" required></div>
+<div><label for="card-use-merchant">사용처</label><input id="card-use-merchant" type="text" maxlength="120" required></div>
+<div><label for="card-use-amount">사용금액 (원)</label><input id="card-use-amount" type="number" min="1" max="1000000000" step="1" inputmode="numeric" required></div>
+<div><label for="card-use-purpose">사용 목적</label><input id="card-use-purpose" type="text" maxlength="200"></div>
+<div><label for="card-use-people">참석자</label><input id="card-use-people" type="text" maxlength="300"></div>
+</div>
+<div id="card-reimburse" class="fields">
+<div><label for="card-use-advance">사용액 중 대신 결제 (원)</label><input id="card-use-advance" type="number" min="0" max="1000000000" step="1"></div>
+<div><label for="card-use-refund">실제 돌려받은 금액 (원)</label><input id="card-use-refund" type="number" min="0" max="1000000000" step="1"></div>
+</div>
+<label class="calendar-check"><input id="card-use-linked" type="checkbox"> 이미 개인 수입·지출에 기록된 거래 · 카드 사용액에만 반영</label>
+<label for="card-use-photo">영수증 사진 첨부</label>
+<input id="card-use-photo" type="file" accept="image/*" capture="environment">
+<button id="card-remove-photo" type="button" hidden>저장된 영수증 사진 제거</button>
+<button id="card-voice" type="button">🎤 카드 사용 음성 입력 시작</button>
+<p id="card-voice-status" role="status">예: “카드 우리카드, 사용처 서울 식당, 금액 3만 원. 끝”</p>
+<button id="card-use-save" type="submit">카드 사용 저장</button>
+<button id="card-use-cancel" type="button" hidden>사용 기록 수정 취소</button>
+<p id="card-use-status" role="status"></p>
+</form>
 </section>
 <section id="weight-dashboard" aria-labelledby="weight-heading">
 <h2 id="weight-heading">운동·체중 현황</h2>
@@ -453,6 +523,7 @@ function analyze(text, recordedCategory = '') {
 }
 
 function recordAmounts(record) {
+  if (validCardUse(record.cardUse)) return cardCashFlow(record.cardUse);
   if (validHula(record.hula)) return hulaCashFlow(record.hula);
   if (validGolf(record.golf)) return golfCashFlow(record.golf);
   if (Number.isSafeInteger(record.receiptAmount) && record.receiptAmount > 0) {
@@ -519,7 +590,8 @@ function report(message = '', isError = false) {
 function validRecord(record) {
   return record && typeof record.date === 'string' &&
     typeof record.category === 'string' && typeof record.memo === 'string' &&
-    (record.golf === undefined || validGolf(record.golf)) && (record.hula === undefined || validHula(record.hula));
+    (record.golf === undefined || validGolf(record.golf)) && (record.hula === undefined || validHula(record.hula)) &&
+    (record.cardUse === undefined || validCardUse(record.cardUse));
 }
 
 function newId() {
@@ -613,6 +685,7 @@ function render(records) {
   renderFitnessDashboard(records);
   renderGolf(records);
   renderHula(records);
+  renderCards(records);
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
@@ -653,6 +726,10 @@ function render(records) {
         report('음성 입력을 종료한 뒤 기록을 수정해 주세요.');
         return;
       }
+      if (validCardUse(record.cardUse)) {
+        openCardUse(record);
+        return;
+      }
       if (validHula(record.hula)) {
         openHulaEditor(record);
         return;
@@ -680,12 +757,16 @@ function render(records) {
           if (hulaEditingId === record.id && voiceInput?.button === hulaVoice) {
             throw new Error('훌라 음성 입력을 종료한 뒤 수정 중인 게임을 삭제해 주세요.');
           }
+          if (cardEditingId === record.id && voiceInput?.button === cardVoice) {
+            throw new Error('카드 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
+          }
           const remaining = current.filter(item => item.id !== record.id);
           if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
           writeRecords(remaining);
           if (editingId === record.id) setEditor();
           if (golfEditingId === record.id) setGolfEditor();
           if (hulaEditingId === record.id) setHulaEditor();
+          if (cardEditingId === record.id) setCardUse();
           render(remaining);
           report('기록을 삭제했습니다.');
         });
@@ -694,9 +775,13 @@ function render(records) {
       }
     };
     article.append(heading);
-    if (validHula(record.hula)) article.append(hulaRecordDetails(record.hula));
+    if (validCardUse(record.cardUse)) article.append(cardUseDetails(record.cardUse));
+    else if (validHula(record.hula)) article.append(hulaRecordDetails(record.hula));
     else if (validGolf(record.golf)) article.append(golfRecordDetails(record));
     else {
+      if (record.category === '지출' && amounts.expense && !amounts.income) {
+        article.append(scheduleButton('카드 사용 기록으로 전환', () => openCardUse(record)));
+      }
       if (record.category === '스크린골프' || record.category === '골프·훌라' && /골프/.test(record.memo)) {
         article.append(scheduleButton('스크린골프 손익 기록으로 전환', () => openGolfEditor(record)));
       }
@@ -850,7 +935,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula);
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse);
 }
 
 function mergeBackup(current, incoming) {
@@ -932,10 +1017,11 @@ function completeVoiceInput(input) {
   if (button === voice && hasTranscript) saveEditor({fromVoice: true});
   if (button === golfVoice && hasTranscript) fillGolfFromVoice(input.field.value);
   if (button === hulaVoice && hasTranscript) fillHulaFromVoice(input.field.value);
+  if (button === cardVoice && hasTranscript) fillCardFromVoice(input.field.value);
 }
 
 function commitSpeech(input, text) {
-  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
+  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
   const content = command ? text.slice(0, command.index).trimEnd() : text;
   if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
   return Boolean(command);
@@ -1058,7 +1144,7 @@ function startRecognition(input) {
 
 function toggleVoice(button, field, status) {
   if (button === voice && save.disabled || button === golfVoice && byId('golf-save').disabled ||
-      button === hulaVoice && byId('hula-save').disabled) return;
+      button === hulaVoice && byId('hula-save').disabled || button === cardVoice && byId('card-use-save').disabled) return;
   if (voiceInput) {
     const input = voiceInput;
     if (input.button !== button) {
@@ -1102,7 +1188,7 @@ function toggleVoice(button, field, status) {
     session: null, timer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
   button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' :
-    button === hulaVoice ? '훌라 음성 입력 종료' : '요청 음성 입력 종료';
+    button === hulaVoice ? '훌라 음성 입력 종료' : button === cardVoice ? '카드 음성 입력 종료' : '요청 음성 입력 종료';
   status.textContent = '음성 입력 시작 중…';
   startRecognition(voiceInput);
 }
@@ -2384,8 +2470,475 @@ hulaForm.onsubmit = async event => {
   }
 };
 
+const cardKey = 'daily-record-cards-v1';
+const cardDefaults = [
+  {id: 'mg', name: '개인 새마을금고 체크카드', type: 'personal', limit: null, period: 'all', from: '', to: '', topups: []},
+  {id: 'woori', name: '법인 우리카드', type: 'corporate', limit: 900000, period: 'quarter', from: '', to: '', topups: []},
+  {id: 'kb', name: '법인 KB카드', type: 'corporate', limit: 500000, period: 'all', from: '', to: '', topups: []},
+];
+const cardPeriods = {all: '누적', month: '월별', quarter: '분기별', year: '연간', range: '지정 기간'};
+const cardReference = byId('card-reference');
+const cardUse = byId('card-use');
+const cardSelect = byId('card-use-card');
+const cardConfig = byId('card-config');
+const cardUseStatus = byId('card-use-status');
+const cardRegistryStatus = byId('card-registry-status');
+const cardVoice = byId('card-voice');
+const cardVoiceStatus = byId('card-voice-status');
+const cardPurpose = byId('card-use-purpose');
+let cardSettings = cardDefaults;
+let cardRecords = [];
+let cardEditingId = null;
+let cardConfigId = null;
+let cardDetailId = null;
+let cardAttachedPhoto = '';
+
+function readCards() {
+  const raw = localStorage.getItem(cardKey);
+  if (raw === null) return cardDefaults;
+  const cards = JSON.parse(raw);
+  if (!Array.isArray(cards)) throw new Error('저장된 카드 설정을 읽을 수 없습니다.');
+  return cards;
+}
+
+function changeCards(operation) {
+  const run = () => {
+    const cards = operation(readCards());
+    localStorage.setItem(cardKey, JSON.stringify(cards));
+    cardSettings = cards;
+    renderCards(cardRecords);
+  };
+  return navigator.locks ? navigator.locks.request(cardKey, run) : Promise.resolve().then(run);
+}
+
+function cardKind(type) {
+  return type === 'corporate' ? '법인카드' : '개인카드';
+}
+
+function validCardUse(value) {
+  if (!value || !['personal', 'corporate'].includes(value.type) ||
+      !['id', 'name', 'merchant', 'purpose', 'people', 'photo'].every(key => typeof value[key] === 'string')) return false;
+  const money = number => Number.isSafeInteger(number) && number >= 0 && number <= 1000000000;
+  return value.id && value.name && value.merchant && typeof value.onlyCard === 'boolean' &&
+    [value.amount, value.advance, value.refund].every(money) && value.amount > 0 &&
+    value.advance <= value.amount && value.refund <= value.advance &&
+    (!value.photo || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value.photo)) && value.photo.length <= 220000;
+}
+
+function cardCashFlow(value) {
+  if (value.type === 'corporate' || value.onlyCard) return {income: 0, expense: 0};
+  return {income: value.refund, expense: value.amount};
+}
+
+function cardQuarter(month) {
+  return month.slice(0, 4) + '-' + Math.ceil(Number(month.slice(5, 7)) / 3);
+}
+
+function cardWithinPeriod(date, card, reference) {
+  if (card.from && date < card.from || card.to && date > card.to) return false;
+  if (card.period === 'month') return date.slice(0, 7) === reference.slice(0, 7);
+  if (card.period === 'quarter') return cardQuarter(date) === cardQuarter(reference);
+  if (card.period === 'year') return date.slice(0, 4) === reference.slice(0, 4);
+  return true;
+}
+
+function cardUsageStats(card, reference, records) {
+  const totals = {day: 0, month: 0, quarter: 0, all: 0, period: 0, topup: 0, limit: null};
+  const applies = (!card.from || reference >= card.from) && (!card.to || reference <= card.to);
+  for (const record of records) {
+    const amount = record.cardUse.amount;
+    totals.all += amount;
+    if (record.date === reference) totals.day += amount;
+    if (record.date.slice(0, 7) === reference.slice(0, 7)) totals.month += amount;
+    if (cardQuarter(record.date) === cardQuarter(reference)) totals.quarter += amount;
+    if (applies && record.date <= reference && cardWithinPeriod(record.date, card, reference)) totals.period += amount;
+  }
+  if (applies && card.limit !== null) {
+    if (card.type === 'corporate') {
+      totals.topup = card.topups.reduce((total, item) =>
+        total + (item.date <= reference && cardWithinPeriod(item.date, card, reference) ? item.amount : 0), 0);
+    }
+    totals.limit = card.limit + totals.topup;
+  }
+  return totals;
+}
+
+function cardLines(container, lines) {
+  for (const text of lines) {
+    const p = document.createElement('p');
+    p.textContent = text;
+    container.append(p);
+  }
+}
+
+function cardUseDetails(value, includePhoto = true) {
+  const node = document.createElement('div');
+  cardLines(node, [
+    value.name + ' · ' + cardKind(value.type),
+    value.merchant + ' · ' + moneyText(value.amount),
+    ...(value.purpose ? ['목적 · ' + value.purpose] : []),
+    ...(value.people ? ['참석자 · ' + value.people] : []),
+    ...(value.advance || value.refund ? ['대신 결제 ' + moneyText(value.advance) +
+      ' · 돌려받음 ' + moneyText(value.refund) + ' · 미회수 ' + moneyText(value.advance - value.refund)] : []),
+    ...(value.onlyCard ? ['카드 사용액에만 반영'] : []),
+  ]);
+  if (includePhoto && value.photo) {
+    const receipt = document.createElement('details');
+    const summary = document.createElement('summary');
+    const image = document.createElement('img');
+    summary.textContent = '첨부 영수증 보기';
+    image.src = value.photo;
+    image.alt = value.merchant + ' 영수증';
+    image.className = 'card-photo';
+    image.loading = 'lazy';
+    receipt.append(summary, image);
+    node.append(receipt);
+  }
+  return node;
+}
+
+function cardUseOptions(preferred = cardSelect.value) {
+  const previous = cardRecords.find(record => record.id === cardEditingId)?.cardUse;
+  const active = cardSettings.filter(card => !card.archived || card.id === preferred && previous?.id === preferred);
+  if (previous?.id === preferred && !active.some(card => card.id === preferred)) {
+    active.push({...previous, archived: true});
+  }
+  cardSelect.replaceChildren(option('선택하세요', ''), ...active.map(card =>
+    option(card.name + (card.archived ? ' (삭제됨)' : ''), card.id)));
+  cardSelect.value = active.some(card => card.id === preferred) ? preferred : '';
+  const type = previous?.id === cardSelect.value ? previous.type : active.find(card => card.id === cardSelect.value)?.type;
+  const personal = type === 'personal';
+  byId('card-reimburse').hidden = !personal;
+  for (const id of ['card-use-advance', 'card-use-refund']) byId(id).disabled = !personal;
+}
+
+function showCardDetail(card, records) {
+  const panel = byId('card-detail');
+  panel.hidden = !card;
+  if (!card) return;
+  byId('card-detail-title').textContent = card.name + ' 상세 내역';
+  const list = byId('card-detail-records');
+  list.replaceChildren();
+  if (!records.length) list.textContent = '등록된 사용 내역이 없습니다.';
+  for (const record of [...records].sort((a, b) => b.date.localeCompare(a.date))) {
+    const article = document.createElement('article');
+    const dateLabel = document.createElement('strong');
+    dateLabel.textContent = record.date;
+    article.append(dateLabel, cardUseDetails(record.cardUse),
+      scheduleButton('사용 기록 수정', () => openCardUse(record)));
+    list.append(article);
+  }
+  const topup = byId('card-topups');
+  topup.hidden = card.type !== 'corporate' || card.archived;
+  const entries = byId('card-topup-list');
+  entries.replaceChildren();
+  if (topup.hidden) return;
+  for (const item of card.topups) {
+    const line = document.createElement('div');
+    cardLines(line, [item.date + ' · ' + moneyText(item.amount)]);
+    line.append(scheduleButton('충전 내역 삭제', () => {
+      if (!confirm('이 충전을 삭제할까요?')) return;
+      changeCards(cards => cards.map(entry => entry.id === card.id
+        ? {...entry, topups: entry.topups.filter(topup => topup.id !== item.id)} : entry))
+        .catch(error => { cardRegistryStatus.textContent = error.message; });
+    }));
+    entries.append(line);
+  }
+}
+
+function renderCards(records) {
+  cardRecords = records;
+  const ref = cardReference.value || todayDate();
+  const overview = byId('card-overview');
+  overview.replaceChildren();
+  const grouped = new Map();
+  const cards = new Map(cardSettings.map(card => [card.id, card]));
+  for (const record of records) {
+    if (!validCardUse(record.cardUse)) continue;
+    const {id, name, type} = record.cardUse;
+    if (!grouped.has(id)) grouped.set(id, []);
+    grouped.get(id).push(record);
+    if (!cards.has(id)) cards.set(id, {id, name, type, limit: null, period: 'all', topups: [], archived: true});
+  }
+  const corporateMonth = records.reduce((total, record) => total +
+    (record.cardUse?.type === 'corporate' && record.date.slice(0, 7) === ref.slice(0, 7) ? record.cardUse.amount : 0), 0);
+  byId('card-corporate-total').textContent = ref.slice(0, 7) + ' 법인카드 사용 합계 ' + moneyText(corporateMonth);
+  for (const card of cards.values()) {
+    const uses = grouped.get(card.id) ?? [];
+    if (card.archived && !uses.length) continue;
+    const box = document.createElement('div');
+    const title = document.createElement('h3');
+    title.textContent = card.name + (card.archived ? ' (삭제됨)' : '');
+    box.append(title);
+    const stats = cardUsageStats(card, ref, uses);
+    const labels = ['일별 ' + moneyText(stats.day), '월별 ' + moneyText(stats.month),
+      '분기별 ' + moneyText(stats.quarter), '누적 ' + moneyText(stats.all)];
+    if (!stats.limit) labels.push(card.limit ? '현재 한도 적용 기간 외' : '한도 없음');
+    else labels.push(cardPeriods[card.period] + ' 한도 ' + moneyText(stats.limit) +
+      (stats.topup ? ' (충전 ' + moneyText(stats.topup) + ' 포함)' : ''),
+      '기준일까지 한도 사용 ' + moneyText(stats.period),
+      '남은 한도 ' + moneyText(Math.max(0, stats.limit - stats.period)) +
+      (stats.period > stats.limit ? ' · 초과 ' + moneyText(stats.period - stats.limit) : ''));
+    cardLines(box, [cardKind(card.type), ...labels]);
+    if (stats.limit) {
+      const percent = stats.period / stats.limit * 100;
+      const graph = document.createElement('progress');
+      graph.className = 'card-progress';
+      graph.max = stats.limit;
+      graph.value = Math.min(stats.period, stats.limit);
+      graph.setAttribute('aria-label', '한도 사용률');
+      box.append(graph);
+      cardLines(box, ['한도 사용률 ' + new Intl.NumberFormat('ko-KR', {maximumFractionDigits: 1}).format(percent) + '%']);
+      if (percent >= 80) {
+        const warning = document.createElement('p');
+        graph.classList.add(percent >= 90 ? 'at-limit' : 'near-limit');
+        warning.className = 'card-warning';
+        warning.textContent = percent >= 100 ? '한도 소진 또는 초과' : '한도 ' + (percent >= 90 ? '90' : '80') + '% 도달';
+        box.append(warning);
+      }
+    }
+    box.append(scheduleButton('상세 내역 확인', () => {
+      cardDetailId = card.id;
+      showCardDetail(card, uses);
+      byId('card-detail').scrollIntoView({block: 'nearest'});
+    }));
+    if (!card.archived) box.append(scheduleButton('카드 수정', () => setCardConfig(card)),
+      scheduleButton('카드 삭제', () => archiveCard(card)));
+    overview.append(box);
+  }
+  if (!overview.children.length) overview.textContent = '등록된 카드가 없습니다.';
+  const selected = cards.get(cardDetailId);
+  const uses = grouped.get(cardDetailId) ?? [];
+  showCardDetail(selected?.archived && !uses.length ? null : selected, uses);
+  cardUseOptions();
+}
+
+function setCardConfig(card) {
+  cardConfigId = card?.id ?? null;
+  cardConfig.reset();
+  if (card) {
+    byId('card-management').open = true;
+    for (const key of ['name', 'type', 'limit', 'period', 'from', 'to']) byId('card-' + key).value = card[key] ?? '';
+    byId('card-name').focus();
+  }
+  byId('card-config-save').textContent = card ? '카드 변경 저장' : '카드 추가';
+  byId('card-config-cancel').hidden = !card;
+}
+
+function archiveCard(card) {
+  if (!confirm(card.name + '을 사용 목록에서 삭제할까요? 기존 사용 내역은 보존됩니다.')) return;
+  changeCards(cards => cards.map(entry => entry.id === card.id ? {...entry, archived: true} : entry))
+    .then(() => {
+      if (cardConfigId === card.id) setCardConfig();
+      if (!cardEditingId && cardSelect.value === card.id) cardUseOptions('');
+      cardRegistryStatus.textContent = '카드를 삭제했습니다. 기존 사용 기록은 상세 내역에서 볼 수 있습니다.';
+    }).catch(error => { cardRegistryStatus.textContent = error.message; });
+}
+
+cardConfig.onsubmit = async event => {
+  event.preventDefault();
+  const editing = cardConfigId;
+  const draft = {name: byId('card-name').value.trim(), type: byId('card-type').value,
+    limit: byId('card-limit').valueAsNumber || null, period: byId('card-period').value,
+    from: byId('card-from').value, to: byId('card-to').value};
+  if (!draft.name || draft.period === 'range' && (!draft.from || !draft.to) ||
+      draft.from && draft.to && draft.from > draft.to) {
+    cardRegistryStatus.textContent = '카드 이름과 한도 기간의 시작일·종료일을 확인해 주세요.';
+    return;
+  }
+  try {
+    await changeCards(cards => {
+      if (cards.some(card => !card.archived && card.id !== editing && card.name === draft.name)) throw new Error('이미 같은 이름의 카드가 있습니다.');
+      if (editing && !cards.some(card => card.id === editing && !card.archived)) throw new Error('이미 삭제된 카드입니다.');
+      return editing ? cards.map(card => card.id === editing ? {...card, ...draft} : card)
+        : [...cards, {...draft, id: newId(), topups: []}];
+    });
+    setCardConfig();
+    cardRegistryStatus.textContent = editing ? '카드 설정을 수정했습니다.' : '카드를 추가했습니다.';
+  } catch (error) {
+    cardRegistryStatus.textContent = error.message;
+  }
+};
+
+byId('card-topup-form').onsubmit = async event => {
+  event.preventDefault();
+  const id = cardDetailId;
+  const date = byId('card-topup-date').value;
+  const amount = byId('card-topup-amount').valueAsNumber;
+  if (!validScheduleDate(date) || !Number.isSafeInteger(amount) || amount <= 0) return;
+  try {
+    await changeCards(cards => cards.map(card => {
+      if (card.id !== id) return card;
+      if (card.archived || card.type !== 'corporate' || !card.limit) throw new Error('기본 한도를 설정한 법인카드에만 충전할 수 있습니다.');
+      if (!cardWithinPeriod(date, card, date)) throw new Error('충전 적용일이 카드 한도 적용 기간을 벗어났습니다.');
+      return {...card, topups: [...card.topups, {id: newId(), date, amount}]};
+    }));
+    byId('card-topup-amount').value = '';
+    cardRegistryStatus.textContent = '추가 한도를 등록했습니다.';
+  } catch (error) {
+    cardRegistryStatus.textContent = error.message;
+  }
+};
+
+function setCardUse(record) {
+  cardEditingId = record?.id ?? null;
+  cardUse.reset();
+  const value = record?.cardUse;
+  cardUseOptions(value?.id ?? '');
+  byId('card-use-date').value = record?.date ?? todayDate();
+  byId('card-use-merchant').value = value?.merchant ?? record?.receiptMerchant ?? '';
+  if (record?.receiptAmount && !value) {
+    byId('card-use-merchant').value = /^사용처:\s*(.+)$/m.exec(record.memo)?.[1] ?? '';
+  }
+  byId('card-use-amount').value = value?.amount ?? (record ? recordAmounts(record).expense || '' : '');
+  cardPurpose.value = value?.purpose ?? record?.memo ?? '';
+  byId('card-use-people').value = value?.people ?? '';
+  byId('card-use-advance').value = value?.advance ?? '';
+  byId('card-use-refund').value = value?.refund ?? '';
+  byId('card-use-linked').checked = value?.onlyCard ?? false;
+  cardAttachedPhoto = value?.photo ?? '';
+  byId('card-remove-photo').hidden = !cardAttachedPhoto;
+  byId('card-use-cancel').hidden = !record;
+  byId('card-use-title').textContent = record ? '카드 사용 기록 수정' : '카드 사용 기록';
+}
+
+function openCardUse(record) {
+  if (voiceInput?.button === cardVoice || byId('card-use-save').disabled) {
+    report('카드 음성 입력이나 저장을 마친 뒤 사용 내역을 수정해 주세요.');
+    return;
+  }
+  setCardUse(record);
+  cardSelect.focus();
+}
+
+async function cardPhoto(file) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement('canvas');
+    for (const max of [1000, 700, 480]) {
+      const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const photo = canvas.toDataURL('image/jpeg', .7);
+      if (photo.startsWith('data:image/jpeg;base64,') && photo.length <= 220000) return photo;
+    }
+    throw new Error('영수증 사진이 너무 큽니다.');
+  } finally {
+    bitmap.close();
+  }
+}
+
+function fillCardFromVoice(text) {
+  const spoken = text.normalize('NFKC');
+  const normalized = value => value.toLowerCase().replace(/\s+/g, '').replace(/개인|법인|체크카드|카드/g, '');
+  const candidate = cardSettings.filter(card => !card.archived)
+    .sort((a, b) => normalized(b.name).length - normalized(a.name).length)
+    .find(card => normalized(card.name) && normalized(spoken).includes(normalized(card.name)));
+  if (candidate) cardUseOptions(candidate.id);
+  const amount = /(?:금액|사용액|결제금액|결제)\s*[:：]?\s*([\d,영공일이삼사오육칠팔구천백십억만\s]+)원/.exec(spoken) ??
+    /([\d,영공일이삼사오육칠팔구천백십억만\s]+)원/.exec(spoken);
+  if (amount && parseWon(amount[1]) > 0) byId('card-use-amount').value = parseWon(amount[1]);
+  const merchant = /(?:사용처|가맹점)\s*[:：]?\s*(.+?)(?=[,.;!?]|\s+(?:금액|사용액|결제금액|카드명)\s*[:：]?|$)/u.exec(spoken);
+  if (merchant) byId('card-use-merchant').value = merchant[1].trim();
+  cardVoiceStatus.textContent = '카드명·금액·사용처를 확인한 뒤 저장하세요.';
+}
+
+cardUse.onsubmit = async event => {
+  event.preventDefault();
+  if (voiceInput?.button === cardVoice) {
+    cardUseStatus.textContent = '음성 입력을 종료한 뒤 저장해 주세요.';
+    return;
+  }
+  const button = byId('card-use-save');
+  if (button.disabled) return;
+  const editing = cardEditingId;
+  const original = cardRecords.find(record => record.id === editing);
+  const card = cardSettings.find(item => item.id === cardSelect.value) ??
+    (original?.cardUse?.id === cardSelect.value ? original.cardUse : null);
+  if (!card || card.archived && original?.cardUse?.id !== card.id) {
+    cardUseStatus.textContent = '사용할 카드를 선택해 주세요.';
+    return;
+  }
+  const previousType = original?.cardUse?.id === card.id ? original.cardUse.type : card.type;
+  const personal = previousType === 'personal';
+  const value = {id: card.id, name: card.name, type: previousType,
+    merchant: byId('card-use-merchant').value.trim(), purpose: cardPurpose.value.trim(),
+    people: byId('card-use-people').value.trim(), amount: byId('card-use-amount').valueAsNumber,
+    advance: personal ? byId('card-use-advance').valueAsNumber || 0 : 0,
+    refund: personal ? byId('card-use-refund').valueAsNumber || 0 : 0,
+    onlyCard: byId('card-use-linked').checked, photo: cardAttachedPhoto};
+  const date = byId('card-use-date').value;
+  if (!validScheduleDate(date) || !validCardUse(value)) {
+    cardUseStatus.textContent = '사용 정보를 확인해 주세요. 대신 낸 금액은 사용액 이내, 돌려받은 금액은 대신 낸 금액 이내여야 합니다.';
+    return;
+  }
+  const file = byId('card-use-photo').files[0];
+  button.disabled = true;
+  try {
+    if (file) {
+      try { value.photo = await cardPhoto(file); }
+      catch { throw new Error('영수증 사진을 읽지 못했습니다. 다른 사진을 선택해 주세요.'); }
+    }
+    await withRecords(records => {
+      const draft = {id: editing ?? newId(), date, category: '지출', memo: value.purpose, cardUse: value};
+      if (editing) {
+        const index = records.findIndex(record => record.id === editing);
+        if (index === -1) throw new Error('이미 삭제된 기록입니다.');
+        records[index] = {...records[index], ...draft};
+        delete records[index].receiptAmount;
+        if (editingId === editing) setEditor();
+      } else {
+        records.unshift(draft);
+      }
+      writeRecords(records);
+      cardReference.value = date;
+      setCardUse();
+      render(records);
+    });
+    cardUseStatus.textContent = '카드 사용 기록을 저장했습니다.';
+  } catch (error) {
+    cardUseStatus.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+
+function initializeCards() {
+  cardReference.value = todayDate();
+  byId('card-topup-date').value = todayDate();
+  try { cardSettings = readCards(); }
+  catch (error) { cardRegistryStatus.textContent = error.message; }
+  setCardUse();
+}
+
+cardReference.onchange = () => renderCards(cardRecords);
+cardSelect.onchange = () => cardUseOptions();
+byId('card-config-cancel').onclick = () => setCardConfig();
+byId('card-use-cancel').onclick = () => {
+  if (!byId('card-use-save').disabled && voiceInput?.button !== cardVoice) setCardUse();
+};
+byId('card-remove-photo').onclick = () => {
+  cardAttachedPhoto = '';
+  byId('card-remove-photo').hidden = true;
+};
+cardVoice.onclick = () => toggleVoice(cardVoice, cardPurpose, cardVoiceStatus);
+window.addEventListener('storage', event => {
+  if (event.key !== cardKey && event.key !== null) return;
+  try {
+    cardSettings = readCards();
+    renderCards(cardRecords);
+  } catch (error) {
+    cardRegistryStatus.textContent = error.message;
+  }
+});
+
 initializeGolf();
 initializeHula();
+initializeCards();
 setEditor();
 refresh();
 
