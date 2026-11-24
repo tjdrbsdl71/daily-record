@@ -23,11 +23,35 @@ button:disabled{opacity:.6}
 #error{color:#9b1c1c}
 #status,#voice-status,#error{margin:8px 0}
 #voice-preview{padding:8px 12px;background:#edf4ff;border-radius:8px;overflow-wrap:anywhere}
+.calendar-nav{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;text-align:center}
+.calendar-nav button{padding:8px;font-size:24px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.calendar-grid>span{align-self:center;font-size:.85rem}
+.calendar-day{display:flex;flex-direction:column;align-items:center;gap:3px;margin:0;padding:5px 0;min-height:58px;background:#f4f6fa;color:#222;border:1px solid #dae1ec;font-size:.85rem}
+.calendar-day[aria-pressed="true"]{border-color:#2463b6;box-shadow:inset 0 0 0 1px #2463b6}
+.calendar-day[aria-current="date"] .calendar-number{background:#234b83;color:white;border-radius:12px;padding:0 5px}
+.schedule-badge{display:inline-block;padding:2px 5px;border-radius:4px;background:#e4eaf2;color:#202b3d;font-size:.75rem;font-weight:bold}
+.schedule-d{background:#ffe66b}.schedule-e{background:#a8d1ff}.schedule-n{background:#c8ee8e}
+.schedule-so{background:#fce1eb}.schedule-off{background:#f3a3cb}.schedule-leave{background:#93e1d8}
+.schedule-pool{background:#ccecf5}.schedule-gym{background:#e5d7f7}.schedule-gym-open{background:#d3efdb}
+.calendar-day .schedule-badge{padding:1px 2px;font-size:clamp(.6rem,2.6vw,.75rem);line-height:1.25}
+#shift-legend{display:flex;flex-wrap:wrap;gap:5px;padding:0;list-style:none}
+#schedule-form h4{margin:8px 0}
+#schedule-list article{white-space:normal}
+.schedule-actions{display:flex;gap:8px}
+.schedule-actions button{width:auto}
+.calendar-check{display:flex;align-items:center;gap:8px}
+.calendar-check input{width:auto;margin:0}
+#schedule-pickup,#calendar-section details{border:1px solid #dae1ec;border-radius:8px;margin:10px 0;padding:10px}
+#calendar-section summary{cursor:pointer}
+#pickup-alert{padding:10px;background:#fff3c4;border-radius:8px}
+@media(max-width:420px){#calendar-section{padding:12px}.calendar-day{min-height:54px}}
 </style>
 </head>
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
+<p><a href="#calendar-heading">월간 일정 보기</a></p>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -59,6 +83,58 @@ button:disabled{opacity:.6}
 <button id="save" type="submit">기록 저장</button>
 <button id="cancel-edit" type="button" hidden>수정 취소</button>
 </form>
+</section>
+<section id="calendar-section" aria-labelledby="calendar-heading">
+<h2 id="calendar-heading">월간 일정</h2>
+<div class="calendar-nav">
+<button id="calendar-prev" type="button" aria-label="이전 달">‹</button>
+<h3 id="calendar-month" aria-live="polite"></h3>
+<button id="calendar-next" type="button" aria-label="다음 달">›</button>
+</div>
+<div class="calendar-grid" aria-hidden="true">
+<span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+</div>
+<div id="calendar-days" class="calendar-grid" aria-label="날짜 선택"></div>
+<ul id="shift-legend" aria-label="근무 색상"></ul>
+<h3 id="schedule-day"></h3>
+<div id="schedule-list"></div>
+<form id="schedule-form">
+<h4 id="schedule-form-title">일정 등록</h4>
+<label for="schedule-date">날짜</label>
+<input id="schedule-date" type="date" required>
+<label for="schedule-kind">일정 종류</label>
+<select id="schedule-kind"></select>
+<div id="schedule-personal">
+<label for="schedule-title">개인 일정 이름</label>
+<input id="schedule-title" type="text" maxlength="120" required>
+</div>
+<div id="schedule-pickup" hidden>
+<label class="calendar-check"><input id="pickup-enabled" type="checkbox"> 차량 픽업</label>
+<label for="pickup-time">픽업 시간</label>
+<input id="pickup-time" type="time" value="22:00">
+<p>픽업 1시간 전에 알립니다.</p>
+</div>
+<button id="schedule-save" type="submit">일정 저장</button>
+<button id="schedule-cancel" type="button" hidden>일정 수정 취소</button>
+</form>
+<details>
+<summary>월별 근무·시설 일정 일괄 등록</summary>
+<form id="schedule-bulk">
+<label for="bulk-month">등록할 월</label>
+<input id="bulk-month" type="month" required>
+<p>종류별로 날짜의 일만 쉼표나 공백으로 구분해 적으세요. 예: 1, 5, 14</p>
+<div id="bulk-fields" class="fields"></div>
+<button type="submit">월별 일정 등록</button>
+</form>
+</details>
+<p id="schedule-status" role="status"></p>
+<details>
+<summary>픽업 알림 설정</summary>
+<p>알림을 받으려면 일정 앱 화면을 열어 두세요. 화면을 닫거나 브라우저가 실행을 중단하면 예약 시각에 알림을 보낼 수 없습니다.</p>
+<button id="pickup-notification-test" type="button">알림 허용 및 테스트</button>
+<p id="pickup-notification-status" role="status"></p>
+</details>
+<p id="pickup-alert" role="status" hidden></p>
 </section>
 <section>
 <h2>영수증으로 지출 기록</h2>
@@ -139,8 +215,7 @@ const smallUnits = {천: 1000, 백: 100, 십: 10};
 const largeUnits = {억: 100000000, 만: 10000};
 const currency = new Intl.NumberFormat('ko-KR');
 
-function todayDate() {
-  const today = new Date();
+function todayDate(today = new Date()) {
   return new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
@@ -1048,6 +1123,472 @@ window.addEventListener('storage', event => {
 });
 setEditor();
 refresh();
+
+const scheduleKey = 'daily-record-schedule-v1';
+const scheduleKinds = {
+  personal: {label: '개인 일정', short: '개인'},
+  d: {label: '데이 (D)', short: 'D', shift: true},
+  e: {label: '이브닝 (E)', short: 'E', shift: true},
+  n: {label: '나이트 (N)', short: 'N', shift: true},
+  so: {label: 'SO', short: 'SO', shift: true},
+  off: {label: '오프 (OFF)', short: 'OFF', shift: true},
+  leave: {label: '연차', short: '연차', shift: true},
+  pool: {label: '수영장 휴관', short: '수영×', facility: 'pool'},
+  gym: {label: '헬스장 휴관·휴장', short: '헬스×', facility: 'gym'},
+  'gym-open': {label: '헬스장 일요일 정상 운영', short: '헬스○', facility: 'gym'},
+};
+const monthlyKinds = Object.keys(scheduleKinds).filter(kind => kind !== 'personal');
+const initialNovember = {
+  d: [1, 5, 6, 14, 30],
+  e: [2, 3, 15, 17, 18, 20, 21, 22, 23],
+  n: [9, 10, 25, 26],
+  so: [7, 8, 11, 16, 24],
+  off: [4, 12, 19, 27],
+  leave: [13, 28, 29],
+  pool: [9, 24],
+  gym: [1, 9, 15, 24, 29],
+  'gym-open': [8, 22],
+};
+const calendarDays = byId('calendar-days');
+const scheduleForm = byId('schedule-form');
+const scheduleDate = byId('schedule-date');
+const scheduleKind = byId('schedule-kind');
+const scheduleTitle = byId('schedule-title');
+const pickupEnabled = byId('pickup-enabled');
+const pickupTime = byId('pickup-time');
+const bulkMonth = byId('bulk-month');
+const scheduleStatus = byId('schedule-status');
+let selectedDay = todayDate();
+let displayedMonth = selectedDay.slice(0, 7);
+let scheduleEditingId = null;
+let calendarEvents = [];
+let previousToday = selectedDay;
+
+function calendarDate(month, day) {
+  return month + '-' + String(day).padStart(2, '0');
+}
+
+function calendarDayCount(month) {
+  const [year, number] = month.split('-').map(Number);
+  return new Date(year, number, 0).getDate();
+}
+
+function validScheduleDate(value) {
+  return /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/.test(value) &&
+    Number(value.slice(-2)) <= calendarDayCount(value.slice(0, 7));
+}
+
+function newSchedule(kind, day) {
+  return {id: newId(), kind, date: day, title: '', pickup: kind === 'e' ? '22:00' : ''};
+}
+
+function readSchedule() {
+  const raw = localStorage.getItem(scheduleKey);
+  if (raw !== null) {
+    const state = JSON.parse(raw);
+    if (Array.isArray(state?.events) && Array.isArray(state?.notified)) return state;
+    throw new Error('저장된 일정을 읽을 수 없습니다.');
+  }
+  const state = {
+    events: monthlyKinds.flatMap(kind => initialNovember[kind].map(day =>
+      newSchedule(kind, calendarDate('2026-11', day)))),
+    notified: [],
+  };
+  writeSchedule(state);
+  return state;
+}
+
+function writeSchedule(state) {
+  localStorage.setItem(scheduleKey, JSON.stringify(state));
+}
+
+function withSchedule(operation) {
+  const run = () => operation(readSchedule());
+  return navigator.locks ? navigator.locks.request(scheduleKey, run) : Promise.resolve().then(run);
+}
+
+function eventLabel(event) {
+  const kind = scheduleKinds[event.kind];
+  if (kind.shift) return '자빈이 ' + kind.label;
+  if (kind.facility) return '남구국민체육센터 1관 · ' + kind.label;
+  return event.title;
+}
+
+function eventSlot(event) {
+  const kind = scheduleKinds[event.kind];
+  return event.date + '|' + (kind.shift ? 'shift' : kind.facility || 'personal|' + event.title.trim().replace(/\s+/g, ' '));
+}
+
+function scheduleBadge(kind, label) {
+  const badge = document.createElement('span');
+  badge.className = 'schedule-badge schedule-' + kind;
+  badge.textContent = label;
+  return badge;
+}
+
+function scheduleButton(label, handler) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  button.onclick = handler;
+  return button;
+}
+
+function renderCalendar() {
+  const [year, month] = displayedMonth.split('-').map(Number);
+  byId('calendar-month').textContent = year + '년 ' + month + '월';
+  const today = todayDate();
+  const grouped = new Map();
+  for (const event of calendarEvents) {
+    if (event.date.slice(0, 7) !== displayedMonth) continue;
+    if (!grouped.has(event.date)) grouped.set(event.date, []);
+    grouped.get(event.date).push(event);
+  }
+  calendarDays.replaceChildren();
+  const first = new Date(year, month - 1, 1);
+  for (let offset = 0; offset < first.getDay(); offset++) {
+    const blank = document.createElement('span');
+    blank.setAttribute('aria-hidden', 'true');
+    calendarDays.append(blank);
+  }
+  for (let day = 1; day <= calendarDayCount(displayedMonth); day++) {
+    const value = calendarDate(displayedMonth, day);
+    const entries = grouped.get(value) ?? [];
+    const button = scheduleButton('', () => {
+      selectedDay = value;
+      resetScheduleForm();
+      renderCalendar();
+      calendarDays.querySelector('[aria-pressed="true"]')?.focus();
+    });
+    button.className = 'calendar-day';
+    button.setAttribute('aria-pressed', String(value === selectedDay));
+    const description = value + (entries.length ? ' · ' + entries.map(eventLabel).join(', ') : '');
+    button.setAttribute('aria-label', description);
+    if (value === today) button.setAttribute('aria-current', 'date');
+    const number = document.createElement('span');
+    number.className = 'calendar-number';
+    number.textContent = String(day);
+    button.append(number);
+    for (const kind of new Set(entries.map(event => event.kind))) {
+      button.append(scheduleBadge(kind, scheduleKinds[kind].short));
+    }
+    calendarDays.append(button);
+  }
+  const list = byId('schedule-list');
+  byId('schedule-day').textContent = selectedDay + ' 일정';
+  list.replaceChildren();
+  const entries = grouped.get(selectedDay) ?? [];
+  if (!entries.length) list.textContent = '등록된 일정이 없습니다.';
+  for (const event of entries) {
+    const item = document.createElement('article');
+    item.append(scheduleBadge(event.kind, eventLabel(event)));
+    if (event.pickup) {
+      const info = document.createElement('p');
+      info.textContent = '차량 픽업 ' + event.pickup + ' · 알림 ' +
+        new Intl.DateTimeFormat('ko-KR', {hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).format(pickupMoment(event, -60)) +
+        (todayDate(pickupMoment(event, -60)) !== event.date ? ' (전날)' : '');
+      item.append(info);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'schedule-actions';
+    actions.append(scheduleButton('수정', () => editSchedule(event)), scheduleButton('삭제', () => removeSchedule(event)));
+    item.append(actions);
+    list.append(item);
+  }
+}
+
+function refreshSchedule() {
+  return withSchedule(state => {
+    calendarEvents = state.events;
+    renderCalendar();
+  }).catch(showScheduleError);
+}
+
+function showScheduleError(error) {
+  scheduleStatus.textContent = error.message || '일정을 처리하지 못했습니다.';
+}
+
+function moveCalendar(offset) {
+  const [year, month] = displayedMonth.split('-').map(Number);
+  const target = new Date(year, month - 1 + offset, 1);
+  displayedMonth = todayDate(target).slice(0, 7);
+  const today = todayDate();
+  selectedDay = today.startsWith(displayedMonth) ? today : calendarDate(displayedMonth, 1);
+  bulkMonth.value = displayedMonth;
+  resetScheduleForm();
+  renderCalendar();
+}
+
+function scheduleFields() {
+  const personal = scheduleKind.value === 'personal';
+  const evening = scheduleKind.value === 'e';
+  byId('schedule-personal').hidden = !personal;
+  scheduleTitle.disabled = !personal;
+  byId('schedule-pickup').hidden = !evening;
+  pickupEnabled.disabled = !evening;
+  pickupTime.disabled = !evening || !pickupEnabled.checked;
+  pickupTime.required = evening && pickupEnabled.checked;
+}
+
+function resetScheduleForm() {
+  scheduleEditingId = null;
+  scheduleForm.reset();
+  scheduleDate.value = selectedDay;
+  pickupEnabled.checked = true;
+  pickupTime.value = '22:00';
+  byId('schedule-form-title').textContent = '일정 등록';
+  byId('schedule-cancel').hidden = true;
+  scheduleFields();
+}
+
+function editSchedule(event) {
+  scheduleEditingId = event.id;
+  scheduleDate.value = event.date;
+  scheduleKind.value = event.kind;
+  scheduleTitle.value = event.title;
+  pickupEnabled.checked = event.kind === 'e' ? Boolean(event.pickup) : true;
+  pickupTime.value = event.pickup || '22:00';
+  byId('schedule-form-title').textContent = '일정 수정';
+  byId('schedule-cancel').hidden = false;
+  scheduleFields();
+  scheduleDate.focus();
+}
+
+async function removeSchedule(event) {
+  if (!confirm('이 일정을 삭제할까요?')) return;
+  try {
+    await withSchedule(state => {
+      state.events = state.events.filter(item => item.id !== event.id);
+      writeSchedule(state);
+    });
+    if (scheduleEditingId === event.id) resetScheduleForm();
+    await refreshSchedule();
+    scheduleStatus.textContent = '일정을 삭제했습니다.';
+  } catch (error) {
+    showScheduleError(error);
+  }
+}
+
+scheduleForm.onsubmit = async event => {
+  event.preventDefault();
+  const saveButton = byId('schedule-save');
+  if (saveButton.disabled) return;
+  const editing = scheduleEditingId;
+  const entry = newSchedule(scheduleKind.value, scheduleDate.value);
+  entry.id = editing ?? entry.id;
+  entry.title = entry.kind === 'personal' ? scheduleTitle.value.trim() : '';
+  entry.pickup = entry.kind === 'e' && pickupEnabled.checked ? pickupTime.value : '';
+  if (!validScheduleDate(entry.date) || (entry.kind === 'personal' && !entry.title) ||
+      (entry.kind === 'e' && pickupEnabled.checked && !/^\d{2}:\d{2}$/.test(entry.pickup))) {
+    showScheduleError(new Error('날짜, 일정 이름 또는 픽업 시간을 확인해 주세요.'));
+    return;
+  }
+  saveButton.disabled = true;
+  try {
+    await withSchedule(state => {
+      const index = state.events.findIndex(item => item.id === editing);
+      if (editing && index === -1) throw new Error('이미 삭제된 일정입니다.');
+      if (state.events.some(item => item.id !== editing && eventSlot(item) === eventSlot(entry))) {
+        throw new Error('해당 날짜에 같은 종류의 일정이 이미 있습니다. 기존 일정을 수정해 주세요.');
+      }
+      if (editing) state.events[index] = entry;
+      else state.events.push(entry);
+      writeSchedule(state);
+    });
+    selectedDay = entry.date;
+    displayedMonth = entry.date.slice(0, 7);
+    bulkMonth.value = displayedMonth;
+    resetScheduleForm();
+    await refreshSchedule();
+    scheduleStatus.textContent = editing ? '일정을 수정했습니다.' : '일정을 등록했습니다.';
+    checkPickupAlerts();
+  } catch (error) {
+    showScheduleError(error);
+  } finally {
+    saveButton.disabled = false;
+  }
+};
+
+function bulkEntries(month) {
+  const entries = new Map();
+  for (const kind of monthlyKinds) {
+    const days = byId('bulk-' + kind).value.trim().split(/[\s,]+/).filter(Boolean);
+    for (const day of days) {
+      if (!/^\d{1,2}$/.test(day) || Number(day) < 1 || Number(day) > calendarDayCount(month)) {
+        throw new Error(scheduleKinds[kind].label + ' 날짜를 확인해 주세요.');
+      }
+      const entry = newSchedule(kind, calendarDate(month, Number(day)));
+      const slot = eventSlot(entry);
+      if (entries.has(slot) && entries.get(slot).kind !== kind) {
+        throw new Error(entry.date + '에 서로 다른 근무 또는 같은 시설 일정이 겹칩니다.');
+      }
+      entries.set(slot, entry);
+    }
+  }
+  return entries;
+}
+
+byId('schedule-bulk').onsubmit = async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  if (button.disabled) return;
+  const month = bulkMonth.value;
+  button.disabled = true;
+  try {
+    if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(month)) throw new Error('등록할 월을 확인해 주세요.');
+    const entries = bulkEntries(month);
+    if (!entries.size) throw new Error('등록할 날짜를 입력해 주세요.');
+    const {added, skipped, conflicts} = await withSchedule(state => {
+      const existing = new Map(state.events.map(item => [eventSlot(item), item]));
+      let added = 0;
+      let skipped = 0;
+      let conflicts = 0;
+      for (const [slot, entry] of entries) {
+        if (existing.get(slot)?.kind === entry.kind) skipped++;
+        else if (existing.has(slot)) conflicts++;
+        else {
+          state.events.push(entry);
+          added++;
+        }
+      }
+      if (added) writeSchedule(state);
+      return {added, skipped, conflicts};
+    });
+    form.reset();
+    if (displayedMonth !== month) selectedDay = calendarDate(month, 1);
+    displayedMonth = month;
+    bulkMonth.value = month;
+    resetScheduleForm();
+    await refreshSchedule();
+    scheduleStatus.textContent = added + '건 등록 · 동일 일정 ' + skipped + '건 · 기존 일정과 겹침 ' + conflicts + '건' +
+      (conflicts ? ' (겹치는 날짜는 달력에서 수정할 수 있습니다.)' : '');
+    checkPickupAlerts();
+  } catch (error) {
+    showScheduleError(error);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+function pickupMoment(event, offsetMinutes = 0) {
+  return new Date(new Date(event.date + 'T' + event.pickup).getTime() + offsetMinutes * 60000);
+}
+
+const pickupNotificationStatus = byId('pickup-notification-status');
+const pickupAlert = byId('pickup-alert');
+let notificationRegistration;
+
+function prepareNotifications() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  notificationRegistration ??= navigator.serviceWorker.register('./pickup-notifications.js')
+    .then(async registration => {
+      if (registration.active) return registration;
+      return navigator.serviceWorker.ready;
+    }).catch(() => {
+      notificationRegistration = undefined;
+      return null;
+    });
+  return notificationRegistration;
+}
+
+async function showPickupNotification(title, body, tag) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+  try {
+    const registration = await prepareNotifications();
+    if (registration) await registration.showNotification(title, {body, tag});
+    else new Notification(title, {body, tag});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+byId('pickup-notification-test').onclick = async () => {
+  if (!window.isSecureContext || !('Notification' in window)) {
+    pickupNotificationStatus.textContent = '이 환경에서는 시스템 알림을 사용할 수 없습니다.' +
+      ' 일정 화면을 열어 두면 화면 안에서 픽업 알림을 볼 수 있습니다.';
+    return;
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    const sent = permission === 'granted' &&
+      await showPickupNotification('픽업 알림 테스트', '이 알림을 받았다면 시스템 알림이 작동합니다.', 'daily-pickup-test');
+    pickupNotificationStatus.textContent = sent ? '테스트 알림을 보냈습니다. 기기의 알림을 확인해 주세요.' :
+      '시스템 알림을 보내지 못했습니다. 사이트와 기기의 알림 설정을 확인해 주세요.';
+  } catch {
+    pickupNotificationStatus.textContent = '알림 권한을 요청하지 못했습니다. 사이트 설정을 확인해 주세요.';
+  }
+  checkPickupAlerts();
+};
+
+async function checkPickupAlerts() {
+  try {
+    const due = await withSchedule(state => {
+      const now = Date.now();
+      const arrivals = [];
+      for (const event of state.events) {
+        if (event.kind !== 'e' || !event.pickup) continue;
+        const pickup = pickupMoment(event).getTime();
+        if (now < pickup - 3600000 || now >= pickup) continue;
+        const tag = event.id + '|' + event.date + '|' + event.pickup;
+        if (!state.notified.includes(tag)) {
+          arrivals.push({event, tag});
+          state.notified.push(tag);
+        }
+      }
+      if (arrivals.length) writeSchedule(state);
+      return arrivals;
+    });
+    for (const {event, tag} of due) {
+      const body = event.date + ' 자빈이 차량 픽업 · ' + event.pickup;
+      pickupAlert.textContent = body;
+      pickupAlert.hidden = false;
+      await showPickupNotification('차량 픽업 알림', body, tag);
+    }
+    const today = todayDate();
+    if (today !== previousToday) {
+      previousToday = today;
+      renderCalendar();
+    }
+  } catch (error) {
+    showScheduleError(error);
+  }
+}
+
+for (const kind of Object.keys(scheduleKinds)) {
+  scheduleKind.append(option(scheduleKinds[kind].label, kind));
+  if (kind === 'personal') continue;
+  if (scheduleKinds[kind].shift) {
+    const legend = document.createElement('li');
+    legend.append(scheduleBadge(kind, scheduleKinds[kind].label));
+    byId('shift-legend').append(legend);
+  }
+  const wrapper = document.createElement('div');
+  const label = document.createElement('label');
+  const input = document.createElement('input');
+  label.htmlFor = input.id = 'bulk-' + kind;
+  label.textContent = scheduleKinds[kind].label;
+  input.type = 'text';
+  wrapper.append(label, input);
+  byId('bulk-fields').append(wrapper);
+}
+byId('calendar-prev').onclick = () => moveCalendar(-1);
+byId('calendar-next').onclick = () => moveCalendar(1);
+byId('schedule-cancel').onclick = resetScheduleForm;
+scheduleKind.onchange = scheduleFields;
+pickupEnabled.onchange = scheduleFields;
+bulkMonth.value = displayedMonth;
+resetScheduleForm();
+refreshSchedule().then(checkPickupAlerts);
+setInterval(checkPickupAlerts, 15000);
+window.addEventListener('focus', checkPickupAlerts);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) checkPickupAlerts();
+});
+window.addEventListener('storage', event => {
+  if (event.key === scheduleKey || event.key === null) refreshSchedule();
+});
 </script>
 </body>
 </html>
