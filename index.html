@@ -66,7 +66,7 @@ button:disabled{opacity:.6}
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
-<p>요청 초안은 이 브라우저에 별도로 저장할 수 있습니다. 복사한 요청은 Codex에 붙여넣어 제출하세요.</p>
+<p>Codex에서 요청을 붙여넣어 전송한 뒤, 여기에서 전송 완료를 확인해 주세요.</p>
 <label for="improvement-text">수정하거나 추가할 기능</label>
 <textarea id="improvement-text" rows="5"></textarea>
 <button id="improvement-voice" type="button">🎤 요청 음성 입력 시작</button>
@@ -74,6 +74,11 @@ button:disabled{opacity:.6}
 <button id="improvement-copy" type="button">요청 복사하고 Codex 열기</button>
 <p id="improvement-status" role="status"></p>
 <a id="open-codex" href="https://chatgpt.com/codex" target="_blank" rel="noopener noreferrer" hidden>Codex 새 탭에서 열기</a>
+<button id="improvement-confirm" type="button" hidden>Codex에서 전송 완료 확인</button>
+<details id="improvement-history" hidden>
+<summary>전송한 요청 내역</summary>
+<div id="improvement-sent"></div>
+</details>
 </section>
 <section>
 <h2 id="editor-title">새 기록</h2>
@@ -995,6 +1000,7 @@ function toggleVoice(button, field, status) {
 voice.onclick = () => toggleVoice(voice, memo, voiceStatus);
 
 const improvementKey = 'daily-record-improvement-draft-v1';
+const improvementHistoryKey = 'daily-record-improvement-history-v1';
 const improvementToggle = byId('improvement-toggle');
 const improvement = byId('improvement');
 const improvementText = byId('improvement-text');
@@ -1013,7 +1019,9 @@ improvementToggle.onclick = () => {
   if (!improvementLoaded) {
     improvementLoaded = true;
     try {
-      improvementText.value = localStorage.getItem(improvementKey) ?? '';
+      const state = readImprovementHistory();
+      improvementText.value = localStorage.getItem(improvementKey) ?? state.pending?.draft ?? '';
+      renderImprovementHistory(state);
     } catch {
       improvementStatus.textContent = '저장된 개선 요청 초안을 읽을 수 없습니다.';
     }
@@ -1032,31 +1040,91 @@ byId('improvement-save').onclick = () => {
 
 const improvementCopy = byId('improvement-copy');
 const openCodex = byId('open-codex');
+const improvementConfirm = byId('improvement-confirm');
+
+function readImprovementHistory() {
+  const raw = localStorage.getItem(improvementHistoryKey);
+  if (raw === null) return {pending: null, sent: []};
+  const state = JSON.parse(raw);
+  if (!Array.isArray(state?.sent)) throw new Error('수정 요청 내역을 읽을 수 없습니다.');
+  return state;
+}
+
+function renderImprovementHistory(state) {
+  improvementConfirm.hidden = !state.pending;
+  const history = byId('improvement-history');
+  history.hidden = !state.sent.length;
+  const list = byId('improvement-sent');
+  list.replaceChildren();
+  for (const request of state.sent) {
+    const entry = document.createElement('article');
+    const time = document.createElement('strong');
+    const text = document.createElement('p');
+    time.textContent = new Date(request.sentAt).toLocaleString('ko-KR');
+    text.textContent = request.text;
+    entry.append(time, text);
+    list.append(entry);
+  }
+}
 
 improvementCopy.onclick = async () => {
   if (voiceInput?.button === improvementVoice) {
     improvementStatus.textContent = '음성 입력을 종료한 뒤 요청을 복사해 주세요.';
     return;
   }
-  const text = improvementText.value.trim();
+  const draft = improvementText.value;
+  const text = draft.trim();
   if (!text) {
     improvementStatus.textContent = '복사할 개선 요청을 입력해 주세요.';
     return;
   }
+  const pending = {draft, text};
   improvementCopy.disabled = true;
-  openCodex.hidden = false;
+  improvementConfirm.disabled = true;
   try {
     await navigator.clipboard.writeText(text);
-    improvementStatus.textContent = '요청을 복사했습니다. 코덱스 대화에 붙여넣으세요.';
   } catch {
     improvementText.focus();
     improvementText.select();
-    improvementStatus.textContent = '자동으로 복사할 수 없습니다. 선택된 요청을 직접 복사해 주세요.';
+    openCodex.hidden = false;
+    improvementStatus.textContent = '자동으로 복사하지 못했습니다. 입력 내용은 유지됩니다. 선택된 요청을 직접 복사할 수 있습니다.';
     return;
   } finally {
     improvementCopy.disabled = false;
+    improvementConfirm.disabled = false;
   }
+  try {
+    const state = readImprovementHistory();
+    localStorage.setItem(improvementHistoryKey, JSON.stringify({...state, pending}));
+    renderImprovementHistory({...state, pending});
+    improvementStatus.textContent = '요청을 복사했습니다. Codex에서 붙여넣어 전송한 뒤 완료를 확인해 주세요.';
+  } catch {
+    improvementStatus.textContent = '요청을 복사했지만 전송 확인을 준비하지 못했습니다. 입력 내용은 유지됩니다.';
+  }
+  openCodex.hidden = false;
   window.open(openCodex.href, '_blank', 'noopener,noreferrer');
+};
+
+improvementConfirm.onclick = () => {
+  if (voiceInput?.button === improvementVoice) {
+    improvementStatus.textContent = '음성 입력을 종료한 뒤 전송 완료를 확인해 주세요.';
+    return;
+  }
+  try {
+    const state = readImprovementHistory();
+    const request = state.pending;
+    if (!request) return;
+    const next = {pending: null, sent: [{text: request.text, sentAt: new Date().toISOString()}, ...state.sent]};
+    const savedDraft = localStorage.getItem(improvementKey);
+    localStorage.setItem(improvementHistoryKey, JSON.stringify(next));
+    renderImprovementHistory(next);
+    if (savedDraft !== null && savedDraft.trim() === request.text) localStorage.removeItem(improvementKey);
+    if (improvementText.value === request.draft) improvementText.value = '';
+    improvementStatus.textContent = '전송 완료를 확인했습니다. 다음 수정 요청을 입력할 수 있습니다.';
+    improvementText.focus();
+  } catch {
+    improvementStatus.textContent = '전송 완료를 저장하는 중 문제가 발생했습니다. 입력 내용은 유지됩니다.';
+  }
 };
 
 improvementVoice.onclick = () => toggleVoice(improvementVoice, improvementText, improvementStatus);
