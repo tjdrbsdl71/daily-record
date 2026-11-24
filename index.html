@@ -180,6 +180,7 @@ button:disabled{opacity:.6}
 </div>
 <p>보험금이 들어오면 같은 청구 기록의 수령액을 수정하세요. 담배 비용은 담배 구입만 기록한 항목에 입력하세요.</p>
 </details>
+<label id="reference-record-field" class="calendar-check" hidden><input id="reference-record" type="checkbox"> 미확인 참고 기록 · 수입·지출 합계 제외</label>
 <label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
 <button id="voice" type="button">🎤 음성 입력 시작</button>
@@ -203,6 +204,7 @@ button:disabled{opacity:.6}
 <div><label for="golf-advance-method">대신 결제 수단</label><select id="golf-advance-method"></select></div>
 <div><label for="golf-received-method">정산금 수령 수단</label><select id="golf-received-method"></select></div>
 </div>
+<label class="calendar-check"><input id="golf-unranked" type="checkbox"> 다른 참석자 순위 미확인</label>
 <div id="golf-players"></div>
 <p>대신 낸 금액은 내 몫에 포함하지 마세요. 받을 금액을 비우면 대신 낸 금액과 동일하게 계산합니다.</p>
 <details>
@@ -542,6 +544,7 @@ button:disabled{opacity:.6}
 </section>
 <section>
 <h2>백업 및 복원</h2>
+<details><summary>실제 데이터 초기 등록</summary><label for="setup-import-text">초기 등록 JSON</label><textarea id="setup-import-text" rows="6" spellcheck="false"></textarea><button type="button" id="setup-import">실제 데이터 등록</button><p>현재 브라우저에 추가하고 같은 기록은 건너뜁니다.</p></details>
 <button id="backup" type="button">JSON 백업 다운로드</button>
 <label for="backup-file">복원할 JSON 파일</label>
 <input id="backup-file" type="file" accept=".json,application/json">
@@ -695,6 +698,7 @@ function analyze(text, recordedCategory = '') {
 }
 
 function recordAmounts(record) {
+  if (record.referenceOnly) return {income: 0, expense: 0};
   if (validFarm(record.farm)) return {income: 0, expense: farmLedgerExpense(record.farm)};
   if (validVehicle(record.vehicle)) return {income: 0, expense: record.vehicle.onlyVehicle ? 0 : vehicleCost(record.vehicle)};
   if (validCardUse(record.cardUse)) return cardCashFlow(record.cardUse);
@@ -844,6 +848,8 @@ function setEditor(record) {
   if (record) memo.value = record.memo;
   showFitnessFields(record?.fitness);
   trackingFields(record);
+  byId('reference-record-field').hidden = !record?.referenceOnly;
+  byId('reference-record').checked = Boolean(record?.referenceOnly);
   updateAnalysis();
   byId('editor-title').textContent = record ? '기록 수정' : '새 기록';
   save.textContent = record ? '수정 저장' : '기록 저장';
@@ -902,7 +908,7 @@ function render(records) {
 function renderRecordArticle(record, amounts) {
   const article = document.createElement('article');
   const heading = document.createElement('strong');
-  heading.textContent = record.date + ' · ' + record.category;
+  heading.textContent = (record.date || '날짜 미확인') + ' · ' + record.category;
   const content = document.createElement('p');
   content.textContent = record.memo;
   const edit = document.createElement('button');
@@ -1018,6 +1024,7 @@ function renderRecordArticle(record, amounts) {
     cardLines(article, ['담배 ' + (purchase.quantity === null ? '수량 미입력' : purchase.quantity + purchase.unit) +
       ' · 구입 지출 ' + moneyText(purchase.cost)]);
   }
+  if (record.referenceOnly) cardLines(article, ['참고 정보 · 수입·지출 합계 제외']);
   if (record.memo) article.append(content);
   if (amounts.income || amounts.expense) {
     const finance = document.createElement('p');
@@ -1046,6 +1053,7 @@ async function saveEditor({fromVoice = false} = {}) {
   updateAnalysis();
   const previousId = editingId;
   const draft = {date: date.value, category: category.value, memo: memo.value.trim()};
+  if (byId('reference-record').checked) draft.referenceOnly = true;
   const type = exerciseType.value.trim();
   const minutes = exerciseMinutes.valueAsNumber;
   const weight = bodyWeight.valueAsNumber;
@@ -1076,7 +1084,7 @@ async function saveEditor({fromVoice = false} = {}) {
     memo.focus();
     return;
   }
-  if (!draft.date || !date.validity.valid) {
+  if ((!draft.date && !draft.referenceOnly) || !date.validity.valid) {
     report('날짜를 입력해 주세요.', true);
     date.focus();
     return;
@@ -1106,6 +1114,7 @@ async function saveEditor({fromVoice = false} = {}) {
         if (!draft.fitness) delete updated.fitness;
         if (!draft.insurance) delete updated.insurance;
         if (!draft.tobacco) delete updated.tobacco;
+        if (!draft.referenceOnly) delete updated.referenceOnly;
         records[index] = updated;
       } else {
         withWorkoutCalories(draft, records);
@@ -1159,7 +1168,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm) && sameTracking(a, b);
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm) && sameTracking(a, b) && Boolean(a.referenceOnly) === Boolean(b.referenceOnly);
 }
 
 function mergeBackup(current, incoming) {
@@ -2010,7 +2019,7 @@ const golfVoiceStatus = byId('golf-voice-status');
 const golfStatus = byId('golf-status');
 const golfMonth = byId('golf-month');
 const golfYear = byId('golf-year');
-const golfMethods = {personal: '개인카드', corporate: '법인카드', cash: '현금', transfer: '계좌이체'};
+const golfMethods = {personal: '개인카드', corporate: '법인카드', cash: '현금', transfer: '계좌이체', unknown: '미확인'};
 const golfPaymentFields = {
   game: '실제 내 몫 게임비', meal: '실제 내 몫 식사비',
   betIn: '내기 수입', betOut: '내기 지출', hole: '홀당 내기 금액', side: '대판 금액',
@@ -2052,7 +2061,7 @@ function golfRuleDefaults(count) {
 }
 
 function golfRuleAmounts(count, rules, players, mealTotal) {
-  const games = players.map(player => player.gameFee);
+  const games = players.map(player => player.gameFee ?? 0);
   const meals = players.map(() => 0);
   const transfer = (from, to, amount) => {
     const support = Math.min(games[to - 1], amount);
@@ -2077,7 +2086,8 @@ function currentGolf() {
     const rank = index + 1;
     const advance = golfNumber('golf-advance-' + rank);
     const due = byId('golf-due-' + rank);
-    return {name: byId('golf-name-' + rank).value.trim(), gameFee: golfNumber('golf-fee-' + rank),
+    const fee = byId('golf-fee-' + rank);
+    return {name: byId('golf-name-' + rank).value.trim(), gameFee: byId('golf-unranked').checked && fee.value === '' ? null : golfNumber(fee.id),
       advance, due: due.value === '' ? null : golfNumber(due.id), received: golfNumber('golf-received-' + rank)};
   });
   const rules = {
@@ -2088,15 +2098,16 @@ function currentGolf() {
     secondTransfer: ['payer', 'recipient'].map(role => Number(byId('golf-second-' + role).value)),
     mealRanks: players.map((_, index) => index + 1).filter(rank => byId('golf-meal-rank-' + rank).checked),
   };
+  const unranked = byId('golf-unranked').checked;
   const values = {};
   const methods = {};
   for (const key of Object.keys(golfPaymentFields)) {
     const input = byId('golf-' + key);
-    values[key] = input.value === '' && (key === 'game' || key === 'meal') ? null : golfNumber(input.id);
+    values[key] = input.value === '' && (unranked || key === 'game' || key === 'meal') ? null : golfNumber(input.id);
     if (byId('golf-method-' + key)) methods[key] = byId('golf-method-' + key).value;
   }
   return {start: byId('golf-start').value, end: byId('golf-end').value,
-    myRank: Number(golfRank.value), players, rules, mealTotal: golfNumber('golf-meal-total'),
+    myRank: Number(golfRank.value), players, rules, unranked, mealTotal: golfNumber('golf-meal-total'),
     values, methods, advanceMethod: byId('golf-advance-method').value,
     receivedMethod: byId('golf-received-method').value};
 }
@@ -2104,8 +2115,8 @@ function currentGolf() {
 function golfCashFlow(golf) {
   const {players, myRank, rules, mealTotal, values, methods} = golf;
   const {games, meals} = golfRuleAmounts(players.length, rules, players, mealTotal);
-  const game = values.game ?? games[myRank - 1];
-  const meal = values.meal ?? meals[myRank - 1];
+  const game = values.game ?? (golf.unranked ? 0 : games[myRank - 1]);
+  const meal = values.meal ?? (golf.unranked ? 0 : meals[myRank - 1]);
   const advances = players.filter((_, index) => index + 1 !== myRank);
   const advance = advances.reduce((sum, player) => sum + player.advance, 0);
   const received = advances.reduce((sum, player) => sum + player.received, 0);
@@ -2126,9 +2137,13 @@ function updateGolfPreview() {
   const amounts = golfRuleAmounts(golf.players.length, golf.rules, golf.players, golf.mealTotal);
   const game = byId('golf-game');
   const meal = byId('golf-meal');
-  game.placeholder = amounts.games[golf.myRank - 1];
-  meal.placeholder = amounts.meals[golf.myRank - 1];
-  byId('golf-rule-preview').textContent = amounts.games.map((fee, index) =>
+  game.placeholder = golf.unranked ? '미확인' : amounts.games[golf.myRank - 1];
+  meal.placeholder = golf.unranked ? '미확인' : amounts.meals[golf.myRank - 1];
+  for (const legend of byId('golf-players').querySelectorAll('legend')) {
+    const rank = Number(legend.dataset.rank);
+    legend.textContent = golf.unranked && rank !== golf.myRank ? '참석자 · 순위 미확인' : rank + '등 참석자';
+  }
+  byId('golf-rule-preview').textContent = golf.unranked ? '참석자 순위 확인 후 기본 정산을 적용할 수 있습니다.' : amounts.games.map((fee, index) =>
     (index + 1) + '등 게임비 ' + moneyText(fee) + ' · 식사비 ' + moneyText(amounts.meals[index])).join(' / ');
 }
 
@@ -2144,6 +2159,7 @@ function fillGolfPlayers(count, players = [], rank = 1, rules = golfRuleDefaults
     const fieldset = document.createElement('fieldset');
     const legend = document.createElement('legend');
     const fields = document.createElement('div');
+    legend.dataset.rank = index;
     legend.textContent = index + '등 참석자';
     fields.className = 'fields';
     const name = golfField('golf-name-' + index, '이름', 'text', fields);
@@ -2184,6 +2200,7 @@ function setGolfEditor(record) {
   golfEditingId = record?.id ?? null;
   golfForm.reset();
   const golf = record?.golf;
+  byId('golf-unranked').checked = Boolean(golf?.unranked);
   golfDate.value = record?.date ?? todayDate();
   golfCount.value = String(golf?.players.length ?? 4);
   byId('golf-start').value = golf?.start ?? '';
@@ -2267,14 +2284,14 @@ function validGolf(golf) {
     value.every(rank) && value[0] !== value[1];
   const rules = golf.rules;
   return golf.players.every(player => player && typeof player.name === 'string' && player.name.trim() &&
-      [player.gameFee, player.advance, player.received].every(money) && (player.due === null || money(player.due))) &&
+      [player.advance, player.received].every(money) && (money(player.gameFee) || golf.unranked === true && player.gameFee === null) && (player.due === null || money(player.due))) &&
     rank(golf.myRank) && time(golf.start) && time(golf.end) && money(golf.mealTotal) &&
     Array.isArray(rules?.mealRanks) && rules.mealRanks.every(rank) &&
     new Set(rules.mealRanks).size === rules.mealRanks.length &&
     (!golf.mealTotal || rules.mealRanks.length > 0) && pair(rules.firstTransfer) && pair(rules.secondTransfer) &&
     (rules.fullFourth === null || money(rules.fullFourth)) && money(rules.supportSecond) && money(rules.supportThird) &&
     golf.values && golf.methods && method(golf.advanceMethod) && method(golf.receivedMethod) &&
-    ['betIn', 'betOut', 'hole', 'side'].every(key => money(golf.values[key])) &&
+    ['betIn', 'betOut', 'hole', 'side'].every(key => money(golf.values[key]) || golf.unranked === true && golf.values[key] === null) &&
     ['game', 'meal'].every(key => golf.values[key] === null || money(golf.values[key])) &&
     ['game', 'meal', 'betIn', 'betOut'].every(key => method(golf.methods[key]));
 }
@@ -2285,18 +2302,20 @@ function golfRecordDetails(record) {
   const {net, game, meal, pending, advance, received} = golfCashFlow(golf);
   const {games, meals} = golfRuleAmounts(golf.players.length, golf.rules, golf.players, golf.mealTotal);
   const method = key => golfMethods[golf.methods[key]];
+  const amount = value => value === null ? '미확인' : moneyText(value);
   const lines = [
     golf.start + '–' + golf.end + (golf.end < golf.start ? ' (다음 날 종료)' : '') + ' · ' + golf.players.length + '명 · 내 순위 ' + golf.myRank + '등',
-    '게임비 ' + moneyText(game) + ' (' + method('game') + ') · 식사비 ' + moneyText(meal) + ' (' + method('meal') + ')',
-    '홀당 ' + moneyText(golf.values.hole) + ' · 대판 ' + moneyText(golf.values.side),
-    '내기 수입 ' + moneyText(golf.values.betIn) + ' (' + method('betIn') + ') · 내기 지출 ' + moneyText(golf.values.betOut) + ' (' + method('betOut') + ')',
+    '게임비 ' + amount(golf.unranked && golf.values.game === null ? null : game) + ' (' + method('game') + ') · 식사비 ' + amount(golf.unranked && golf.values.meal === null ? null : meal) + ' (' + method('meal') + ')',
+    '홀당 ' + amount(golf.values.hole) + ' · 대판 ' + amount(golf.values.side),
+    '내기 수입 ' + amount(golf.values.betIn) + ' (' + method('betIn') + ') · 내기 지출 ' + amount(golf.values.betOut) + ' (' + method('betOut') + ')',
     '대신 결제 ' + moneyText(advance) + ' (' + golfMethods[golf.advanceMethod] + ') · 실제 수령 ' + moneyText(received) + ' · 미정산 ' + moneyText(pending),
-    '실제 ' + (net < 0 ? '순손실 ' : '순수익 ') + moneyText(Math.abs(net)),
+    (golf.unranked ? '확인된 금액 기준 ' : '실제 ') + (net < 0 ? '순손실 ' : '순수익 ') + moneyText(Math.abs(net)),
   ];
   for (const [index, player] of golf.players.entries()) {
     const rank = index + 1;
-    let text = rank + '등 ' + player.name + ' · 정산 게임비 ' + moneyText(games[index]) + ' · 식사비 ' + moneyText(meals[index]);
-    if (rank !== golf.myRank) {
+    let text = golf.unranked ? player.name + (rank === golf.myRank ? ' · 내 순위 ' + rank + '등' : ' · 순위 미확인') :
+      rank + '등 ' + player.name + ' · 정산 게임비 ' + moneyText(games[index]) + ' · 식사비 ' + moneyText(meals[index]);
+    if (rank !== golf.myRank && (!golf.unranked || player.advance || player.received || player.due !== null)) {
       const due = player.due ?? player.advance;
       text += ' · 대신 결제 ' + moneyText(player.advance) + ' · 받을 금액 ' + moneyText(due) +
         ' · 받은 금액 ' + moneyText(player.received) + ' · 미정산 ' + moneyText(Math.max(0, due - player.received));
@@ -3500,15 +3519,15 @@ function validFarm(farm) {
   if (!farm || !['visit', 'work'].includes(farm.kind) ||
       !['task', 'next', 'purpose'].every(key => typeof farm[key] === 'string') ||
       !['done', 'inVehicle', 'inExpenses'].every(key => typeof farm[key] === 'boolean') ||
-      !int(farm.minutes, 1440) || !int(farm.companions, 1000) ||
-      !Number.isFinite(farm.distance) || farm.distance < 0 || farm.distance > 100000 ||
+      (farm.minutes !== null && !int(farm.minutes, 1440)) || (farm.companions !== null && !int(farm.companions, 1000)) ||
+      (farm.distance !== null && (!Number.isFinite(farm.distance) || farm.distance < 0 || farm.distance > 100000)) ||
       !Object.keys(farmCosts).every(key => int(farm[key], 1000000000)) ||
       !farmPhotoKeys.every(key => typeof farm.photos?.[key] === 'string' && farm.photos[key].length <= 220000 &&
         (!farm.photos[key] || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(farm.photos[key])))) return false;
   if (farm.kind === 'work') return !!farm.task;
-  return !!farm.purpose && ['depart', 'arrive', 'home'].every(key =>
-    typeof farm[key] === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(farm[key])) &&
-    !!vehicleTiming([farm.depart, farm.arrive, farm.home]);
+  const times = [farm.depart, farm.arrive, farm.home];
+  return !!farm.purpose && times.every(value => value === '' || typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value)) &&
+    (times.includes('') || !!vehicleTiming(times));
 }
 
 function farmFields() {
@@ -3517,7 +3536,7 @@ function farmFields() {
   for (const key of farmVisitFields) {
     const field = byId('farm-' + key);
     field.disabled = !visit;
-    field.required = visit && ['depart', 'arrive', 'home', 'purpose'].includes(key);
+    field.required = visit && key === 'purpose';
   }
   byId('farm-task').required = !visit;
 }
@@ -3558,11 +3577,12 @@ function farmRecordDetails(farm) {
   const visit = farm.kind === 'visit';
   const times = visit ? vehicleTiming([farm.depart, farm.arrive, farm.home]) : null;
   cardLines(node, [
-    ...(visit ? [farm.purpose, '출발 ' + farm.depart + ' · 도착 ' + farm.arrive + ' · 귀가 ' + farm.home +
-      (times.overnight ? ' (다음 날)' : ''),
-      '동행 ' + farm.companions + '명 · 왕복 ' + weightNumber.format(farm.distance) + 'km'] : []),
+    ...(visit ? [farm.purpose, '출발 ' + (farm.depart || '미확인') + ' · 도착 ' + (farm.arrive || '미확인') + ' · 귀가 ' + (farm.home || '미확인') +
+      (times?.overnight ? ' (다음 날)' : ''),
+      '동행 ' + (farm.companions === null ? '미확인' : farm.companions + '명') +
+      ' · 왕복 ' + (farm.distance === null ? '미확인' : weightNumber.format(farm.distance) + 'km')] : []),
     ...(farm.task || farm.minutes || farm.done ? ['작업 ' + (farm.task || '미지정') + ' · ' +
-      hulaTimeText(farm.minutes) + ' · ' + (farm.done ? '완료' : '미완료')] : []),
+      (farm.minutes === null ? '시간 미확인' : hulaTimeText(farm.minutes)) + ' · ' + (farm.done ? '완료' : '미완료')] : []),
     ...(farm.next ? ['다음 작업 · ' + farm.next] : []),
     Object.entries(farmCosts).map(([key, label]) => label + ' ' + moneyText(farm[key])).join(' · '),
     '총 비용 ' + moneyText(farmCost(farm)) + ' · 전체 지출에 반영 ' + moneyText(farmLedgerExpense(farm)),
@@ -3680,10 +3700,11 @@ farmForm.onsubmit = async event => {
   const text = key => field(key).value.trim();
   const amount = key => field(key).valueAsNumber || 0;
   const farm = {kind, photos: {before: farmPhotos.before ?? '', after: farmPhotos.after ?? ''},
-    task: text('task'), next: text('next'), done: field('done').checked, minutes: amount('minutes'),
+    task: text('task'), next: text('next'), done: field('done').checked, minutes: field('minutes').value === '' ? null : amount('minutes'),
     purpose: visit ? text('purpose') : '', depart: visit ? text('depart') : '',
     arrive: visit ? text('arrive') : '', home: visit ? text('home') : '',
-    companions: visit ? amount('companions') : 0, distance: visit ? amount('distance') : 0,
+    companions: visit && field('companions').value !== '' ? amount('companions') : null,
+    distance: visit && field('distance').value !== '' ? amount('distance') : null,
     inVehicle: field('in-vehicle').checked, inExpenses: field('in-expenses').checked};
   for (const key of Object.keys(farmCosts)) farm[key] = amount(key);
   const date = farmDate.value;
@@ -4220,6 +4241,126 @@ byId('stats-to').value = initialUnifiedDate;
 statsFields();
 statsRange = selectedStatsRange();
 byId('stats-status').textContent = statsRange.join(' ~ ');
+
+function expandSetup(backup) {
+  if (backup?.format !== 'daily-record-setup-1' || !Array.isArray(backup.records)) {
+    throw new Error('지원하는 초기 등록 형식이 아닙니다.');
+  }
+  const records = backup.records.map(([id, date, category, memo, data = {}]) => {
+    const record = {id, date, category, memo};
+    if (data.fitness) record.fitness = data.fitness;
+    if (data.tobacco) record.tobacco = data.tobacco;
+    if (data.referenceOnly === true) record.referenceOnly = true;
+    if (data.golf) {
+      const {names, start, end, myRank, betIn} = data.golf;
+      if (!Array.isArray(names)) throw new Error('골프 참석자 정보를 확인해 주세요.');
+      const players = names.map(name => ({name, gameFee: null, advance: 0, due: null, received: 0}));
+      record.golf = {start, end, myRank, players, unranked: true, rules: golfRuleDefaults(players.length), mealTotal: 0,
+        values: {game: null, meal: null, betIn, betOut: null, hole: null, side: null},
+        methods: {game: 'unknown', meal: 'unknown', betIn: 'unknown', betOut: 'unknown'},
+        advanceMethod: 'unknown', receivedMethod: 'unknown'};
+    }
+    if (data.farm) {
+      const kind = data.farm.kind;
+      record.farm = {kind, photos: {before: '', after: ''}, purpose: '', task: '', next: '', done: false,
+        depart: '', arrive: '', home: '', distance: null, companions: null, minutes: null,
+        inVehicle: false, inExpenses: false,
+        ...Object.fromEntries(Object.keys(farmCosts).map(key => [key, 0])), ...data.farm};
+    }
+    if (data.cardUse) {
+      record.cardUse = {purpose: '', people: '', photo: '', advance: 0, refund: 0, onlyCard: false, ...data.cardUse};
+    }
+    return record;
+  });
+  const settings = backup.settings ?? {};
+  if (typeof settings !== 'object' || settings === null ||
+      settings.weight && ![settings.weight.start, settings.weight.target].every(n => Number.isFinite(n) && n > 0) ||
+      settings.toll !== undefined && (!Number.isSafeInteger(settings.toll) || settings.toll < 0 || settings.toll > 1000000000) ||
+      settings.reminders !== undefined && (!Array.isArray(settings.reminders) ||
+        !settings.reminders.every(item => item && validScheduleDate(item.date) && typeof item.title === 'string' && item.title.trim() &&
+          typeof item.reminder === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.reminder) &&
+          Number.isFinite(new Date(item.reminder).getTime()) && item.reminder.slice(0, 10) <= item.date)) ||
+      settings.pickup !== undefined && (!settings.pickup || !validScheduleDate(settings.pickup.date) ||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(settings.pickup.time)) ||
+      settings.cards !== undefined && (!Array.isArray(settings.cards) || !settings.cards.every(card =>
+        card && typeof card.id === 'string' && card.id.trim() && typeof card.name === 'string' && card.name.trim() &&
+        ['personal', 'corporate'].includes(card.type)))) {
+    throw new Error('초기 등록 설정을 확인해 주세요.');
+  }
+  return {records, settings};
+}
+
+async function applySetupSettings(settings) {
+  if (settings.weight) {
+    localStorage.setItem(weightGoalKey, JSON.stringify(settings.weight));
+    setGoalFields();
+  }
+  if (settings.toll !== undefined) {
+    const previous = defaultPickupToll();
+    localStorage.setItem(vehicleTollKey, JSON.stringify(settings.toll));
+    byId('vehicle-default-toll').value = settings.toll;
+    const toll = byId('vehicle-toll');
+    if (!vehicleEditingId && vehicleKind.value === 'pickup' && toll.valueAsNumber === previous) toll.value = settings.toll;
+  }
+  if (settings.cards?.length) {
+    await changeCards(cards => [...cards, ...settings.cards.filter(item => !cards.some(card => card.id === item.id))
+      .map(item => ({...item, limit: null, period: 'all', from: '', to: '', topups: []}))]);
+  }
+  if (settings.reminders?.length || settings.pickup) {
+    await withSchedule(state => {
+      let changed = false;
+      for (const reminder of settings.reminders ?? []) {
+        const event = state.events.find(item => item.date === reminder.date && item.title?.trim() === reminder.title);
+        if (event && event.reminder !== reminder.reminder) {
+          Object.assign(event, {kind: 'farm-work', reminder: reminder.reminder});
+          changed = true;
+        } else if (!event) {
+          state.events.push({...newSchedule('farm-work', reminder.date), title: reminder.title, supplies: '', reminder: reminder.reminder});
+          changed = true;
+        }
+      }
+      if (settings.pickup) {
+        const event = state.events.find(item => item.date === settings.pickup.date && item.kind === 'e');
+        if (event && event.pickup !== settings.pickup.time) {
+          event.pickup = settings.pickup.time;
+          changed = true;
+        }
+      }
+      if (changed) writeSchedule(state);
+    });
+    await refreshSchedule();
+  }
+}
+
+const setupText = byId('setup-import-text');
+const setupButton = byId('setup-import');
+setupButton.onclick = async () => {
+  if (setupButton.disabled) return;
+  setupButton.disabled = true;
+  try {
+    let backup;
+    try { backup = JSON.parse(setupText.value); }
+    catch { throw new Error('초기 등록 데이터를 JSON 형식 그대로 붙여넣어 주세요.'); }
+    const {records, settings} = expandSetup(backup);
+    if (!records.every(record => validRecord(record) && typeof record.id === 'string' && record.id.trim() &&
+        (record.referenceOnly && record.date === '' || validScheduleDate(record.date))) ||
+        new Set(records.map(record => record.id)).size !== records.length) throw new Error('초기 등록 기록을 확인해 주세요.');
+    const count = await withRecords(current => {
+      const additions = records.filter(record => !current.some(item =>
+        item.id === record.id || item.restoredFromId === record.id || sameRecord(item, record)));
+      if (additions.length) writeRecords([...additions, ...current]);
+      return additions.length;
+    });
+    await applySetupSettings(settings);
+    await withRecords(render);
+    setupText.value = '';
+    report(count + '개의 실제 기록을 등록했습니다. 동일한 기록은 건너뛰었습니다.');
+  } catch (error) {
+    report(error.message, true);
+  } finally {
+    setupButton.disabled = false;
+  }
+};
 
 initializeFarm();
 initializeGolf();
