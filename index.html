@@ -369,9 +369,22 @@ function finishVoice(message) {
 }
 
 function completeVoiceInput() {
+  preservePendingSpeech(voiceInput);
   const {button, hasTranscript} = voiceInput;
   finishVoice(hasTranscript ? '음성 입력 종료' : '인식된 음성이 없습니다.');
   if (button === voice && hasTranscript) saveEditor();
+}
+
+function appendSpeech(input, text) {
+  if (!text) return;
+  input.field.value = [input.field.value.trimEnd(), text].filter(Boolean).join(' ');
+  input.hasTranscript = true;
+}
+
+function preservePendingSpeech(input) {
+  // A browser can end a session without delivering a final result for its last phrase.
+  appendSpeech(input, input.pendingText);
+  input.pendingText = '';
 }
 
 function restartRecognition(input, delay) {
@@ -381,21 +394,23 @@ function restartRecognition(input, delay) {
 
 function startRecognition(input) {
   if (voiceInput !== input || input.stopping) return;
-  const {SpeechRecognition, button, field, status} = input;
+  const {SpeechRecognition, button, status} = input;
   try {
     const session = new SpeechRecognition();
     input.session = session;
     session.lang = 'ko-KR';
     session.continuous = true;
-    session.interimResults = button === voice;
+    session.interimResults = true;
     const isCurrent = () => voiceInput === input && input.session === session;
     let retryDelay = 250;
     let blocked = false;
+    let nextResult = 0;
 
     function endSession() {
       if (!isCurrent()) return;
       clearTimeout(input.timer);
       input.session = null;
+      preservePendingSpeech(input);
       if (button === voice) showVoiceDraft();
       if (input.stopping) {
         completeVoiceInput();
@@ -410,19 +425,18 @@ function startRecognition(input) {
     };
     session.onresult = event => {
       if (!isCurrent()) return;
-      const interim = [];
-      for (let index = 0; index < event.results.length; index++) {
-        const result = event.results[index];
-        const transcript = result[0].transcript.trim();
-        if (!transcript) continue;
-        if (!result.isFinal) {
-          interim.push(transcript);
-        } else if (index >= event.resultIndex) {
-          field.value = [field.value.trimEnd(), transcript].filter(Boolean).join(' ');
-          input.hasTranscript = true;
-        }
+      // Each event includes the session's earlier results; commit each final slot once.
+      while (nextResult < event.results.length && event.results[nextResult].isFinal) {
+        appendSpeech(input, event.results[nextResult][0].transcript.trim());
+        nextResult++;
       }
-      if (button === voice) showVoiceDraft(interim.join(' '));
+      const pending = [];
+      for (let index = nextResult; index < event.results.length; index++) {
+        const text = event.results[index][0].transcript.trim();
+        if (text) pending.push(text);
+      }
+      input.pendingText = pending.join(' ');
+      if (button === voice) showVoiceDraft(input.pendingText);
     };
     session.onerror = event => {
       if (!isCurrent() || input.stopping) return;
@@ -504,7 +518,7 @@ function toggleVoice(button, field, status) {
   if (button === voice) report();
   voiceInput = {
     SpeechRecognition, button, field, status, startLabel: button.textContent,
-    session: null, timer: null, stopping: false, hasTranscript: false
+    session: null, timer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
   button.textContent = button === voice ? '음성 입력 종료' : '요청 음성 입력 종료';
   status.textContent = '음성 입력 시작 중…';
