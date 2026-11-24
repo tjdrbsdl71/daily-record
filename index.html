@@ -12,74 +12,382 @@ section{background:white;padding:18px;border-radius:14px;margin:15px 0;box-shado
 input,textarea,select,button{box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border:1px solid #ccc;border-radius:8px;font-size:16px}
 button{background:#2463b6;color:white;border:0;font-weight:bold}
 article{border-bottom:1px solid #ddd;padding:12px 0;white-space:pre-wrap}
-small{color:#666}
+label{display:block;margin-top:8px}
+button:disabled{opacity:.6}
+[hidden]{display:none!important}
+#error{color:#9b1c1c}
+#status,#voice-status,#error{margin:8px 0}
 </style>
 </head>
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
 <section>
-<h2>새 기록</h2>
+<h2 id="editor-title">새 기록</h2>
+<form id="editor" novalidate>
+<label for="date">날짜</label>
 <input id="date" type="date">
+<label for="category">분류</label>
 <select id="category">
 <option>일상</option><option>지출</option><option>병원·보험</option><option>운동</option><option>골프·훌라</option><option>기타</option>
 </select>
+<label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
- <button type="button" onclick="startVoice()">🎤 음성 입력</button> 
-<button onclick="saveRecord()">기록 저장</button>
+<button id="voice" type="button">🎤 음성 입력 시작</button>
+<p id="voice-status" role="status">음성 입력 대기 중</p>
+<button id="save" type="submit">기록 저장</button>
+<button id="cancel-edit" type="button" hidden>수정 취소</button>
+</form>
 </section>
+<section>
+<h2>백업 및 복원</h2>
+<button id="backup" type="button">JSON 백업 다운로드</button>
+<label for="backup-file">복원할 JSON 파일</label>
+<input id="backup-file" type="file" accept=".json,application/json">
+<button id="restore" type="button">기록 복원</button>
+<p>복원한 기록은 현재 목록에 추가됩니다.</p>
+</section>
+<p id="status" role="status"></p>
+<p id="error" role="alert"></p>
 <section>
 <h2>저장된 기록</h2>
 <div id="records"></div>
 </section>
 </main>
 <script>
-const key='daily-record-v1';
-document.getElementById('date').value=new Date().toLocaleDateString('en-CA');
-function getRecords(){try{return JSON.parse(localStorage.getItem(key))||[]}catch(e){return []}}
-function saveRecord(){
-const memo=document.getElementById('memo').value.trim();
-if(!memo){alert('기록을 입력하세요');return}
-const list=getRecords();
-list.unshift({date:document.getElementById('date').value,category:document.getElementById('category').value,memo:memo});
-localStorage.setItem(key,JSON.stringify(list));
-document.getElementById('memo').value='';
-render();
+const key = 'daily-record-v1';
+const byId = id => document.getElementById(id);
+const form = byId('editor');
+const date = byId('date');
+const category = byId('category');
+const memo = byId('memo');
+const save = byId('save');
+const fileInput = byId('backup-file');
+const restore = byId('restore');
+const voice = byId('voice');
+const voiceStatus = byId('voice-status');
+let editingId = null;
+let recognition = null;
+
+function report(message = '', isError = false) {
+  byId('status').textContent = isError ? '' : message;
+  byId('error').textContent = isError ? message : '';
 }
-function render(){
-const target=document.getElementById('records');
-target.replaceChildren();
-getRecords().forEach((r,i)=>{
-const article=document.createElement('article');
-const head=document.createElement('strong');
-head.textContent=r.date+' · '+r.category;
-const p=document.createElement('p');
-p.textContent=r.memo;
-const btn=document.createElement('button');
-btn.textContent='삭제';
-btn.onclick=()=>{if(confirm('삭제할까요?')){const a=getRecords();a.splice(i,1);localStorage.setItem(key,JSON.stringify(a));render()}};
-article.append(head,p,btn);
-target.append(article);
-});
+
+function validRecord(record) {
+  return record && typeof record.date === 'string' &&
+    typeof record.category === 'string' && typeof record.memo === 'string';
 }
-render();
-function startVoice() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    alert('이 브라우저는 음성 인식을 지원하지 않습니다.');
+
+function newId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)),
+    byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function withIds(records) {
+  const reserved = new Set(records.map(record => record.id));
+  const used = new Set();
+  return records.map(record => {
+    let {id} = record;
+    if (typeof id !== 'string' || !id.trim() || used.has(id)) {
+      do { id = newId(); } while (reserved.has(id) || used.has(id));
+    }
+    used.add(id);
+    return id === record.id ? record : {...record, id};
+  });
+}
+
+function writeRecords(records) {
+  try {
+    localStorage.setItem(key, JSON.stringify(records));
+  } catch {
+    throw new Error('기록을 저장할 수 없습니다. 브라우저의 저장 공간과 사이트 데이터 설정을 확인해 주세요.');
+  }
+}
+
+function readRecords() {
+  let records;
+  try {
+    const raw = localStorage.getItem(key);
+    records = raw === null ? [] : JSON.parse(raw);
+    if (!Array.isArray(records) || !records.every(validRecord)) throw new Error();
+  } catch {
+    throw new Error('저장된 기록을 읽을 수 없습니다. 브라우저의 사이트 데이터 설정이나 저장 형식을 확인해 주세요.');
+  }
+  const migrated = withIds(records);
+  if (migrated.some((record, index) => record !== records[index])) writeRecords(migrated);
+  return migrated;
+}
+
+function withRecords(operation) {
+  const run = () => operation(readRecords());
+  if (navigator.locks) return navigator.locks.request(key, run);
+  return Promise.resolve().then(run);
+}
+
+function stopVoiceForEditor() {
+  if (!recognition) return;
+  const session = recognition;
+  finishVoice('음성 입력 종료');
+  try {
+    session.abort();
+  } catch {
+    report('마이크 세션을 종료하지 못했습니다.', true);
+  }
+}
+
+function setEditor(record) {
+  stopVoiceForEditor();
+  editingId = record?.id ?? null;
+  form.reset();
+  const today = new Date();
+  const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+    .toISOString().slice(0, 10);
+  date.value = record?.date ?? localDate;
+  if (record) {
+    category.value = record.category;
+    memo.value = record.memo;
+  }
+  byId('editor-title').textContent = record ? '기록 수정' : '새 기록';
+  save.textContent = record ? '수정 저장' : '기록 저장';
+  byId('cancel-edit').hidden = !record;
+}
+
+function render(records) {
+  const target = byId('records');
+  target.replaceChildren();
+  if (!records.length) target.textContent = '저장된 기록이 없습니다.';
+  for (const record of records) {
+    const article = document.createElement('article');
+    const heading = document.createElement('strong');
+    heading.textContent = record.date + ' · ' + record.category;
+    const content = document.createElement('p');
+    content.textContent = record.memo;
+    const edit = document.createElement('button');
+    edit.textContent = '수정';
+    edit.onclick = () => {
+      if (save.disabled) return;
+      setEditor(record);
+      report();
+      memo.focus();
+    };
+    const remove = document.createElement('button');
+    remove.textContent = '삭제';
+    remove.onclick = async () => {
+      if (!confirm('삭제할까요?')) return;
+      try {
+        await withRecords(current => {
+          const remaining = current.filter(item => item.id !== record.id);
+          if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
+          writeRecords(remaining);
+          if (editingId === record.id) setEditor();
+          render(remaining);
+          report('기록을 삭제했습니다.');
+        });
+      } catch (error) {
+        report(error.message, true);
+      }
+    };
+    article.append(heading, content, edit, remove);
+    target.append(article);
+  }
+}
+
+form.onsubmit = async event => {
+  event.preventDefault();
+  if (save.disabled) return;
+  const previousId = editingId;
+  const draft = {date: date.value, category: category.value, memo: memo.value.trim()};
+  if (!draft.memo) {
+    report('메모를 입력해 주세요.', true);
+    memo.focus();
     return;
   }
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'ko-KR';
-  recognition.onresult = function(event) {
-    const memo = document.getElementById('memo');
-    memo.value += (memo.value ? ' ' : '') + event.results[0][0].transcript;
-  };
-  recognition.onerror = function(event) {
-    alert('음성 인식 오류: ' + event.error);
-  };
-  recognition.start();
-}  
+  if (!draft.date || !date.validity.valid) {
+    report('날짜를 입력해 주세요.', true);
+    date.focus();
+    return;
+  }
+  save.disabled = true;
+  try {
+    await withRecords(records => {
+      if (previousId) {
+        const index = records.findIndex(record => record.id === previousId);
+        if (index === -1) throw new Error('다른 탭에서 삭제된 기록입니다. 내용을 새 기록으로 저장하려면 복사해 주세요.');
+        records[index] = {...records[index], ...draft};
+      } else {
+        records.unshift({...draft, id: newId()});
+      }
+      writeRecords(records);
+      if (previousId) {
+        setEditor();
+      } else {
+        stopVoiceForEditor();
+        memo.value = '';
+      }
+      render(records);
+      report(previousId ? '수정한 기록을 저장했습니다.' : '기록을 저장했습니다.');
+    });
+  } catch (error) {
+    report(error.message, true);
+  } finally {
+    save.disabled = false;
+  }
+};
+
+byId('cancel-edit').onclick = () => {
+  if (save.disabled) return;
+  setEditor();
+  report('수정을 취소했습니다.');
+};
+
+byId('backup').onclick = async () => {
+  try {
+    const records = await withRecords(current => current);
+    const blob = new Blob([JSON.stringify({version: 1, records}, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'daily-record-backup.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    report('백업 다운로드를 시작했습니다. 백업 파일에는 메모 원문이 포함됩니다.');
+  } catch (error) {
+    report('백업에 실패했습니다. ' + error.message, true);
+  }
+};
+
+function sameRecord(a, b) {
+  return a.date === b.date && a.category === b.category && a.memo === b.memo;
+}
+
+function mergeBackup(current, incoming) {
+  const byRecordId = new Map(current.map(record => [record.id, record]));
+  const additions = [];
+  for (const record of incoming) {
+    const existing = byRecordId.get(record.id);
+    if (existing && sameRecord(existing, record)) continue;
+    if (existing) {
+      if ([...current, ...additions].some(item =>
+        item.restoredFromId === record.id && sameRecord(item, record))) continue;
+      let id;
+      do { id = newId(); } while (byRecordId.has(id));
+      additions.push({...record, id, restoredFromId: record.id});
+    } else {
+      additions.push(record);
+    }
+    const added = additions[additions.length - 1];
+    byRecordId.set(added.id, added);
+  }
+  return additions;
+}
+
+restore.onclick = async () => {
+  const file = fileInput.files[0];
+  if (!file) {
+    report('복원할 JSON 파일을 선택해 주세요.', true);
+    return;
+  }
+  restore.disabled = true;
+  try {
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      throw new Error('백업 파일을 읽을 수 없습니다. 올바른 JSON 파일을 선택해 주세요.');
+    }
+    const records = backup?.version === 1 ? backup.records : null;
+    if (!Array.isArray(records) || !records.every(record =>
+      validRecord(record) && typeof record.id === 'string' && record.id.trim()) ||
+      new Set(records.map(record => record.id)).size !== records.length) {
+      throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
+    }
+    await withRecords(current => {
+      const additions = mergeBackup(current, records);
+      const merged = [...additions, ...current];
+      if (additions.length) writeRecords(merged);
+      render(merged);
+      report(additions.length ? additions.length + '개의 기록을 복원했습니다.' : '추가할 새 기록이 없습니다.');
+    });
+    fileInput.value = '';
+  } catch (error) {
+    report(error.message, true);
+  } finally {
+    restore.disabled = false;
+  }
+};
+
+function finishVoice(message) {
+  recognition = null;
+  voice.disabled = false;
+  voice.textContent = '🎤 음성 입력 시작';
+  voiceStatus.textContent = message;
+}
+
+voice.onclick = () => {
+  if (recognition) {
+    voice.disabled = true;
+    voiceStatus.textContent = '음성 입력 종료 중…';
+    try {
+      recognition.stop();
+    } catch {
+      finishVoice('음성 입력 종료');
+      report('음성 입력을 종료하지 못했습니다. 다시 시도해 주세요.', true);
+    }
+    return;
+  }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    report('이 브라우저는 음성 입력을 지원하지 않습니다. 메모를 직접 입력해 주세요.', true);
+    return;
+  }
+  report();
+  try {
+    const session = new SpeechRecognition();
+    recognition = session;
+    session.lang = 'ko-KR';
+    session.onstart = () => {
+      if (recognition !== session || voice.disabled) return;
+      voiceStatus.textContent = '음성 입력 중…';
+    };
+    session.onresult = event => {
+      if (recognition !== session) return;
+      memo.value += (memo.value ? ' ' : '') + event.results[0][0].transcript;
+    };
+    session.onerror = event => {
+      if (recognition !== session) return;
+      finishVoice('음성 입력 종료');
+      const messages = {
+        'not-allowed': '마이크 권한을 허용한 뒤 다시 시도해 주세요.',
+        'service-not-allowed': '브라우저가 음성 인식 서비스 사용을 허용하지 않습니다.',
+        'audio-capture': '마이크가 연결되어 있고 사용할 수 있는지 확인해 주세요.',
+        'no-speech': '음성이 감지되지 않았습니다. 다시 시도해 주세요.',
+        network: '음성 인식 서비스에 연결할 수 없습니다. 네트워크를 확인해 주세요.'
+      };
+      report(messages[event.error] ?? '음성 입력 중 오류가 발생했습니다. 다시 시도해 주세요.', true);
+    };
+    session.onend = () => {
+      if (recognition === session) finishVoice('음성 입력 종료');
+    };
+    voice.textContent = '음성 입력 종료';
+    voiceStatus.textContent = '음성 입력 시작 중…';
+    session.start();
+  } catch {
+    finishVoice('음성 입력 종료');
+    report('음성 입력을 시작하지 못했습니다. 마이크 설정을 확인해 주세요.', true);
+  }
+};
+
+function refresh() {
+  withRecords(render).catch(error => report(error.message, true));
+}
+
+window.addEventListener('storage', event => {
+  if (event.key === key || event.key === null) refresh();
+});
+setEditor();
+refresh();
 </script>
 </body>
 </html>
