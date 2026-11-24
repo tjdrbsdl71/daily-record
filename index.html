@@ -53,7 +53,7 @@ button:disabled{opacity:.6}
 <label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
 <button id="voice" type="button">🎤 음성 입력 시작</button>
-<p id="voice-status" role="status">음성 입력 대기 중</p>
+<p id="voice-status" role="status">마이크를 누르고 말한 뒤 “끝”이라고 하면 자동으로 저장됩니다.</p>
 <p id="voice-preview" hidden>인식 중인 내용: <span id="voice-draft"></span></p>
 <p id="amount-preview" role="status" hidden></p>
 <button id="save" type="submit">기록 저장</button>
@@ -441,7 +441,11 @@ form.onsubmit = event => {
   saveEditor();
 };
 
-async function saveEditor() {
+function voiceMemoKey(text) {
+  return text.normalize('NFKC').trim().replace(/\s+/g, ' ').replace(/[.!?。！？\s]+$/u, '');
+}
+
+async function saveEditor({fromVoice = false} = {}) {
   if (save.disabled) return;
   updateAnalysis();
   const previousId = editingId;
@@ -459,6 +463,15 @@ async function saveEditor() {
   save.disabled = true;
   try {
     await withRecords(records => {
+      const duplicate = fromVoice && !previousId && records.some(record =>
+        record.date === draft.date && voiceMemoKey(record.memo) === voiceMemoKey(draft.memo));
+      if (duplicate) {
+        memo.value = '';
+        categoryOverride = false;
+        updateAnalysis();
+        report('같은 날짜에 동일한 내용의 기록이 이미 있습니다.');
+        return;
+      }
       if (previousId) {
         const index = records.findIndex(record => record.id === previousId);
         if (index === -1) throw new Error('다른 탭에서 삭제된 기록입니다. 내용을 새 기록으로 저장하려면 복사해 주세요.');
@@ -589,11 +602,19 @@ function finishVoice(message) {
   status.textContent = message;
 }
 
-function completeVoiceInput() {
-  preservePendingSpeech(voiceInput);
-  const {button, hasTranscript} = voiceInput;
+function completeVoiceInput(input) {
+  if (voiceInput !== input) return;
+  preservePendingSpeech(input);
+  const {button, hasTranscript} = input;
   finishVoice(hasTranscript ? '음성 입력 종료' : '인식된 음성이 없습니다.');
-  if (button === voice && hasTranscript) saveEditor();
+  if (button === voice && hasTranscript) saveEditor({fromVoice: true});
+}
+
+function commitSpeech(input, text) {
+  const command = input.button === voice && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
+  const content = command ? text.slice(0, command.index).trimEnd() : text;
+  if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
+  return Boolean(command);
 }
 
 function appendSpeech(input, text) {
@@ -605,8 +626,9 @@ function appendSpeech(input, text) {
 
 function preservePendingSpeech(input) {
   // A browser can end a session without delivering a final result for its last phrase.
-  appendSpeech(input, input.pendingText);
+  const text = input.pendingText;
   input.pendingText = '';
+  return commitSpeech(input, text);
 }
 
 function restartRecognition(input, delay) {
@@ -632,10 +654,10 @@ function startRecognition(input) {
       if (!isCurrent()) return;
       clearTimeout(input.timer);
       input.session = null;
-      preservePendingSpeech(input);
+      const endedByCommand = preservePendingSpeech(input);
       if (button === voice) showVoiceDraft();
-      if (input.stopping) {
-        completeVoiceInput();
+      if (input.stopping || endedByCommand) {
+        completeVoiceInput(input);
       } else if (!blocked) {
         // Android Chrome can end recognition during silence in continuous mode.
         restartRecognition(input, retryDelay);
@@ -648,9 +670,21 @@ function startRecognition(input) {
     session.onresult = event => {
       if (!isCurrent()) return;
       // Each event includes the session's earlier results; commit each final slot once.
+      const finalized = [];
       while (nextResult < event.results.length && event.results[nextResult].isFinal) {
-        appendSpeech(input, event.results[nextResult][0].transcript.trim());
+        finalized.push(event.results[nextResult][0].transcript.trim());
         nextResult++;
+      }
+      if (commitSpeech(input, finalized.filter(Boolean).join(' '))) {
+        input.pendingText = '';
+        completeVoiceInput(input);
+        if (input.stopping) return;
+        try {
+          session.stop();
+        } catch {
+          // Recognition may have already ended.
+        }
+        return;
       }
       const pending = [];
       for (let index = nextResult; index < event.results.length; index++) {
@@ -710,7 +744,7 @@ function toggleVoice(button, field, status) {
     clearTimeout(input.timer);
     const session = input.session;
     if (!session) {
-      completeVoiceInput();
+      completeVoiceInput(input);
       return;
     }
     input.stopping = true;
@@ -718,7 +752,7 @@ function toggleVoice(button, field, status) {
     status.textContent = '음성 입력 종료 중…';
     // Allow Chrome to deliver the final result after the user presses Stop.
     input.timer = setTimeout(() => {
-      completeVoiceInput();
+      completeVoiceInput(input);
       try {
         session.abort();
       } catch {
