@@ -35,6 +35,8 @@ button:disabled{opacity:.6}
 .schedule-badge{display:inline-block;padding:2px 5px;border-radius:4px;background:#e4eaf2;color:#202b3d;font-size:.75rem;font-weight:bold}
 .schedule-d{background:#ffe66b}.schedule-e{background:#a8d1ff}.schedule-n{background:#c8ee8e}
 .schedule-so{background:#fce1eb}.schedule-off{background:#f3a3cb}.schedule-leave{background:#93e1d8}
+.schedule-farm-visit,.schedule-farm-work{background:#d8ead1}
+#farm-alert{padding:10px;background:#fff3c4;border-radius:8px}
 .schedule-pool{background:#ccecf5}.schedule-gym{background:#e5d7f7}.schedule-gym-open{background:#d3efdb}
 .calendar-day .schedule-badge{padding:1px 2px;font-size:clamp(.6rem,2.6vw,.75rem);line-height:1.25}
 #shift-legend{display:flex;flex-wrap:wrap;gap:5px;padding:0;list-style:none}
@@ -76,7 +78,7 @@ button:disabled{opacity:.6}
 <body>
 <main>
 <h1>📒 나의 일상기록</h1>
-<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a> · <a href="#cards-heading">카드 사용·한도</a> · <a href="#vehicle-heading">차량 픽업·운행비</a></p>
+<p><a href="#calendar-heading">월간 일정 보기</a> · <a href="#weight-heading">운동·체중 현황</a> · <a href="#golf-heading">스크린골프 손익</a> · <a href="#hula-heading">전투 훌라 손익</a> · <a href="#cards-heading">카드 사용·한도</a> · <a href="#vehicle-heading">차량 픽업·운행비</a> · <a href="#farm-heading">시골 방문·농사일</a></p>
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
@@ -310,6 +312,54 @@ button:disabled{opacity:.6}
 <input id="vehicle-month" type="month">
 <div id="vehicle-summary" class="totals"></div>
 </section>
+<section id="farm-section" aria-labelledby="farm-heading">
+<h2 id="farm-heading">시골 방문·농사일</h2>
+<button id="farm-plan-visit" type="button">방문 일정 등록</button>
+<button id="farm-plan-work" type="button">작업 일정 등록</button>
+<form id="farm-form">
+<h3 id="farm-title">시골 기록</h3>
+<div class="fields">
+<div><label for="farm-date">날짜</label><input id="farm-date" type="date" required></div>
+<div><label for="farm-kind">기록 종류</label><select id="farm-kind"><option value="visit">시골 방문</option><option value="work">농사·작업만 기록</option></select></div>
+</div>
+<div id="farm-visit-fields" class="fields">
+<div><label for="farm-depart">출발 시간</label><input id="farm-depart" type="time"></div>
+<div><label for="farm-arrive">시골 도착 시간</label><input id="farm-arrive" type="time"></div>
+<div><label for="farm-home">귀가 시간</label><input id="farm-home" type="time"></div>
+<div><label for="farm-purpose">방문 목적</label><input id="farm-purpose" maxlength="200"></div>
+<div><label for="farm-companions">동행 인원 (명, 본인 제외)</label><input id="farm-companions" type="number" min="0" max="1000" step="1" inputmode="numeric"></div>
+<div><label for="farm-distance">왕복 운행거리 (km)</label><input id="farm-distance" type="number" min="0" max="100000" step="0.01" inputmode="decimal"></div>
+</div>
+<div class="fields">
+<div><label for="farm-task">작업 종류</label><input id="farm-task" maxlength="120" placeholder="예: 배추 뽑기"></div>
+<div><label for="farm-minutes">작업 시간 (분)</label><input id="farm-minutes" type="number" min="0" max="1440" step="1" inputmode="numeric"></div>
+</div>
+<label for="farm-memo">작업 내용</label>
+<textarea id="farm-memo" rows="3"></textarea>
+<label class="calendar-check"><input id="farm-done" type="checkbox"> 작업 완료</label>
+<label for="farm-next">다음에 해야 할 작업</label>
+<textarea id="farm-next" rows="2"></textarea>
+<div class="fields">
+<div><label for="farm-before">작업 전 사진</label><input id="farm-before" type="file" accept="image/*"><button id="farm-remove-before" type="button" hidden>작업 전 사진 제거</button></div>
+<div><label for="farm-after">작업 후 사진</label><input id="farm-after" type="file" accept="image/*"><button id="farm-remove-after" type="button" hidden>작업 후 사진 제거</button></div>
+</div>
+<h4>비용</h4>
+<div id="farm-costs" class="fields"></div>
+<label class="calendar-check"><input id="farm-in-vehicle" type="checkbox"> 운행거리·통행료·주유비를 이미 차량 운행에 등록함</label>
+<label class="calendar-check"><input id="farm-in-expenses" type="checkbox"> 위 비용을 이미 전체 지출에 등록함</label>
+<button id="farm-voice" type="button">🎤 시골 기록 음성 입력 시작</button>
+<p id="farm-voice-status" role="status">예: “시골 방문, 목적 배추 수확, 왕복 80킬로, 작업 배추 뽑기, 작업 시간 2시간, 통행료 4천 원. 끝”</p>
+<button id="farm-save" type="submit">시골 기록 저장</button>
+<button id="farm-cancel" type="button" hidden>시골 기록 수정 취소</button>
+<p id="farm-status" role="status"></p>
+</form>
+<h3>월별·연간 통계</h3>
+<div class="fields">
+<div><label for="farm-month">조회 월</label><input id="farm-month" type="month"></div>
+<div><label for="farm-year">조회 연도</label><input id="farm-year" type="number" min="1" max="9999" step="1"></div>
+</div>
+<div id="farm-totals" class="totals"></div>
+</section>
 <section id="weight-dashboard" aria-labelledby="weight-heading">
 <h2 id="weight-heading">운동·체중 현황</h2>
 <dl id="weight-metrics" class="fitness-metrics">
@@ -372,8 +422,14 @@ button:disabled{opacity:.6}
 <label for="schedule-kind">일정 종류</label>
 <select id="schedule-kind"></select>
 <div id="schedule-personal">
-<label for="schedule-title">개인 일정 이름</label>
+<label for="schedule-title">일정 이름</label>
 <input id="schedule-title" type="text" maxlength="120" required>
+</div>
+<div id="schedule-farm-fields" hidden>
+<label for="schedule-supplies">준비물 목록</label>
+<textarea id="schedule-supplies" rows="2" placeholder="예: 장갑, 수확용 상자"></textarea>
+<label for="schedule-reminder">사전 알림 날짜와 시간 (선택)</label>
+<input id="schedule-reminder" type="datetime-local">
 </div>
 <div id="schedule-pickup" hidden>
 <label class="calendar-check"><input id="pickup-enabled" type="checkbox"> 차량 픽업</label>
@@ -396,12 +452,13 @@ button:disabled{opacity:.6}
 </details>
 <p id="schedule-status" role="status"></p>
 <details>
-<summary>픽업 알림 설정</summary>
+<summary>픽업·시골 일정 알림 설정</summary>
 <p>알림을 받으려면 일정 앱 화면을 열어 두세요. 화면을 닫거나 브라우저가 실행을 중단하면 앱에서 예약 알림을 보낼 수 없습니다. 픽업 일정의 캘린더 알림 파일(.ics)을 휴대폰 캘린더로 가져오고 알림 설정을 확인할 수 있습니다.</p>
 <button id="pickup-notification-test" type="button">알림 허용 및 테스트</button>
 <p id="pickup-notification-status" role="status"></p>
 </details>
 <p id="pickup-alert" role="status" hidden></p>
+<p id="farm-alert" role="status" hidden></p>
 </section>
 <section>
 <h2>영수증으로 지출 기록</h2>
@@ -469,7 +526,7 @@ let voiceInput = null;
 let categoryOverride = false;
 const filterDate = byId('filter-date');
 const filterCategory = byId('filter-category');
-const categories = ['일상', '지출', '수입', '차량', '운동', '체중', '병원', '보험', '스크린골프',
+const categories = ['일상', '지출', '수입', '차량', '시골·농사', '운동', '체중', '병원', '보험', '스크린골프',
   '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
 const categoryRules = [
   ['스크린골프', /스크린\s*골프|골프존|카카오\s*vx|골프/i],
@@ -576,6 +633,7 @@ function analyze(text, recordedCategory = '') {
 }
 
 function recordAmounts(record) {
+  if (validFarm(record.farm)) return {income: 0, expense: farmLedgerExpense(record.farm)};
   if (validVehicle(record.vehicle)) return {income: 0, expense: record.vehicle.onlyVehicle ? 0 : vehicleCost(record.vehicle)};
   if (validCardUse(record.cardUse)) return cardCashFlow(record.cardUse);
   if (validHula(record.hula)) return hulaCashFlow(record.hula);
@@ -646,7 +704,8 @@ function validRecord(record) {
     typeof record.category === 'string' && typeof record.memo === 'string' &&
     (record.golf === undefined || validGolf(record.golf)) && (record.hula === undefined || validHula(record.hula)) &&
     (record.cardUse === undefined || validCardUse(record.cardUse)) &&
-    (record.vehicle === undefined || validVehicle(record.vehicle));
+    (record.vehicle === undefined || validVehicle(record.vehicle)) &&
+    (record.farm === undefined || validFarm(record.farm));
 }
 
 function newId() {
@@ -742,6 +801,7 @@ function render(records) {
   renderHula(records);
   renderCards(records);
   renderVehicle(records);
+  renderFarm(records);
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
   setCategories(filterCategory, ['', ...names], names.includes(selected) ? selected : '');
@@ -780,6 +840,10 @@ function render(records) {
       if (save.disabled) return;
       if (voiceInput?.button === voice) {
         report('음성 입력을 종료한 뒤 기록을 수정해 주세요.');
+        return;
+      }
+      if (validFarm(record.farm)) {
+        openFarmEditor(record);
         return;
       }
       if (validVehicle(record.vehicle)) {
@@ -823,6 +887,9 @@ function render(records) {
           if (vehicleEditingId === record.id && voiceInput?.button === vehicleVoice) {
             throw new Error('차량 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
           }
+          if (farmEditingId === record.id && voiceInput?.button === farmVoice) {
+            throw new Error('시골 음성 입력을 종료한 뒤 수정 중인 기록을 삭제해 주세요.');
+          }
           const remaining = current.filter(item => item.id !== record.id);
           if (remaining.length === current.length) throw new Error('이미 삭제된 기록입니다.');
           writeRecords(remaining);
@@ -831,6 +898,7 @@ function render(records) {
           if (hulaEditingId === record.id) setHulaEditor();
           if (cardEditingId === record.id) setCardUse();
           if (vehicleEditingId === record.id) setVehicleEditor();
+          if (farmEditingId === record.id) setFarmEditor();
           render(remaining);
           report('기록을 삭제했습니다.');
         });
@@ -839,7 +907,8 @@ function render(records) {
       }
     };
     article.append(heading);
-    if (validVehicle(record.vehicle)) article.append(vehicleRecordDetails(record.vehicle));
+    if (validFarm(record.farm)) article.append(farmRecordDetails(record.farm));
+    else if (validVehicle(record.vehicle)) article.append(vehicleRecordDetails(record.vehicle));
     else if (validCardUse(record.cardUse)) article.append(cardUseDetails(record.cardUse));
     else if (validHula(record.hula)) article.append(hulaRecordDetails(record.hula));
     else if (validGolf(record.golf)) article.append(golfRecordDetails(record));
@@ -1000,7 +1069,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle);
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm);
 }
 
 function mergeBackup(current, incoming) {
@@ -1084,10 +1153,11 @@ function completeVoiceInput(input) {
   if (button === hulaVoice && hasTranscript) fillHulaFromVoice(input.field.value);
   if (button === cardVoice && hasTranscript) fillCardFromVoice(input.field.value);
   if (button === vehicleVoice && hasTranscript) fillVehicleFromVoice(input.field.value);
+  if (button === farmVoice && hasTranscript) fillFarmFromVoice(input.field.value);
 }
 
 function commitSpeech(input, text) {
-  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice || input.button === vehicleVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
+  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice || input.button === vehicleVoice || input.button === farmVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
   const content = command ? text.slice(0, command.index).trimEnd() : text;
   if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
   return Boolean(command);
@@ -1211,7 +1281,7 @@ function startRecognition(input) {
 function toggleVoice(button, field, status) {
   if (button === voice && save.disabled || button === golfVoice && byId('golf-save').disabled ||
       button === hulaVoice && byId('hula-save').disabled || button === cardVoice && byId('card-use-save').disabled ||
-      button === vehicleVoice && byId('vehicle-save').disabled) return;
+      button === vehicleVoice && byId('vehicle-save').disabled || button === farmVoice && byId('farm-save').disabled) return;
   if (voiceInput) {
     const input = voiceInput;
     if (input.button !== button) {
@@ -1256,7 +1326,7 @@ function toggleVoice(button, field, status) {
   };
   button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' :
     button === hulaVoice ? '훌라 음성 입력 종료' : button === cardVoice ? '카드 음성 입력 종료' :
-    button === vehicleVoice ? '차량 음성 입력 종료' : '요청 음성 입력 종료';
+    button === vehicleVoice ? '차량 음성 입력 종료' : button === farmVoice ? '시골 음성 입력 종료' : '요청 음성 입력 종료';
   status.textContent = '음성 입력 시작 중…';
   startRecognition(voiceInput);
 }
@@ -3146,8 +3216,14 @@ function renderVehicle(records) {
   let distance = 0;
   let toll = 0;
   let costs = 0;
-  for (const {date, vehicle} of records) {
-    if (!date.startsWith(month + '-') || !validVehicle(vehicle)) continue;
+  for (const {date, vehicle, farm} of records) {
+    if (!date.startsWith(month + '-')) continue;
+    if (validFarm(farm) && !farm.inVehicle) {
+      distance += farm.distance;
+      toll += farm.toll;
+      costs += farm.toll + farm.fuel;
+    }
+    if (!validVehicle(vehicle)) continue;
     const timing = vehicle.times.length ? vehicleTiming(vehicle.times) : null;
     if (vehicle.kind === 'pickup') { pickups++; wait += timing.wait; }
     duration += timing?.duration ?? 0;
@@ -3297,6 +3373,264 @@ vehicleForm.onsubmit = async event => {
 byId('vehicle-default-toll').value = defaultPickupToll();
 vehicleMonth.value = todayDate().slice(0, 7);
 
+const farmForm = byId('farm-form');
+const farmDate = byId('farm-date');
+const farmKind = byId('farm-kind');
+const farmMemo = byId('farm-memo');
+const farmVoice = byId('farm-voice');
+const farmVoiceStatus = byId('farm-voice-status');
+const farmStatus = byId('farm-status');
+const farmMonth = byId('farm-month');
+const farmYear = byId('farm-year');
+const farmCosts = {toll: '고속도로 통행료', fuel: '주유비', meal: '식사비', supplies: '농자재 구입비',
+  labor: '인건비', other: '기타 지출'};
+const farmVisitFields = ['depart', 'arrive', 'home', 'purpose', 'companions', 'distance'];
+const farmPhotoKeys = ['before', 'after'];
+let farmEditingId = null;
+let farmPhotos = {};
+let farmRecords = [];
+
+function farmCost(farm) {
+  return Object.keys(farmCosts).reduce((sum, key) => sum + farm[key], 0);
+}
+
+function farmLedgerExpense(farm) {
+  if (farm.inExpenses) return 0;
+  return farmCost(farm) - (farm.inVehicle ? farm.toll + farm.fuel : 0);
+}
+
+function validFarm(farm) {
+  const int = (value, max) => Number.isSafeInteger(value) && value >= 0 && value <= max;
+  if (!farm || !['visit', 'work'].includes(farm.kind) ||
+      !['task', 'next', 'purpose'].every(key => typeof farm[key] === 'string') ||
+      !['done', 'inVehicle', 'inExpenses'].every(key => typeof farm[key] === 'boolean') ||
+      !int(farm.minutes, 1440) || !int(farm.companions, 1000) ||
+      !Number.isFinite(farm.distance) || farm.distance < 0 || farm.distance > 100000 ||
+      !Object.keys(farmCosts).every(key => int(farm[key], 1000000000)) ||
+      !farmPhotoKeys.every(key => typeof farm.photos?.[key] === 'string' && farm.photos[key].length <= 220000 &&
+        (!farm.photos[key] || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(farm.photos[key])))) return false;
+  if (farm.kind === 'work') return !!farm.task;
+  return !!farm.purpose && ['depart', 'arrive', 'home'].every(key =>
+    typeof farm[key] === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(farm[key])) &&
+    !!vehicleTiming([farm.depart, farm.arrive, farm.home]);
+}
+
+function farmFields() {
+  const visit = farmKind.value === 'visit';
+  byId('farm-visit-fields').hidden = !visit;
+  for (const key of farmVisitFields) {
+    const field = byId('farm-' + key);
+    field.disabled = !visit;
+    field.required = visit && ['depart', 'arrive', 'home', 'purpose'].includes(key);
+  }
+  byId('farm-task').required = !visit;
+}
+
+function setFarmEditor(record, event) {
+  farmEditingId = record?.id ?? null;
+  farmForm.reset();
+  const farm = record?.farm;
+  farmKind.value = farm?.kind ?? (event?.kind === 'farm-work' ? 'work' : 'visit');
+  farmDate.value = record?.date ?? event?.date ?? todayDate();
+  farmMemo.value = record?.memo ?? '';
+  for (const key of [...farmVisitFields, 'task', 'minutes', 'next', ...Object.keys(farmCosts)]) {
+    byId('farm-' + key).value = farm?.[key] ?? '';
+  }
+  if (event?.kind === 'farm-work') byId('farm-task').value = event.title;
+  if (event?.kind === 'farm-visit') byId('farm-purpose').value = event.title;
+  byId('farm-done').checked = farm?.done ?? false;
+  byId('farm-in-vehicle').checked = farm?.inVehicle ?? false;
+  byId('farm-in-expenses').checked = farm?.inExpenses ?? false;
+  farmPhotos = {...farm?.photos};
+  for (const key of farmPhotoKeys) byId('farm-remove-' + key).hidden = !farmPhotos[key];
+  byId('farm-title').textContent = record ? '시골 기록 수정' : '시골 기록';
+  byId('farm-cancel').hidden = !record;
+  farmFields();
+}
+
+function openFarmEditor(record, event) {
+  if (voiceInput?.button === farmVoice || byId('farm-save').disabled) {
+    report('시골 음성 입력이나 저장을 마친 뒤 다시 열어 주세요.');
+    return;
+  }
+  setFarmEditor(record, event);
+  farmDate.focus();
+}
+
+function farmRecordDetails(farm) {
+  const node = document.createElement('div');
+  const visit = farm.kind === 'visit';
+  const times = visit ? vehicleTiming([farm.depart, farm.arrive, farm.home]) : null;
+  cardLines(node, [
+    ...(visit ? [farm.purpose, '출발 ' + farm.depart + ' · 도착 ' + farm.arrive + ' · 귀가 ' + farm.home +
+      (times.overnight ? ' (다음 날)' : ''),
+      '동행 ' + farm.companions + '명 · 왕복 ' + weightNumber.format(farm.distance) + 'km'] : []),
+    ...(farm.task || farm.minutes || farm.done ? ['작업 ' + (farm.task || '미지정') + ' · ' +
+      hulaTimeText(farm.minutes) + ' · ' + (farm.done ? '완료' : '미완료')] : []),
+    ...(farm.next ? ['다음 작업 · ' + farm.next] : []),
+    Object.entries(farmCosts).map(([key, label]) => label + ' ' + moneyText(farm[key])).join(' · '),
+    '총 비용 ' + moneyText(farmCost(farm)) + ' · 전체 지출에 반영 ' + moneyText(farmLedgerExpense(farm)),
+  ]);
+  for (const key of farmPhotoKeys) {
+    if (!farm.photos[key]) continue;
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    const image = document.createElement('img');
+    summary.textContent = key === 'before' ? '작업 전 사진' : '작업 후 사진';
+    image.alt = summary.textContent;
+    image.className = 'card-photo';
+    image.loading = 'lazy';
+    image.src = farm.photos[key];
+    details.append(summary, image);
+    node.append(details);
+  }
+  return node;
+}
+
+function farmSummary(title, records) {
+  const card = document.createElement('div');
+  const heading = document.createElement('h3');
+  heading.textContent = title;
+  card.append(heading);
+  let visits = 0;
+  let minutes = 0;
+  let distance = 0;
+  let costs = 0;
+  for (const {farm} of records) {
+    if (farm.kind === 'visit') { visits++; distance += farm.distance; }
+    minutes += farm.minutes;
+    costs += farmCost(farm);
+  }
+  cardLines(card, ['방문 ' + visits + '회', '총 작업 시간 ' + hulaTimeText(minutes),
+    '총 운행거리 ' + weightNumber.format(distance) + 'km', '총 지출 ' + moneyText(costs)]);
+  return card;
+}
+
+function renderFarm(records) {
+  farmRecords = records.filter(record => validFarm(record.farm));
+  const month = farmMonth.value || todayDate().slice(0, 7);
+  const year = farmYear.value || todayDate().slice(0, 4);
+  byId('farm-totals').replaceChildren(
+    farmSummary(month, farmRecords.filter(record => record.date.startsWith(month + '-'))),
+    farmSummary(year + '년', farmRecords.filter(record => record.date.startsWith(year + '-'))));
+}
+
+function fillFarmFromVoice(text) {
+  const spoken = text.normalize('NFKC');
+  const set = (key, value) => { byId('farm-' + key).value = value; };
+  const date = /(?<!\d)(\d{4})\s*(?:[-./]|년)\s*(\d{1,2})\s*(?:[-./]|월)\s*(\d{1,2})(?!\d)/u.exec(spoken);
+  if (date) {
+    const value = date[1] + '-' + date[2].padStart(2, '0') + '-' + date[3].padStart(2, '0');
+    if (validScheduleDate(value)) farmDate.value = value;
+  }
+  if (/작업만|농사만/.test(spoken)) farmKind.value = 'work';
+  else if (/시골\s*방문/.test(spoken)) farmKind.value = 'visit';
+  for (const [key, label] of Object.entries({purpose: '(?:방문\\s*)?목적', task: '작업(?:\\s*종류)?', next: '다음\\s*작업'})) {
+    const match = new RegExp(label + '\\s*[:：]?\\s*([^,.;!?]+)').exec(spoken);
+    if (match && !/^(시간|완료|미완료)/.test(match[1].trim())) set(key, match[1].trim());
+  }
+  for (const [key, label] of Object.entries({depart: '출발', arrive: '도착', home: '귀가'})) {
+    const match = new RegExp(label + '\\s*[:：]?\\s*(?:(오전|오후)\\s*)?(\\d{1,2})\\s*[:시]\\s*(\\d{1,2})?').exec(spoken);
+    if (!match) continue;
+    const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2]);
+    const minute = Number(match[3] ?? 0);
+    if (hour < 24 && minute < 60) set(key, String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0'));
+  }
+  const duration = /작업\s*시간\s*[:：]?\s*(?:(\d+)\s*시간(?:\s*(\d+)\s*분)?|(\d+)\s*분)/.exec(spoken);
+  if (duration) set('minutes', Number(duration[1] ?? 0) * 60 + Number(duration[2] ?? duration[3] ?? 0));
+  const distance = /(\d+(?:\.\d+)?)\s*(?:km\b|[킬키]로(?:미터)?)/i.exec(spoken);
+  if (distance) set('distance', distance[1]);
+  const companions = /동행(?:\s*인원)?\s*(\d+)\s*명/.exec(spoken);
+  if (companions) set('companions', companions[1]);
+  const completion = /작업\s*(미완료|완료)/.exec(spoken);
+  if (completion) byId('farm-done').checked = completion[1] === '완료';
+  for (const [key, label] of Object.entries(farmCosts)) {
+    const spokenLabel = key === 'toll' ? '통행료' : key === 'supplies' ? '농자재(?:\\s*구입비)?' : label.replace(' ', '\\s*');
+    const amount = new RegExp(spokenLabel + '\\s*[:：]?\\s*([\\d,영공일이삼사오육칠팔구천백십억만\\s]+)원').exec(spoken);
+    if (amount) set(key, parseWon(amount[1]));
+  }
+  farmFields();
+  farmVoiceStatus.textContent = '인식한 항목을 확인하고 필요한 내용을 채운 뒤 저장하세요.';
+}
+
+function initializeFarm() {
+  for (const [key, label] of Object.entries(farmCosts)) golfField('farm-' + key, label + ' (원)', 'number', byId('farm-costs'));
+  farmMonth.value = todayDate().slice(0, 7);
+  farmYear.value = todayDate().slice(0, 4);
+  setFarmEditor();
+}
+
+farmKind.onchange = farmFields;
+farmMonth.onchange = farmYear.oninput = () => renderFarm(farmRecords);
+farmVoice.onclick = () => toggleVoice(farmVoice, farmMemo, farmVoiceStatus);
+byId('farm-cancel').onclick = () => {
+  if (voiceInput?.button !== farmVoice && !byId('farm-save').disabled) setFarmEditor();
+};
+for (const key of farmPhotoKeys) {
+  byId('farm-remove-' + key).onclick = () => {
+    delete farmPhotos[key];
+    byId('farm-' + key).value = '';
+    byId('farm-remove-' + key).hidden = true;
+  };
+}
+
+farmForm.onsubmit = async event => {
+  event.preventDefault();
+  const button = byId('farm-save');
+  if (voiceInput?.button === farmVoice || button.disabled) return;
+  const kind = farmKind.value;
+  const visit = kind === 'visit';
+  const field = key => byId('farm-' + key);
+  const text = key => field(key).value.trim();
+  const amount = key => field(key).valueAsNumber || 0;
+  const farm = {kind, photos: {before: farmPhotos.before ?? '', after: farmPhotos.after ?? ''},
+    task: text('task'), next: text('next'), done: field('done').checked, minutes: amount('minutes'),
+    purpose: visit ? text('purpose') : '', depart: visit ? text('depart') : '',
+    arrive: visit ? text('arrive') : '', home: visit ? text('home') : '',
+    companions: visit ? amount('companions') : 0, distance: visit ? amount('distance') : 0,
+    inVehicle: field('in-vehicle').checked, inExpenses: field('in-expenses').checked};
+  for (const key of Object.keys(farmCosts)) farm[key] = amount(key);
+  const date = farmDate.value;
+  const editing = farmEditingId;
+  if (!validScheduleDate(date) || !validFarm(farm)) {
+    farmStatus.textContent = '방문 시간과 목적 또는 작업 종류를 확인해 주세요.';
+    return;
+  }
+  const files = farmPhotoKeys.map(key => field(key).files[0]);
+  const memo = farmMemo.value.trim();
+  button.disabled = true;
+  try {
+    try {
+      for (const [index, key] of farmPhotoKeys.entries()) {
+        if (files[index]) farm.photos[key] = await cardPhoto(files[index]);
+      }
+    } catch {
+      throw new Error('작업 사진을 읽지 못했습니다. 다른 사진을 선택해 주세요.');
+    }
+    await withRecords(records => {
+      const draft = {id: editing ?? newId(), date, category: '시골·농사', memo, farm};
+      if (editing) {
+        const index = records.findIndex(record => record.id === editing);
+        if (index === -1) throw new Error('이미 삭제된 시골 기록입니다.');
+        records[index] = {...records[index], ...draft};
+      } else {
+        records.unshift(draft);
+      }
+      writeRecords(records);
+      farmMonth.value = date.slice(0, 7);
+      farmYear.value = date.slice(0, 4);
+      setFarmEditor();
+      render(records);
+    });
+    farmStatus.textContent = '시골 기록을 저장했습니다.';
+  } catch (error) {
+    farmStatus.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+
+initializeFarm();
 initializeGolf();
 initializeHula();
 initializeCards();
@@ -3306,6 +3640,8 @@ refresh();
 const scheduleKey = 'daily-record-schedule-v1';
 const scheduleKinds = {
   personal: {label: '개인 일정', short: '개인'},
+  'farm-visit': {label: '시골 방문 예정', short: '시골', farm: true},
+  'farm-work': {label: '농사·작업 예정', short: '농사', farm: true},
   d: {label: '데이 (D)', short: 'D', shift: true},
   e: {label: '이브닝 (E)', short: 'E', shift: true},
   n: {label: '나이트 (N)', short: 'N', shift: true},
@@ -3316,7 +3652,8 @@ const scheduleKinds = {
   gym: {label: '헬스장 휴관·휴장', short: '헬스×', facility: 'gym'},
   'gym-open': {label: '헬스장 일요일 정상 운영', short: '헬스○', facility: 'gym'},
 };
-const monthlyKinds = Object.keys(scheduleKinds).filter(kind => kind !== 'personal' && kind !== 'gym-open');
+const monthlyKinds = Object.keys(scheduleKinds).filter(kind =>
+  scheduleKinds[kind].shift || kind === 'pool' || kind === 'gym');
 const initialNovember = {
   d: [1, 5, 6, 14, 30],
   e: [2, 3, 15, 17, 18, 20, 21, 22, 23],
@@ -3362,17 +3699,26 @@ function newSchedule(kind, day) {
 
 function readSchedule() {
   const raw = localStorage.getItem(scheduleKey);
-  if (raw !== null) {
-    const state = JSON.parse(raw);
-    if (Array.isArray(state?.events) && Array.isArray(state?.notified)) return state;
-    throw new Error('저장된 일정을 읽을 수 없습니다.');
-  }
-  const state = {
+  const state = raw === null ? {
     events: monthlyKinds.flatMap(kind => initialNovember[kind].map(day =>
       newSchedule(kind, calendarDate('2026-11', day)))),
     notified: [],
-  };
-  writeSchedule(state);
+  } : JSON.parse(raw);
+  if (!Array.isArray(state?.events) || !Array.isArray(state?.notified)) {
+    throw new Error('저장된 일정을 읽을 수 없습니다.');
+  }
+  if (!state.farmSeeded) {
+    for (const [date, title, reminder] of [
+      ['2026-11-29', '배추 뽑기', '2026-11-28T19:00'],
+      ['2026-12-06', '김장', '2026-12-05T19:00'],
+    ]) {
+      if (!state.events.some(event => event.date === date && event.title?.trim() === title)) {
+        state.events.push({...newSchedule('farm-work', date), title, reminder, supplies: ''});
+      }
+    }
+    state.farmSeeded = true;
+    writeSchedule(state);
+  }
   return state;
 }
 
@@ -3389,12 +3735,12 @@ function eventLabel(event) {
   const kind = scheduleKinds[event.kind];
   if (kind.shift) return '자빈이 ' + kind.label;
   if (kind.facility) return '남구국민체육센터 1관 · ' + kind.label;
-  return event.title;
+  return kind.farm ? kind.label + ' · ' + event.title : event.title;
 }
 
 function eventSlot(event) {
   const kind = scheduleKinds[event.kind];
-  return event.date + '|' + (kind.shift ? 'shift' : kind.facility || 'personal|' + event.title.trim().replace(/\s+/g, ' '));
+  return event.date + '|' + (kind.shift ? 'shift' : kind.facility || event.kind + '|' + event.title.trim().replace(/\s+/g, ' '));
 }
 
 function scheduleBadge(kind, label) {
@@ -3472,6 +3818,13 @@ function renderCalendar() {
         }),
         scheduleButton('캘린더 알림 파일 저장', () => downloadPickupCalendar(event)));
     }
+    if (scheduleKinds[event.kind].farm) {
+      cardLines(item, [
+        ...(event.supplies ? ['준비물 · ' + event.supplies] : []),
+        ...(event.reminder ? ['사전 알림 · ' + event.reminder.replace('T', ' ')] : []),
+      ]);
+      item.append(scheduleButton('실제 시골 기록 작성', () => openFarmEditor(null, event)));
+    }
     const actions = document.createElement('div');
     actions.className = 'schedule-actions';
     actions.append(scheduleButton('수정', () => editSchedule(event)), scheduleButton('삭제', () => removeSchedule(event)));
@@ -3504,7 +3857,11 @@ function moveCalendar(offset) {
 }
 
 function scheduleFields() {
-  const personal = scheduleKind.value === 'personal';
+  const farm = Boolean(scheduleKinds[scheduleKind.value]?.farm);
+  const personal = scheduleKind.value === 'personal' || farm;
+  byId('schedule-farm-fields').hidden = !farm;
+  byId('schedule-supplies').disabled = !farm;
+  byId('schedule-reminder').disabled = !farm;
   const evening = scheduleKind.value === 'e';
   byId('schedule-personal').hidden = !personal;
   scheduleTitle.disabled = !personal;
@@ -3534,6 +3891,8 @@ function editSchedule(event) {
   }
   scheduleKind.value = event.kind;
   scheduleTitle.value = event.title;
+  byId('schedule-supplies').value = event.supplies ?? '';
+  byId('schedule-reminder').value = event.reminder ?? '';
   pickupEnabled.checked = event.kind === 'e' ? Boolean(event.pickup) : true;
   pickupTime.value = event.pickup || '22:00';
   byId('schedule-form-title').textContent = '일정 수정';
@@ -3564,9 +3923,19 @@ scheduleForm.onsubmit = async event => {
   const editing = scheduleEditingId;
   const entry = newSchedule(scheduleKind.value, scheduleDate.value);
   entry.id = editing ?? entry.id;
-  entry.title = entry.kind === 'personal' ? scheduleTitle.value.trim() : '';
+  const farm = Boolean(scheduleKinds[entry.kind].farm);
+  const named = entry.kind === 'personal' || farm;
+  entry.title = named ? scheduleTitle.value.trim() : '';
+  if (farm) {
+    entry.supplies = byId('schedule-supplies').value.trim();
+    entry.reminder = byId('schedule-reminder').value;
+    if (entry.reminder && entry.reminder.slice(0, 10) > entry.date) {
+      showScheduleError(new Error('사전 알림을 예정일 이전 또는 당일로 설정해 주세요.'));
+      return;
+    }
+  }
   entry.pickup = entry.kind === 'e' && pickupEnabled.checked ? pickupTime.value : '';
-  if (!validScheduleDate(entry.date) || (entry.kind === 'personal' && !entry.title) ||
+  if (!validScheduleDate(entry.date) || (named && !entry.title) ||
       (entry.kind === 'e' && pickupEnabled.checked && !/^\d{2}:\d{2}$/.test(entry.pickup))) {
     showScheduleError(new Error('날짜, 일정 이름 또는 픽업 시간을 확인해 주세요.'));
     return;
@@ -3716,10 +4085,17 @@ async function checkPickupAlerts() {
       const now = Date.now();
       const arrivals = [];
       for (const event of state.events) {
-        if (event.kind !== 'e' || !event.pickup) continue;
-        const pickup = pickupMoment(event).getTime();
-        if (now < pickup - 3600000 || now >= pickup) continue;
-        const tag = event.id + '|' + event.date + '|' + event.pickup;
+        let tag;
+        if (event.kind === 'e' && event.pickup) {
+          const pickup = pickupMoment(event).getTime();
+          if (now < pickup - 3600000 || now >= pickup) continue;
+          tag = event.id + '|' + event.date + '|' + event.pickup;
+        } else if (scheduleKinds[event.kind]?.farm && event.reminder) {
+          const alarm = new Date(event.reminder).getTime();
+          const end = new Date(event.date + 'T23:59:59').getTime();
+          if (!Number.isFinite(alarm) || now < alarm || now > end) continue;
+          tag = event.id + '|farm|' + event.date + '|' + event.reminder;
+        } else continue;
         if (!state.notified.includes(tag)) {
           arrivals.push({event, tag});
           state.notified.push(tag);
@@ -3729,6 +4105,13 @@ async function checkPickupAlerts() {
       return arrivals;
     });
     for (const {event, tag} of due) {
+      if (scheduleKinds[event.kind]?.farm) {
+        const label = byId('farm-alert');
+        label.textContent = event.date + ' ' + eventLabel(event) + (event.supplies ? ' · 준비물 ' + event.supplies : '');
+        label.hidden = false;
+        await showPickupNotification('시골 일정 사전 알림', label.textContent, tag);
+        continue;
+      }
       const body = event.date + ' 자빈이 차량 픽업 · ' + event.pickup;
       pickupAlert.textContent = body;
       pickupAlert.hidden = false;
@@ -3744,7 +4127,7 @@ async function checkPickupAlerts() {
   }
 }
 
-scheduleKind.append(option(scheduleKinds.personal.label, 'personal'));
+for (const kind of ['personal', 'farm-visit', 'farm-work']) scheduleKind.append(option(scheduleKinds[kind].label, kind));
 for (const kind of monthlyKinds) {
   scheduleKind.append(option(scheduleKinds[kind].label, kind));
   if (scheduleKinds[kind].shift) {
@@ -3778,6 +4161,14 @@ window.addEventListener('storage', event => {
   if (event.key === scheduleKey || event.key === null) refreshSchedule();
 });
 setVehicleEditor();
+for (const [id, kind] of [['farm-plan-visit', 'farm-visit'], ['farm-plan-work', 'farm-work']]) {
+  byId(id).onclick = () => {
+    resetScheduleForm();
+    scheduleKind.value = kind;
+    scheduleFields();
+    scheduleDate.focus();
+  };
+}
 </script>
 </body>
 </html>
