@@ -14,6 +14,8 @@ button{background:#2463b6;color:white;border:0;font-weight:bold}
 .fields,.totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .totals h3{margin:0 0 6px;font-size:1rem}
 .totals p{margin:4px 0;overflow-wrap:anywhere}
+#fitness-details{border:1px solid #dae1ec;border-radius:8px;padding:10px;margin:10px 0}
+#fitness-details summary{cursor:pointer}
 .totals>div{padding:12px;background:#edf4ff;border-radius:8px}
 @media(max-width:400px){.fields,.totals{grid-template-columns:1fr}}
 article{border-bottom:1px solid #ddd;padding:12px 0;white-space:pre-wrap}
@@ -74,6 +76,16 @@ button:disabled{opacity:.6}
 <option>일상</option>
 </select>
 <button id="auto-category" type="button">메모로 자동 분류</button>
+<details id="fitness-details">
+<summary>운동·체중 기록</summary>
+<label for="exercise-type">운동 종류</label>
+<input id="exercise-type" type="text" list="exercise-types" maxlength="100" placeholder="예: 수영">
+<datalist id="exercise-types"><option value="수영"><option value="헬스"><option value="스크린골프"></datalist>
+<div class="fields">
+<div><label for="exercise-minutes">운동 시간 (분)</label><input id="exercise-minutes" type="number" min="1" step="1" inputmode="numeric"></div>
+<div><label for="body-weight">체중 (kg)</label><input id="body-weight" type="number" min="0.01" step="0.01" inputmode="decimal"></div>
+</div>
+</details>
 <label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
 <button id="voice" type="button">🎤 음성 입력 시작</button>
@@ -184,6 +196,10 @@ const form = byId('editor');
 const date = byId('date');
 const category = byId('category');
 const memo = byId('memo');
+const fitnessDetails = byId('fitness-details');
+const exerciseType = byId('exercise-type');
+const exerciseMinutes = byId('exercise-minutes');
+const bodyWeight = byId('body-weight');
 const save = byId('save');
 const fileInput = byId('backup-file');
 const restore = byId('restore');
@@ -314,12 +330,27 @@ function moneyText(amount) {
   return currency.format(amount) + '원';
 }
 
+function sameFitness(a, b) {
+  return a?.type === b?.type && a?.minutes === b?.minutes && a?.weight === b?.weight;
+}
+
+function showFitnessFields(fitness) {
+  exerciseType.value = fitness?.type ?? '';
+  exerciseMinutes.value = fitness?.minutes ?? '';
+  bodyWeight.value = fitness?.weight ?? '';
+  fitnessDetails.open = Boolean(fitness);
+}
+
 function updateAnalysis() {
   const text = memo.value.trim();
   const result = editingReceipt?.memo === text
     ? {...recordAmounts(editingReceipt), category: '지출'}
     : analyze(text, categoryOverride ? category.value : '');
-  if (!categoryOverride) category.value = result.category;
+  if (!categoryOverride) {
+    const type = exerciseType.value.trim();
+    category.value = /스크린\s*골프/.test(type) ? '스크린골프' :
+      type ? '운동' : bodyWeight.value ? '체중' : result.category;
+  }
   const preview = byId('amount-preview');
   preview.hidden = !result.income && !result.expense;
   preview.textContent = '추출된 금액 · 수입 ' + moneyText(result.income) + ' / 지출 ' + moneyText(result.expense);
@@ -330,6 +361,8 @@ category.addEventListener('change', () => {
   updateAnalysis();
 });
 memo.addEventListener('input', updateAnalysis);
+exerciseType.addEventListener('input', updateAnalysis);
+bodyWeight.addEventListener('input', updateAnalysis);
 byId('auto-category').onclick = () => {
   categoryOverride = false;
   updateAnalysis();
@@ -413,6 +446,7 @@ function setEditor(record) {
   setCategories(category, names, record?.category ?? '일상');
   categoryOverride = Boolean(record);
   if (record) memo.value = record.memo;
+  showFitnessFields(record?.fitness);
   updateAnalysis();
   byId('editor-title').textContent = record ? '기록 수정' : '새 기록';
   save.textContent = record ? '수정 저장' : '기록 저장';
@@ -496,7 +530,19 @@ function render(records) {
         report(error.message, true);
       }
     };
-    article.append(heading, content);
+    article.append(heading);
+    const fitness = record.fitness;
+    const details = [
+      typeof fitness?.type === 'string' ? fitness.type : '',
+      Number.isFinite(fitness?.minutes) ? fitness.minutes + '분' : '',
+      Number.isFinite(fitness?.weight) ? '체중 ' + fitness.weight + 'kg' : '',
+    ].filter(Boolean);
+    if (details.length) {
+      const activity = document.createElement('p');
+      activity.textContent = details.join(' · ');
+      article.append(activity);
+    }
+    if (record.memo) article.append(content);
     if (amounts.income || amounts.expense) {
       const finance = document.createElement('p');
       finance.textContent = '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense);
@@ -525,8 +571,27 @@ async function saveEditor({fromVoice = false} = {}) {
   updateAnalysis();
   const previousId = editingId;
   const draft = {date: date.value, category: category.value, memo: memo.value.trim()};
-  if (!draft.memo) {
-    report('메모를 입력해 주세요.', true);
+  const type = exerciseType.value.trim();
+  const minutes = exerciseMinutes.valueAsNumber;
+  const weight = bodyWeight.valueAsNumber;
+  const invalidMinutes = !exerciseMinutes.validity.valid ||
+    Boolean(exerciseMinutes.value && !Number.isSafeInteger(minutes));
+  const missingType = Boolean(exerciseMinutes.value && !type);
+  if (invalidMinutes || missingType || !bodyWeight.validity.valid) {
+    report('운동 시간은 운동 종류와 함께 분 단위로, 체중은 kg 단위로 입력해 주세요.', true);
+    fitnessDetails.open = true;
+    (missingType ? exerciseType : invalidMinutes ? exerciseMinutes : bodyWeight).focus();
+    return;
+  }
+  if (type || bodyWeight.value) {
+    draft.fitness = {
+      ...(type ? {type} : {}),
+      ...(exerciseMinutes.value ? {minutes} : {}),
+      ...(bodyWeight.value ? {weight} : {}),
+    };
+  }
+  if (!draft.memo && !draft.fitness) {
+    report('메모, 운동 또는 체중을 입력해 주세요.', true);
     memo.focus();
     return;
   }
@@ -539,9 +604,11 @@ async function saveEditor({fromVoice = false} = {}) {
   try {
     await withRecords(records => {
       const duplicate = fromVoice && !previousId && records.some(record =>
-        record.date === draft.date && voiceMemoKey(record.memo) === voiceMemoKey(draft.memo));
+        record.date === draft.date && voiceMemoKey(record.memo) === voiceMemoKey(draft.memo) &&
+        sameFitness(record.fitness, draft.fitness));
       if (duplicate) {
         memo.value = '';
+        showFitnessFields();
         categoryOverride = false;
         updateAnalysis();
         report('같은 날짜에 동일한 내용의 기록이 이미 있습니다.');
@@ -553,6 +620,7 @@ async function saveEditor({fromVoice = false} = {}) {
         const original = records[index];
         const updated = {...original, ...draft};
         if (original.memo !== draft.memo) delete updated.receiptAmount;
+        if (!draft.fitness) delete updated.fitness;
         records[index] = updated;
       } else {
         records.unshift({...draft, id: newId()});
@@ -563,6 +631,7 @@ async function saveEditor({fromVoice = false} = {}) {
       } else {
         stopVoiceForEditor();
         memo.value = '';
+        showFitnessFields();
         categoryOverride = false;
         updateAnalysis();
       }
@@ -603,7 +672,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo;
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness);
 }
 
 function mergeBackup(current, incoming) {
@@ -1137,7 +1206,7 @@ const scheduleKinds = {
   gym: {label: '헬스장 휴관·휴장', short: '헬스×', facility: 'gym'},
   'gym-open': {label: '헬스장 일요일 정상 운영', short: '헬스○', facility: 'gym'},
 };
-const monthlyKinds = Object.keys(scheduleKinds).filter(kind => kind !== 'personal');
+const monthlyKinds = Object.keys(scheduleKinds).filter(kind => kind !== 'personal' && kind !== 'gym-open');
 const initialNovember = {
   d: [1, 5, 6, 14, 30],
   e: [2, 3, 15, 17, 18, 20, 21, 22, 23],
@@ -1147,7 +1216,6 @@ const initialNovember = {
   leave: [13, 28, 29],
   pool: [9, 24],
   gym: [1, 9, 15, 24, 29],
-  'gym-open': [8, 22],
 };
 const calendarDays = byId('calendar-days');
 const scheduleForm = byId('schedule-form');
@@ -1333,6 +1401,7 @@ function scheduleFields() {
 function resetScheduleForm() {
   scheduleEditingId = null;
   scheduleForm.reset();
+  scheduleKind.querySelector('option[value="gym-open"]')?.remove();
   scheduleDate.value = selectedDay;
   pickupEnabled.checked = true;
   pickupTime.value = '22:00';
@@ -1344,6 +1413,9 @@ function resetScheduleForm() {
 function editSchedule(event) {
   scheduleEditingId = event.id;
   scheduleDate.value = event.date;
+  if (event.kind === 'gym-open' && !scheduleKind.querySelector('option[value="gym-open"]')) {
+    scheduleKind.append(option(scheduleKinds[event.kind].label, event.kind));
+  }
   scheduleKind.value = event.kind;
   scheduleTitle.value = event.title;
   pickupEnabled.checked = event.kind === 'e' ? Boolean(event.pickup) : true;
@@ -1556,9 +1628,9 @@ async function checkPickupAlerts() {
   }
 }
 
-for (const kind of Object.keys(scheduleKinds)) {
+scheduleKind.append(option(scheduleKinds.personal.label, 'personal'));
+for (const kind of monthlyKinds) {
   scheduleKind.append(option(scheduleKinds[kind].label, kind));
-  if (kind === 'personal') continue;
   if (scheduleKinds[kind].shift) {
     const legend = document.createElement('li');
     legend.append(scheduleBadge(kind, scheduleKinds[kind].label));
