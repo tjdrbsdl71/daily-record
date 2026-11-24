@@ -26,13 +26,14 @@ button:disabled{opacity:.6}
 <button id="improvement-toggle" type="button" aria-expanded="false" aria-controls="improvement">프로그램 개선 요청</button>
 <section id="improvement" hidden aria-labelledby="improvement-title">
 <h2 id="improvement-title">프로그램 개선 요청</h2>
-<p>요청 초안은 이 브라우저에 별도로 저장할 수 있습니다. 코덱스에 전달하려면 요청을 복사해 코덱스 대화에 붙여넣으세요.</p>
+<p>요청 초안은 이 브라우저에 별도로 저장할 수 있습니다. 복사한 요청은 Codex에 붙여넣어 제출하세요.</p>
 <label for="improvement-text">수정하거나 추가할 기능</label>
 <textarea id="improvement-text" rows="5"></textarea>
 <button id="improvement-voice" type="button">🎤 요청 음성 입력 시작</button>
 <button id="improvement-save" type="button">요청 초안 저장</button>
-<button id="improvement-copy" type="button">요청 복사</button>
+<button id="improvement-copy" type="button">요청 복사하고 Codex 열기</button>
 <p id="improvement-status" role="status"></p>
+<a id="open-codex" href="https://chatgpt.com/codex" target="_blank" rel="noopener noreferrer" hidden>Codex 새 탭에서 열기</a>
 </section>
 <section>
 <h2 id="editor-title">새 기록</h2>
@@ -521,12 +522,21 @@ byId('improvement-save').onclick = () => {
   }
 };
 
-byId('improvement-copy').onclick = async () => {
+const improvementCopy = byId('improvement-copy');
+const openCodex = byId('open-codex');
+
+improvementCopy.onclick = async () => {
+  if (improvementRecognition) {
+    improvementStatus.textContent = '음성 입력을 종료한 뒤 요청을 복사해 주세요.';
+    return;
+  }
   const text = improvementText.value.trim();
   if (!text) {
     improvementStatus.textContent = '복사할 개선 요청을 입력해 주세요.';
     return;
   }
+  improvementCopy.disabled = true;
+  openCodex.hidden = false;
   try {
     await navigator.clipboard.writeText(text);
     improvementStatus.textContent = '요청을 복사했습니다. 코덱스 대화에 붙여넣으세요.';
@@ -534,7 +544,11 @@ byId('improvement-copy').onclick = async () => {
     improvementText.focus();
     improvementText.select();
     improvementStatus.textContent = '자동으로 복사할 수 없습니다. 선택된 요청을 직접 복사해 주세요.';
+    return;
+  } finally {
+    improvementCopy.disabled = false;
   }
+  window.open(openCodex.href, '_blank', 'noopener,noreferrer');
 };
 
 improvementVoice.onclick = () => {
