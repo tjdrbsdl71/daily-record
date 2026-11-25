@@ -670,6 +670,7 @@ const recordTimeField = byId('record-time');
 let followRecordToday = true;
 let editorSaving = false;
 let editorBaseline = '';
+let categoryWasChosen = false;
 const filterCategory = byId('filter-category');
 const categories = ['일상', '지출', '수입', '차량', '시골·농사', '담배', '일정', '방문·이동', '운동', '체중', '병원', '보험', '스크린골프',
   '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
@@ -689,7 +690,13 @@ const smallUnits = {천: 1000, 백: 100, 십: 10};
 const largeUnits = {억: 100000000, 만: 10000};
 const currency = new Intl.NumberFormat('ko-KR');
 
-function todayDate(today = new Date()) {
+function kstStamp(value = new Date()) {
+  const iso = new Date(value.getTime() + 9 * 3600000).toISOString();
+  return {day: iso.slice(0, 10), time: iso.slice(11, 16)};
+}
+
+function todayDate(today) {
+  if (!today) return kstStamp().day;
   return new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
@@ -830,6 +837,7 @@ function updateAnalysis() {
 
 category.addEventListener('change', () => {
   categoryOverride = true;
+  categoryWasChosen = true;
   updateAnalysis();
 });
 memo.addEventListener('input', updateAnalysis);
@@ -840,6 +848,7 @@ exerciseIntensity.addEventListener('change', renderCaloriePreview);
 date.addEventListener('change', renderCaloriePreview);
 byId('auto-category').onclick = () => {
   categoryOverride = false;
+  categoryWasChosen = false;
   updateAnalysis();
 };
 
@@ -927,6 +936,7 @@ function setEditor(record) {
   const names = [...new Set([...categories, ...(record ? [record.category] : [])])];
   setCategories(category, names, record?.category ?? '일상');
   categoryOverride = Boolean(record);
+  categoryWasChosen = Boolean(record?.categoryManual);
   if (record) memo.value = record.memo;
   showFitnessFields(record?.fitness);
   trackingFields(record);
@@ -990,13 +1000,14 @@ function render(records) {
   target.replaceChildren();
   if (!visible.length) target.textContent = records.length ? '조회 조건에 맞는 기록이 없습니다.' : '저장된 기록이 없습니다.';
   visible.sort((a, b) => compareRecordTime(a.record, b.record));
-  for (const {record, amounts} of visible) target.append(renderRecordArticle(record, amounts));
+  for (const {record, amounts} of visible) target.append(renderRecordArticle(record, amounts, true));
 }
 
-function renderRecordArticle(record, amounts) {
+function renderRecordArticle(record, amounts, sameDay = false) {
   const article = document.createElement('article');
   const heading = document.createElement('strong');
-  heading.textContent = (record.date || '날짜 미확인') + (recordClock(record) ? ' ' + recordClock(record) : '') + ' · ' + record.category;
+  const clock = recordClock(record);
+  heading.textContent = (sameDay ? clock || '시각 미입력' : (record.date || '날짜 미확인') + (clock ? ' ' + clock : '')) + ' · ' + record.category;
   const content = document.createElement('p');
   content.textContent = record.memo;
   const edit = document.createElement('button');
@@ -1145,17 +1156,19 @@ function voiceMemoKey(text) {
   return text.normalize('NFKC').trim().replace(/\s+/g, ' ').replace(/[.!?。！？\s]+$/u, '');
 }
 
-async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = ''} = {}) {
+async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', startedAt} = {}) {
   if (editorSaving) return;
   updateAnalysis();
   const previousId = editingId;
   const draft = {date: date.value, category: category.value, memo: memo.value.trim()};
   if (byId('reference-record').checked) draft.referenceOnly = true;
-  if (recordTimeField.value) draft.time = recordTimeField.value;
-  else if (!previousId && draft.date === todayDate() && !memoClock(draft.memo)) {
-    const now = new Date();
-    draft.time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  }
+  if (categoryWasChosen) draft.categoryManual = true;
+  const inputStamp = kstStamp(startedAt);
+  if (fromVoice) {
+    draft.time = memoClock(rawSpeech) || recordTimeField.value || inputStamp.time;
+    if (!previousId && rawSpeech) draft.date = speechDate(cleanSpokenRecord(rawSpeech), draft.date, inputStamp.day).day;
+  } else if (recordTimeField.value) draft.time = recordTimeField.value;
+  else if (!previousId && draft.date === inputStamp.day && !memoClock(draft.memo)) draft.time = inputStamp.time;
   const type = exerciseType.value.trim();
   const minutes = exerciseMinutes.valueAsNumber;
   const weight = bodyWeight.valueAsNumber;
@@ -1197,7 +1210,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = ''} = 
     await withRecords(records => {
       if (fromVoice && rawSpeech) draft.voiceOriginal = rawSpeech.trim();
       const drafts = fromVoice && rawSpeech && !priorMemo.trim() && !previousId && !categoryOverride &&
-        !draft.fitness && !draft.insurance && !draft.tobacco && !draft.referenceOnly ? prepareSpeechRecords(draft, rawSpeech) : [draft];
+        !draft.fitness && !draft.insurance && !draft.tobacco && !draft.referenceOnly ? prepareSpeechRecords(draft, rawSpeech, inputStamp, recordTimeField.value) : [draft];
       const unique = new Set();
       const pending = drafts.filter(item => {
         const identity = JSON.stringify([item.date, voiceMemoKey(item.memo), item.fitness, item.tobacco]);
@@ -1213,6 +1226,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = ''} = 
         showFitnessFields();
         trackingFields();
         categoryOverride = false;
+        categoryWasChosen = false;
         updateAnalysis();
         report('같은 날짜에 동일한 내용의 기록이 이미 있습니다.');
         return;
@@ -1229,6 +1243,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = ''} = 
         if (!draft.tobacco) delete updated.tobacco;
         if (!draft.referenceOnly) delete updated.referenceOnly;
         if (!draft.time) delete updated.time;
+        if (!draft.categoryManual) delete updated.categoryManual;
         records[index] = updated;
       } else {
         for (const item of pending) withWorkoutCalories(item, records);
@@ -1244,6 +1259,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = ''} = 
         showFitnessFields();
         trackingFields();
         categoryOverride = false;
+        categoryWasChosen = false;
         updateAnalysis();
       }
       render(records);
@@ -1364,7 +1380,7 @@ function completeVoiceInput(input) {
   preservePendingSpeech(input);
   const {button, hasTranscript} = input;
   finishVoice(hasTranscript ? '음성 입력 종료' : '인식된 음성이 없습니다.');
-  if (button === voice && hasTranscript) saveEditor({fromVoice: true, rawSpeech: input.rawSpeech, priorMemo: input.initialMemo});
+  if (button === voice && hasTranscript) saveEditor({fromVoice: true, rawSpeech: input.rawSpeech, priorMemo: input.initialMemo, startedAt: input.startedAt});
   if (button === golfVoice && hasTranscript) fillGolfFromVoice(input.field.value);
   if (button === hulaVoice && hasTranscript) fillHulaFromVoice(input.field.value);
   if (button === cardVoice && hasTranscript) fillCardFromVoice(input.field.value);
@@ -1553,7 +1569,7 @@ function toggleVoice(button, field, status) {
   }
   voiceInput = {
     SpeechRecognition, button, field, status, startLabel: button.textContent,
-    rawSpeech: '', initialMemo: field.value,
+    rawSpeech: '', initialMemo: field.value, startedAt: new Date(),
     session: null, timer: null, idleTimer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
   button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' :
@@ -2097,10 +2113,9 @@ function renderFitnessDashboard(records) {
   drawWeightChart();
 
   const month = workoutMonth.value || todayDate().slice(0, 7);
-  const workouts = records.filter(record => record.date.slice(0, 7) === month && record.fitness?.type);
-  const minutes = workouts.reduce((total, {fitness}) =>
-    total + (Number.isFinite(fitness.minutes) ? fitness.minutes : 0), 0);
-  const estimates = workouts.filter(({fitness}) => Number.isFinite(fitness.calories));
+  const workouts = records.filter(record => record.date.slice(0, 7) === month && isWorkoutRecord(record));
+  const minutes = workouts.reduce((total, record) => total + savedWorkoutMinutes(record), 0);
+  const estimates = workouts.filter(({fitness}) => Number.isFinite(fitness?.calories));
   const calories = estimates.reduce((total, {fitness}) => total + fitness.calories, 0);
   byId('workout-count').textContent = currency.format(workouts.length) + '회';
   byId('workout-minutes').textContent = currency.format(minutes) + '분';
@@ -4045,7 +4060,7 @@ const unifiedTypes = {
   pending: ['미정산 금액', record => outstandingAmount(record) > 0],
   golf: ['스크린골프', record => validGolf(record.golf) || record.category === '스크린골프'],
   hula: ['전투 훌라', record => validHula(record.hula) || record.category === '훌라'],
-  workout: ['운동', record => Boolean(record.fitness?.type || record.category === '운동')],
+  workout: ['운동', record => isWorkoutRecord(record)],
   weight: ['체중', record => recordedWeight(record) !== null],
   vehicle: ['차량 운행비', record => validVehicle(record.vehicle) || validFarm(record.farm) && !record.farm.inVehicle && (record.farm.toll > 0 || record.farm.fuel > 0)],
   farm: ['시골 방문·농사', record => validFarm(record.farm)],
@@ -4064,9 +4079,15 @@ function ledgerGroup(record, flow) {
   return record.category;
 }
 
+function isWorkoutRecord(record) {
+  if (record.fitness?.type || record.category === '운동') return true;
+  return !record.categoryManual && !/예정|예약|휴관|운동복|운동화/.test(record.memo) &&
+    /팔\s*굽혀\s*펴기|푸시\s*업|스쿼트|윗몸\s*일으키기|실내\s*자전거|러닝머신|수영\s*\d|걷기\s*\d/.test(record.memo);
+}
+
 function savedWorkoutMinutes(record) {
   if (Number.isFinite(record.fitness?.minutes)) return record.fitness.minutes;
-  if (record.category !== '운동') return 0;
+  if (!isWorkoutRecord(record)) return 0;
   const match = /(?<![\d.])(?:(\d+)\s*시간(?:\s*(\d+)\s*분)?|(\d+)\s*분)/u.exec(record.memo);
   return match ? Number(match[1] ?? 0) * 60 + Number(match[2] ?? match[3] ?? 0) : 0;
 }
@@ -4088,7 +4109,7 @@ function unifiedSummary(records) {
     totals.insurance += insuranceAmount(record, flow);
     if (validGolf(record.golf)) totals.golf += golfCashFlow(record.golf).net;
     if (validHula(record.hula)) totals.hula += hulaNet(record.hula);
-    if (record.fitness?.type || record.category === '운동') {
+    if (isWorkoutRecord(record)) {
       totals.workouts++;
       totals.minutes += savedWorkoutMinutes(record);
     }
@@ -4658,12 +4679,12 @@ function renderLayoutRecords() {
       record.category === '골프·훌라' && /골프/.test(record.memo);
     if (activeAppScreen === 'hula') return validHula(record.hula) || record.category === '훌라' ||
       record.category === '골프·훌라' && /훌라/.test(record.memo);
-    if (activeAppScreen === 'fitness') return Boolean(record.fitness?.type) || recordedWeight(record) !== null ||
+    if (activeAppScreen === 'fitness') return isWorkoutRecord(record) || recordedWeight(record) !== null ||
       ['운동', '체중'].includes(record.category);
     const amounts = recordAmounts(record);
     if (activeAppScreen === 'health') return isHospital(record) || validInsurance(record.insurance) ||
       ['병원', '보험', '병원·보험'].includes(record.category) || insuranceAmount(record, amounts) > 0;
-    return Boolean(amounts.income || amounts.expense);
+    return Boolean(amounts.income || amounts.expense) || ['수입', '지출', '담배'].includes(record.category);
   });
   list.replaceChildren();
   if (!relevant.length) {
@@ -4708,13 +4729,15 @@ function classifyDiary(text, analysis = analyze(text)) {
   return '기타';
 }
 
-function speechDate(text, fallback) {
+function speechDate(text, fallback, relativeBase = todayDate()) {
   const relative = /^(오늘|어제|그제|내일)\s+/.exec(text);
   if (relative) {
-    const day = new Date();
-    day.setDate(day.getDate() + {오늘: 0, 어제: -1, 그제: -2, 내일: 1}[relative[1]]);
-    return {day: todayDate(day), text: text.slice(relative[0].length)};
+    const day = new Date(relativeBase + 'T12:00:00Z');
+    day.setUTCDate(day.getUTCDate() + {오늘: 0, 어제: -1, 그제: -2, 내일: 1}[relative[1]]);
+    return {day: day.toISOString().slice(0, 10), text: text.slice(relative[0].length)};
   }
+  const iso = /^(\d{4}-\d{2}-\d{2})\s+/.exec(text);
+  if (iso && validScheduleDate(iso[1])) return {day: iso[1], text: text.slice(iso[0].length)};
   const explicit = /^(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일\s+/.exec(text);
   if (explicit) {
     const value = (explicit[1] || fallback.slice(0, 4)) + '-' +
@@ -4724,9 +4747,9 @@ function speechDate(text, fallback) {
   return {day: fallback, text};
 }
 
-function speechActivity(source, fallback) {
+function speechActivity(source, fallback, relativeBase) {
   const clean = cleanSpokenRecord(source);
-  const {day, text} = speechDate(clean, fallback);
+  const {day, text} = speechDate(clean, fallback, relativeBase);
   const category = classifyDiary(text);
   const body = text.replace(/^지금\s+/, '').trim();
   const count = /^(팔굽혀펴기|스쿼트|윗몸일으키기)\s*(\d+)\s*(?:회|번)(?:를|을)?\s*(?:했어|했어요|했습니다)?[.!?]?$/u.exec(body);
@@ -4751,15 +4774,15 @@ function speechActivity(source, fallback) {
   return {date: day, category, memo: category === '기타' ? source.trim() : clean};
 }
 
-function prepareSpeechRecords(draft, raw) {
+function prepareSpeechRecords(draft, raw, inputStamp, selectedTime) {
   const source = raw.trim();
   const clauses = source.split(/\s+(?:그리고|그다음에|그다음)\s+|(?<=[.!?。！？])\s+/u).filter(Boolean);
-  const firstDay = speechDate(cleanSpokenRecord(source), draft.date).day;
-  const activities = clauses.map(clause => speechActivity(clause, firstDay));
-  const batch = activities.length > 1 && activities.every(activity => activity.category !== '기타')
-    ? activities : [speechActivity(source, draft.date)];
-  return batch.map(activity => ({...(activity.date === draft.date && draft.time ? {time: draft.time} : {}),
-    ...activity, voiceOriginal: source}));
+  const firstDay = speechDate(cleanSpokenRecord(source), draft.date, inputStamp.day).day;
+  const prepare = clause => ({...speechActivity(clause, firstDay, inputStamp.day),
+    time: memoClock(clause) || selectedTime || inputStamp.time, voiceOriginal: source});
+  const activities = clauses.map(prepare);
+  return activities.length > 1 && activities.every(activity => activity.category !== '기타')
+    ? activities : [prepare(source)];
 }
 
 function cleanSpokenRecord(text) {
@@ -4779,8 +4802,11 @@ function updateEditorSave() {
 }
 
 function memoClock(memoText) {
-  const match = /(?:^|[^\d])([01]?\d|2[0-3]):([0-5]\d)(?!\d)/u.exec(memoText);
-  if (match) return match[1].padStart(2, '0') + ':' + match[2];
+  const match = /(?:^|[^\d])(?:(오전|오후)\s*)?([01]?\d|2[0-3]):([0-5]\d)(?!\d)/u.exec(memoText);
+  if (match) {
+    const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2]);
+    return String(hour).padStart(2, '0') + ':' + match[3];
+  }
   const spoken = /(?:^|[^\d])(?:(오전|오후)\s*)?([01]?\d|2[0-3])\s*시(?!간)(?:\s*([0-5]?\d)\s*분)?/u.exec(memoText);
   if (!spoken) return '';
   const hour = spoken[1] ? Number(spoken[2]) % 12 + (spoken[1] === '오후' ? 12 : 0) : Number(spoken[2]);
@@ -4788,7 +4814,7 @@ function memoClock(memoText) {
 }
 
 function recordClock(record) {
-  return record.time || record.golf?.start || record.hula?.start || record.vehicle?.times[0] ||
+  return record.time || record.golf?.start || record.hula?.start || record.vehicle?.times?.[0] ||
     record.farm?.depart || memoClock(record.memo);
 }
 
@@ -4810,7 +4836,7 @@ function renderTodayRecords() {
       (preview ? ' · ' + preview : '');
     row.append(heading);
     row.ontoggle = () => {
-      if (row.open && !row.querySelector('article')) row.append(renderRecordArticle(record, recordAmounts(record)));
+      if (row.open && !row.querySelector('article')) row.append(renderRecordArticle(record, recordAmounts(record), true));
     };
     target.append(row);
   }
@@ -5062,7 +5088,14 @@ function withSchedule(operation) {
 function availableScheduleEvents() {
   const closures = new Set(calendarEvents.filter(event => event.kind === 'pool' || event.kind === 'gym')
     .map(event => event.date + '|' + event.kind));
-  return calendarEvents.filter(event => !closures.has(event.date + '|' + scheduleKinds[event.kind]?.closure));
+  const seen = new Set();
+  return calendarEvents.filter(event => {
+    const key = JSON.stringify([event.date, event.kind, event.title || '', event.time || '', event.pickup || '', event.people || '']);
+    if (seen.has(key) || closures.has(event.date + '|' + scheduleKinds[event.kind]?.closure)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => a.date.localeCompare(b.date) ||
+    (a.time || a.pickup || '99:99').localeCompare(b.time || b.pickup || '99:99'));
 }
 
 function eventLabel(event) {
