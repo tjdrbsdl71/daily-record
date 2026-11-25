@@ -520,6 +520,7 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <div><dt id="energy-goal-label">목표까지</dt><dd id="energy-weight-goal"></dd></div>
 <div><dt>하루 예상 총소모</dt><dd id="energy-total"></dd></div>
 <div><dt>오늘 음식 섭취</dt><dd id="energy-meal"></dd></div>
+<div><dt>남은 섭취 가능량</dt><dd id="energy-remaining"></dd></div>
 <div><dt>오늘 운동 소모</dt><dd id="energy-exercise"></dd></div>
 <div><dt>오늘 칼로리 차이</dt><dd id="energy-balance"></dd></div>
 </dl>
@@ -4746,7 +4747,7 @@ function renderLayoutRecords() {
       record.category === '골프·훌라' && /골프/.test(record.memo);
     if (activeAppScreen === 'hula') return validHula(record.hula) || record.category === '훌라' ||
       record.category === '골프·훌라' && /훌라/.test(record.memo);
-    if (activeAppScreen === 'fitness') return isWorkoutRecord(record) || mealEstimate(record.memo).length > 0 || recordedWeight(record) !== null ||
+    if (activeAppScreen === 'fitness') return isWorkoutRecord(record) || mealEstimate(record.memo, record.category === '식사').length > 0 || recordedWeight(record) !== null ||
       ['운동', '체중'].includes(record.category);
     const amounts = recordAmounts(record);
     if (activeAppScreen === 'health') return isHospital(record) || validInsurance(record.insurance) ||
@@ -5153,6 +5154,7 @@ const foodServings = [
   ['라면', '라면', 500, 120], ['비빔밥', '비빔밥', 600, 450],
   ['흰쌀밥', '흰쌀밥|쌀밥|공깃밥|공기밥|밥', 310, 210],
   ['계란', '삶은\\s*계란|계란|달걀', 75, 50], ['바나나', '바나나', 105, 120],
+  ['단감', '단감', 105, 150], ['홍시', '홍시|연시', 105, 150], ['곶감', '곶감', 75, 30],
   ['사과', '사과', 95, 180], ['식빵', '식빵', 85, 32],
   ['샌드위치', '샌드위치', 400, 200], ['치킨', '치킨', 280, 100],
   ['떡볶이', '떡볶이', 350, 200], ['우유', '우유', 125, 200],
@@ -5185,12 +5187,14 @@ function repActivity(text, exact = false) {
   return null;
 }
 
-function mealEstimate(text) {
-  const memo = text.normalize('NFKC');
-  if (/예정|먹을\s*(?:예정|거)|안\s*먹|못\s*먹|구매|구입|샀|장보기/.test(memo)) return [];
-  const mealCue = /먹었|먹음|먹어요|마셨|마심|섭취|식사|아침|점심|저녁|간식/.test(memo);
+function mealEstimate(text, mealRecord = false) {
+  const memo = text.normalize('NFKC').trim();
+  if (/예정|먹을\s*(?:예정|거)|안\s*먹|못\s*먹|먹지\s*않|먹지는\s*않/.test(memo)) return [];
+  const consumed = /먹었|먹음|먹어요|먹고|먹은|마셨|마심|섭취/.test(memo);
+  if (!consumed && /구매|구입|샀|장보기/.test(memo)) return [];
+  const mealCue = mealRecord || consumed || /식사|아침|점심|저녁|간식/.test(memo);
   const matches = [...memo.matchAll(foodPattern)];
-  const portions = new RegExp('^\\s*(\\d+(?:\\.\\d+)?|' + spokenNumberPattern +
+  const portions = new RegExp('^\\s*(?:을|를)?\\s*(\\d+(?:\\.\\d+)?|' + spokenNumberPattern +
     ')\\s*(인분|공기|그릇|개|줄|조각|장|병|잔|캔|컵|팩|g\\b|그램|ml\\b|밀리리터)', 'iu');
   const items = [];
   for (const [index, match] of matches.entries()) {
@@ -5200,7 +5204,8 @@ function mealEstimate(text) {
     const tail = memo.slice(end, matches[index + 1]?.index ?? memo.length);
     if (name === '흰쌀밥' && /^(?:상|값|집|통|솥|주걱)/.test(tail)) continue;
     const portion = portions.exec(tail);
-    if (!mealCue && !portion) continue;
+    const barePersimmon = /^(?:단감|홍시|연시|곶감)[.!?。！？]*$/u.test(memo);
+    if (!mealCue && !portion && !barePersimmon) continue;
     const quantity = portion ? countValue(portion[1]) : 1;
     const weightUnit = portion && /^(?:g|그램|ml|밀리리터)$/i.test(portion[2]);
     const estimate = Math.round(kcal * quantity / (weightUnit ? grams : 1));
@@ -5241,7 +5246,7 @@ function activeCalories(record, weight) {
 
 function energyForRecord(record) {
   if (record.referenceOnly) return {workout: 0, foods: []};
-  return {workout: activeCalories(record, energyWeight(record.date)), foods: mealEstimate(record.memo)};
+  return {workout: activeCalories(record, energyWeight(record.date)), foods: mealEstimate(record.memo, record.category === '식사')};
 }
 
 function calorieNumber(value) {
@@ -5302,6 +5307,7 @@ function renderEnergyToday() {
   byId('energy-meal').textContent = energy.meals ? '+약 ' + calorieNumber(energy.intake) : '기록 없음';
   byId('energy-exercise').textContent = energy.workout ? '−약 ' + calorieNumber(energy.workout) : '0kcal';
   byId('energy-balance').textContent = energy.meals ? '약 ' + signedCalories(energy.balance) : '식사 기록 필요';
+  byId('energy-remaining').textContent = '약 ' + calorieNumber(Math.max(0, -energy.balance));
   const warning = byId('energy-warning');
   warning.hidden = !(energy.meals && energy.balance > 0);
   warning.textContent = warning.hidden ? '' : '기록한 섭취량이 하루 예상 소모량을 넘었습니다.';
