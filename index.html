@@ -140,7 +140,7 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <ul id="app-today-list"></ul>
 </section>
 <section id="app-today-records-section"><h2>오늘 기록</h2><div id="app-today-records"></div></section>
-<nav id="app-menu" aria-label="관리 메뉴"></nav>
+<details id="app-menus"><summary>관리 메뉴</summary><nav id="app-menu" aria-label="관리 메뉴"></nav></details>
 </div>
 <header id="app-detail-header" hidden>
 <button id="app-back-home" type="button">‹ 홈으로</button>
@@ -214,11 +214,11 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <form id="editor" novalidate>
 <label for="date">날짜</label>
 <input id="date" type="date">
-<label for="category">분류</label>
+<details id="entry-category-options"><summary>자동 분류 확인·수정</summary><label for="category">분류</label>
 <select id="category">
 <option>일상</option>
 </select>
-<button id="auto-category" type="button">메모로 자동 분류</button>
+<button id="auto-category" type="button">메모로 자동 분류</button></details>
 <details id="fitness-details">
 <summary>운동·체중 기록</summary>
 <label for="exercise-type">운동 종류</label>
@@ -243,12 +243,12 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <p>보험금이 들어오면 같은 청구 기록의 수령액을 수정하세요. 담배 비용은 담배 구입만 기록한 항목에 입력하세요.</p>
 </details>
 <label id="reference-record-field" class="calendar-check" hidden><input id="reference-record" type="checkbox"> 미확인 참고 기록 · 수입·지출 합계 제외</label>
-<label for="record-time">기록 시각 (선택)</label><input id="record-time" type="time">
+<label for="record-time">기록 시각 (선택)</label><input id="record-time" type="time"><div id="record-half-hour"></div>
 <label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
 <button id="voice" type="button">🎤 음성 입력 시작</button>
 <p id="voice-status" role="status">마이크를 누르고 말한 뒤 “끝”이라고 하면 자동으로 저장됩니다.</p>
-<p id="voice-preview" hidden>인식 중인 내용: <span id="voice-draft"></span></p>
+<p id="voice-preview" hidden>인식된 내용: <span id="voice-draft"></span></p>
 <p id="amount-preview" role="status" hidden></p>
 <button id="save" type="submit" disabled>기록 저장</button>
 <button id="cancel-edit" type="button" hidden>수정 취소</button>
@@ -555,7 +555,8 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <input id="schedule-title" type="text" maxlength="120" required>
 </div>
 <div id="schedule-golf-fields" hidden>
-<label for="schedule-golf-time">약속 시각 (선택)</label><input id="schedule-golf-time" type="time">
+<label for="schedule-golf-time">일정 시각 (선택)</label><input id="schedule-golf-time" type="time">
+<div id="schedule-half-hour"></div>
 <label for="schedule-golf-people">참석자 (선택)</label><input id="schedule-golf-people" maxlength="200">
 </div>
 <div id="schedule-farm-fields" hidden>
@@ -575,6 +576,9 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 </form>
 <details>
 <summary>월별 근무·시설 일정 일괄 등록</summary>
+<details><summary>근무·시설 일정 사진 참고</summary>
+<label for="schedule-photo-reference">일정 사진 선택</label><input id="schedule-photo-reference" type="file" accept="image/*">
+<img id="schedule-photo-preview" class="card-photo" alt="입력 참고용 일정 사진" hidden></details>
 <form id="schedule-bulk">
 <label for="bulk-month">등록할 월</label>
 <input id="bulk-month" type="month" required>
@@ -665,8 +669,9 @@ const filterDate = byId('filter-date');
 const recordTimeField = byId('record-time');
 let followRecordToday = true;
 let editorSaving = false;
+let editorBaseline = '';
 const filterCategory = byId('filter-category');
-const categories = ['일상', '지출', '수입', '차량', '시골·농사', '담배', '운동', '체중', '병원', '보험', '스크린골프',
+const categories = ['일상', '지출', '수입', '차량', '시골·농사', '담배', '일정', '방문·이동', '운동', '체중', '병원', '보험', '스크린골프',
   '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
 const categoryRules = [
   ['스크린골프', /스크린\s*골프|골프존|카카오\s*vx|골프/i],
@@ -814,7 +819,7 @@ function updateAnalysis() {
   if (!categoryOverride) {
     const type = exerciseType.value.trim();
     category.value = /스크린\s*골프/.test(type) ? '스크린골프' :
-      type ? '운동' : bodyWeight.value ? '체중' : result.category;
+      type ? '운동' : bodyWeight.value ? '체중' : text ? classifyDiary(text, result) : '일상';
   }
   renderCaloriePreview();
   updateEditorSave();
@@ -927,6 +932,7 @@ function setEditor(record) {
   trackingFields(record);
   byId('reference-record-field').hidden = !record?.referenceOnly;
   byId('reference-record').checked = Boolean(record?.referenceOnly);
+  editorBaseline = editorSnapshot();
   updateAnalysis();
   byId('editor-title').textContent = record ? '기록 수정' : '새 기록';
   save.textContent = record ? '수정 저장' : '기록 저장';
@@ -1109,6 +1115,14 @@ function renderRecordArticle(record, amounts) {
   }
   if (record.referenceOnly) cardLines(article, ['참고 정보 · 수입·지출 합계 제외']);
   if (record.memo) article.append(content);
+  if (typeof record.voiceOriginal === 'string' && record.voiceOriginal) {
+    const original = document.createElement('details');
+    const label = document.createElement('summary');
+    label.textContent = '음성 원문';
+    original.append(label);
+    cardLines(original, [record.voiceOriginal]);
+    article.append(original);
+  }
   if (amounts.income || amounts.expense) {
     const finance = document.createElement('p');
     finance.textContent = '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense);
@@ -1131,7 +1145,7 @@ function voiceMemoKey(text) {
   return text.normalize('NFKC').trim().replace(/\s+/g, ' ').replace(/[.!?。！？\s]+$/u, '');
 }
 
-async function saveEditor({fromVoice = false} = {}) {
+async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = ''} = {}) {
   if (editorSaving) return;
   updateAnalysis();
   const previousId = editingId;
@@ -1181,10 +1195,19 @@ async function saveEditor({fromVoice = false} = {}) {
   updateEditorSave();
   try {
     await withRecords(records => {
-      const duplicate = fromVoice && !previousId && records.some(record =>
-        record.date === draft.date && voiceMemoKey(record.memo) === voiceMemoKey(draft.memo) &&
-        sameFitness(record.fitness, draft.fitness) && sameTracking(record, draft));
-      if (duplicate) {
+      if (fromVoice && rawSpeech) draft.voiceOriginal = rawSpeech.trim();
+      const drafts = fromVoice && rawSpeech && !priorMemo.trim() && !previousId && !categoryOverride &&
+        !draft.fitness && !draft.insurance && !draft.tobacco && !draft.referenceOnly ? prepareSpeechRecords(draft, rawSpeech) : [draft];
+      const unique = new Set();
+      const pending = drafts.filter(item => {
+        const identity = JSON.stringify([item.date, voiceMemoKey(item.memo), item.fitness, item.tobacco]);
+        if (unique.has(identity)) return false;
+        unique.add(identity);
+        return !fromVoice || previousId || !records.some(record =>
+          record.date === item.date && voiceMemoKey(record.memo) === voiceMemoKey(item.memo) &&
+          sameFitness(record.fitness, item.fitness) && sameTracking(record, item));
+      });
+      if (!pending.length) {
         memo.value = '';
         recordTimeField.value = '';
         showFitnessFields();
@@ -1208,8 +1231,8 @@ async function saveEditor({fromVoice = false} = {}) {
         if (!draft.time) delete updated.time;
         records[index] = updated;
       } else {
-        withWorkoutCalories(draft, records);
-        records.unshift({...draft, id: newId()});
+        for (const item of pending) withWorkoutCalories(item, records);
+        records.unshift(...pending.map(item => ({...item, id: newId()})));
       }
       writeRecords(records);
       if (previousId) {
@@ -1224,7 +1247,7 @@ async function saveEditor({fromVoice = false} = {}) {
         updateAnalysis();
       }
       render(records);
-      report(previousId ? '수정한 기록을 저장했습니다.' : '기록을 저장했습니다.');
+      report(previousId ? '수정한 기록을 저장했습니다.' : pending.length > 1 ? pending.length + '개 기록을 저장했습니다.' : '기록을 저장했습니다.');
     });
   } catch (error) {
     report(error.message, true);
@@ -1261,7 +1284,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm) && sameTracking(a, b) && Boolean(a.referenceOnly) === Boolean(b.referenceOnly) && (a.time ?? '') === (b.time ?? '');
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm) && sameTracking(a, b) && Boolean(a.referenceOnly) === Boolean(b.referenceOnly) && (a.time ?? '') === (b.time ?? '') && (a.voiceOriginal ?? '') === (b.voiceOriginal ?? '');
 }
 
 function mergeBackup(current, incoming) {
@@ -1341,7 +1364,7 @@ function completeVoiceInput(input) {
   preservePendingSpeech(input);
   const {button, hasTranscript} = input;
   finishVoice(hasTranscript ? '음성 입력 종료' : '인식된 음성이 없습니다.');
-  if (button === voice && hasTranscript) saveEditor({fromVoice: true});
+  if (button === voice && hasTranscript) saveEditor({fromVoice: true, rawSpeech: input.rawSpeech, priorMemo: input.initialMemo});
   if (button === golfVoice && hasTranscript) fillGolfFromVoice(input.field.value);
   if (button === hulaVoice && hasTranscript) fillHulaFromVoice(input.field.value);
   if (button === cardVoice && hasTranscript) fillCardFromVoice(input.field.value);
@@ -1352,7 +1375,10 @@ function completeVoiceInput(input) {
 function commitSpeech(input, text) {
   const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice || input.button === vehicleVoice || input.button === farmVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
   let content = command ? text.slice(0, command.index).trimEnd() : text;
-  if (input.button === voice) content = cleanSpokenRecord(content);
+  if (input.button === voice && content.trim()) {
+    input.rawSpeech = [input.rawSpeech, content.trim()].filter(Boolean).join(' ');
+    content = cleanSpokenRecord(content);
+  }
   if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
   return Boolean(command);
 }
@@ -1433,7 +1459,7 @@ function startRecognition(input) {
       }
       input.pendingText = pending.join(' ');
       if (button === voice) {
-        showVoiceDraft(input.pendingText);
+        showVoiceDraft([input.rawSpeech, input.pendingText].filter(Boolean).join(' '));
         if (input.hasTranscript || input.pendingText) {
           clearTimeout(input.idleTimer);
           input.idleTimer = setTimeout(() => {
@@ -1521,9 +1547,13 @@ function toggleVoice(button, field, status) {
     status.textContent = '이 브라우저는 음성 입력을 지원하지 않습니다. Chrome에서 열거나 직접 입력해 주세요.';
     return;
   }
-  if (button === voice) report();
+  if (button === voice) {
+    if (document.activeElement === memo) memo.blur();
+    report();
+  }
   voiceInput = {
     SpeechRecognition, button, field, status, startLabel: button.textContent,
+    rawSpeech: '', initialMemo: field.value,
     session: null, timer: null, idleTimer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
   button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' :
@@ -2238,8 +2268,12 @@ function golfCashFlow(golf) {
 
 function updateGolfPreview() {
   const golf = currentGolf();
-  const pending = golfCashFlow(golf).pending;
-  byId('golf-settlement-status').textContent = golfSettlementLabel(golf, pending);
+  const cash = golfCashFlow(golf);
+  const {due, personal, corporate} = golfSettlementTotals(golf, cash);
+  byId('golf-settlement-status').textContent = [
+    golfSettlementLabel(golf, cash.pending), '받을 돈 ' + moneyText(due),
+    '받은 돈 ' + moneyText(cash.received), '개인카드 ' + moneyText(personal), '법인카드 ' + moneyText(corporate),
+  ].join(' · ');
   golf.players.forEach((_, index) => {
     const rank = index + 1;
     for (const key of ['advance', 'due', 'received']) byId('golf-' + key + '-' + rank).disabled = rank === golf.myRank;
@@ -2275,12 +2309,18 @@ function fillGolfPlayers(count, players = [], rank = 1, rules = golfRuleDefaults
     const name = golfField('golf-name-' + index, '이름', 'text', fields);
     name.required = true;
     name.value = player.name ?? '';
+    const settlement = document.createElement('details');
+    const settlementLabel = document.createElement('summary');
+    const settlementFields = document.createElement('div');
+    settlementLabel.textContent = '게임비·대납·받을 돈 입력';
+    settlementFields.className = 'fields';
     for (const [key, label] of Object.entries({fee: '기본 게임비 (원)', advance: '대신 낸 금액 (원)',
       due: '받을 금액 (원)', received: '실제 받은 금액 (원)'})) {
-      const input = golfField('golf-' + key + '-' + index, label, 'number', fields);
+      const input = golfField('golf-' + key + '-' + index, label, 'number', settlementFields);
       input.value = player[key === 'fee' ? 'gameFee' : key] ?? '';
     }
-    fieldset.append(legend, fields);
+    settlement.append(settlementLabel, settlementFields);
+    fieldset.append(legend, fields, settlement);
     group.append(fieldset);
     const label = document.createElement('label');
     const box = document.createElement('input');
@@ -2411,7 +2451,9 @@ function validGolf(golf) {
 function golfRecordDetails(record) {
   const golf = record.golf;
   const block = document.createElement('div');
-  const {net, game, meal, pending, advance, received} = golfCashFlow(golf);
+  const cash = golfCashFlow(golf);
+  const {net, game, meal, pending, advance, received} = cash;
+  const {due, personal, corporate} = golfSettlementTotals(golf, cash);
   const {games, meals} = golfRuleAmounts(golf.players.length, golf.rules, golf.players, golf.mealTotal);
   const method = key => golfMethods[golf.methods[key]];
   const amount = value => value === null ? '미확인' : moneyText(value);
@@ -2422,6 +2464,7 @@ function golfRecordDetails(record) {
     '내기 수입 ' + amount(golf.values.betIn) + ' (' + method('betIn') + ') · 내기 지출 ' + amount(golf.values.betOut) + ' (' + method('betOut') + ')',
     '대신 결제 ' + moneyText(advance) + ' (' + golfMethods[golf.advanceMethod] + ') · 실제 수령 ' + moneyText(received) + ' · 미정산 ' + moneyText(pending),
     golfSettlementLabel(golf, pending),
+    '받을 돈 ' + moneyText(due) + ' · 개인카드 결제 ' + moneyText(personal) + ' · 법인카드 결제 ' + moneyText(corporate),
     (golf.unranked ? '확인된 금액 기준 ' : '실제 ') + (net < 0 ? '순손실 ' : '순수익 ') + moneyText(Math.abs(net)),
   ];
   for (const [index, player] of golf.players.entries()) {
@@ -4099,7 +4142,7 @@ function renderUnifiedHome() {
   const now = todayDate();
   const month = now.slice(0, 7);
   const monthEnd = calendarDate(month, calendarDayCount(month));
-  const events = [...calendarEvents].sort((a, b) => a.date.localeCompare(b.date));
+  const events = availableScheduleEvents().sort((a, b) => a.date.localeCompare(b.date));
   const todayEvents = events.filter(event => event.date === now);
   const upcoming = events.filter(event => event.date > now);
   const eventLines = items => items.slice(0, 5).map(event => event.date + ' · ' + eventLabel(event) +
@@ -4165,7 +4208,7 @@ function renderUnifiedSearch() {
     results.push({date: record.date, record, flow});
   }
   if ((!c.kind || c.kind === 'calendar') && c.min === null && c.max === null) {
-    for (const event of calendarEvents) {
+    for (const event of availableScheduleEvents()) {
       if (dateMatches(event.date) && terms.every(term =>
         normalizedSearch([eventLabel(event), event.supplies].filter(Boolean).join(' ')).includes(term))) {
         results.push({date: event.date, event});
@@ -4529,7 +4572,7 @@ function displayAppScreen(name, focus = true) {
   if (layoutListScreens.includes(name)) renderLayoutRecords();
   if (focus) {
     window.scrollTo(0, 0);
-    (name === 'home' ? byId('app-menu').firstElementChild : byId('app-route-heading')).focus({preventScroll: true});
+    (name === 'home' ? byId('app-menus').querySelector('summary') : byId('app-route-heading')).focus({preventScroll: true});
   }
 }
 
@@ -4554,7 +4597,7 @@ function renderHomeToday() {
   title.textContent = new Intl.DateTimeFormat('ko-KR', {dateStyle: 'full'}).format(new Date(today + 'T12:00:00'));
   const list = byId('app-today-list');
   list.replaceChildren();
-  const events = calendarEvents.filter(event => event.date === today);
+  const events = availableScheduleEvents().filter(event => event.date === today);
   renderTodayRecords();
   if (!events.length) {
     const item = document.createElement('li');
@@ -4656,15 +4699,83 @@ function moveStatTail(form, label) {
   appScreens.stats.append(block);
 }
 
+function classifyDiary(text, analysis = analyze(text)) {
+  if (/담배/.test(text) && /구입|구매|샀|결제|지출|원어치/.test(text)) return '지출';
+  if (/팔굽혀펴기|실내\s*자전거|러닝머신|스쿼트|윗몸일으키기/.test(text)) return '운동';
+  if (analysis.category !== '일상') return analysis.category;
+  if (/약속|예정|예약/.test(text)) return '일정';
+  if (/방문|이동|귀가/.test(text)) return '방문·이동';
+  return '기타';
+}
+
+function speechDate(text, fallback) {
+  const relative = /^(오늘|어제|그제|내일)\s+/.exec(text);
+  if (relative) {
+    const day = new Date();
+    day.setDate(day.getDate() + {오늘: 0, 어제: -1, 그제: -2, 내일: 1}[relative[1]]);
+    return {day: todayDate(day), text: text.slice(relative[0].length)};
+  }
+  const explicit = /^(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일\s+/.exec(text);
+  if (explicit) {
+    const value = (explicit[1] || fallback.slice(0, 4)) + '-' +
+      explicit[2].padStart(2, '0') + '-' + explicit[3].padStart(2, '0');
+    if (validScheduleDate(value)) return {day: value, text: text.slice(explicit[0].length)};
+  }
+  return {day: fallback, text};
+}
+
+function speechActivity(source, fallback) {
+  const clean = cleanSpokenRecord(source);
+  const {day, text} = speechDate(clean, fallback);
+  const category = classifyDiary(text);
+  const body = text.replace(/^지금\s+/, '').trim();
+  const count = /^(팔굽혀펴기|스쿼트|윗몸일으키기)\s*(\d+)\s*(?:회|번)(?:를|을)?\s*(?:했어|했어요|했습니다)?[.!?]?$/u.exec(body);
+  if (count) return {date: day, category: '운동', memo: count[1] + ' ' + count[2] + '회'};
+  const exercise = /^(실내\s*자전거|러닝머신|걷기|수영)\s*(한|두|세|\d+)\s*(시간|분)\s*(?:탔어|탔어요|했어|했어요|했습니다|걸었어|걸었어요)?[.!?]?$/u.exec(body);
+  if (exercise) {
+    const type = exercise[1].replace(/\s+/g, '');
+    const value = {한: 1, 두: 2, 세: 3}[exercise[2]] ?? Number(exercise[2]);
+    const minutes = value * (exercise[3] === '시간' ? 60 : 1);
+    if (Number.isSafeInteger(minutes) && minutes > 0 && minutes <= 1440) {
+      return {date: day, category: '운동', memo: type + ' ' + value + exercise[3], fitness: {type, minutes}};
+    }
+  }
+  const tobacco = /^담배\s*(?:(\d+)\s*(갑|보루|개)\s*,?\s*)?([\d,영공일이삼사오육칠팔구천백십억만\s]+)원\s*(?:어치\s*)?(?:구입|구매|샀어|샀어요|결제|지출)[.!?]?$/u.exec(body);
+  if (tobacco) {
+    const cost = parseWon(tobacco[3]);
+    const quantity = tobacco[1] ? Number(tobacco[1]) : null;
+    const details = {cost, quantity, unit: tobacco[2] ?? '갑'};
+    if (validTobacco(details)) return {date: day, category: '지출',
+      memo: '담배 구매 ' + (quantity ? quantity + details.unit + ' · ' : '') + moneyText(cost), tobacco: details};
+  }
+  return {date: day, category, memo: category === '기타' ? source.trim() : clean};
+}
+
+function prepareSpeechRecords(draft, raw) {
+  const source = raw.trim();
+  const clauses = source.split(/\s+(?:그리고|그다음에|그다음)\s+|(?<=[.!?。！？])\s+/u).filter(Boolean);
+  const firstDay = speechDate(cleanSpokenRecord(source), draft.date).day;
+  const activities = clauses.map(clause => speechActivity(clause, firstDay));
+  const batch = activities.length > 1 && activities.every(activity => activity.category !== '기타')
+    ? activities : [speechActivity(source, draft.date)];
+  return batch.map(activity => ({...(activity.date === draft.date && draft.time ? {time: draft.time} : {}),
+    ...activity, voiceOriginal: source}));
+}
+
 function cleanSpokenRecord(text) {
   // Remove isolated disfluencies without rewriting names, dates, quantities, or amounts.
   return text.replace(/^(?:\s*(?:음+|어+|아+|저기요)[,，.!?…]+\s*)+/u, '').trim();
 }
 
+function editorSnapshot() {
+  return JSON.stringify(Array.from(form.querySelectorAll('input,select,textarea'), field =>
+    field.type === 'checkbox' ? field.checked : field.value));
+}
+
 function updateEditorSave() {
   const ids = ['insurance-claim', 'insurance-received', 'tobacco-quantity', 'tobacco-cost'];
   const hasRecord = [memo, exerciseType, bodyWeight, ...ids.map(byId)].some(field => field.value.trim());
-  save.disabled = editorSaving || !hasRecord;
+  save.disabled = editorSaving || !hasRecord || Boolean(editingId && editorSnapshot() === editorBaseline);
 }
 
 function memoClock(memoText) {
@@ -4712,6 +4823,16 @@ function moveRecordDay(offset) {
   filterDate.dispatchEvent(new Event('change'));
 }
 
+function golfSettlementTotals(golf, cash) {
+  const due = golf.players.reduce((sum, player, index) =>
+    sum + (index + 1 === golf.myRank ? 0 : player.due ?? player.advance), 0);
+  const expenses = [[cash.game, golf.methods.game], [cash.meal, golf.methods.meal],
+    [golf.values.betOut ?? 0, golf.methods.betOut], [cash.advance, golf.advanceMethod]];
+  const total = method => expenses.reduce((sum, [amount, payment]) =>
+    sum + (payment === method ? amount : 0), 0);
+  return {due, personal: total('personal'), corporate: total('corporate')};
+}
+
 function golfSettlementLabel(golf, pending) {
   return pending ? '정산 미완료 · 미수금 ' + moneyText(pending) :
     golf.settled ? '정산 완료' : '정산 확인 대기 · 미수금 0원';
@@ -4719,6 +4840,22 @@ function golfSettlementLabel(golf, pending) {
 
 form.addEventListener('input', updateEditorSave);
 form.addEventListener('change', updateEditorSave);
+
+function attachHalfHourPicker(field, containerId) {
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', '30분 간격 시간 선택');
+  select.append(option('30분 간격으로 선택', ''));
+  for (let minutes = 0; minutes < 1440; minutes += 30) {
+    const value = String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
+    select.append(option(value));
+  }
+  select.onchange = () => {
+    if (select.value) field.value = select.value;
+    select.value = '';
+    field.dispatchEvent(new Event('change', {bubbles: true}));
+  };
+  byId(containerId).append(select);
+}
 
 function initializeLayout() {
   const nav = byId('app-menu');
@@ -4793,6 +4930,8 @@ function initializeLayout() {
   settingsSection.append(limits);
   appScreens.settings.append(settingsSection);
 
+  attachHalfHourPicker(recordTimeField, 'record-half-hour');
+  attachHalfHourPicker(byId('schedule-golf-time'), 'schedule-half-hour');
   byId('app-total-date').onchange = refresh;
   filterDate.value = todayDate();
   byId('record-prev-day').onclick = () => moveRecordDay(-1);
@@ -4805,6 +4944,7 @@ function initializeLayout() {
       report('수정 중인 기록을 저장하거나 취소한 뒤 새 음성 기록을 시작하세요.');
       return;
     }
+    if (document.activeElement === memo) memo.blur();
     voice.click();
   };
   window.addEventListener('popstate', syncAppScreen);
@@ -4827,6 +4967,8 @@ const scheduleKinds = {
   personal: {label: '개인 일정', short: '개인'},
   'farm-visit': {label: '시골 방문 예정', short: '시골', farm: true},
   'farm-work': {label: '농사·작업 예정', short: '농사', farm: true},
+  'swim-plan': {label: '수영 이용 예정', short: '수영', activity: true, closure: 'pool'},
+  'gym-plan': {label: '헬스 이용 예정', short: '헬스', activity: true, closure: 'gym'},
   'golf-plan': {label: '스크린골프 약속', short: '골프', appointment: true},
   d: {label: '데이 (D)', short: 'D', shift: true},
   e: {label: '이브닝 (E)', short: 'E', shift: true},
@@ -4917,12 +5059,18 @@ function withSchedule(operation) {
   return navigator.locks ? navigator.locks.request(scheduleKey, run) : Promise.resolve().then(run);
 }
 
+function availableScheduleEvents() {
+  const closures = new Set(calendarEvents.filter(event => event.kind === 'pool' || event.kind === 'gym')
+    .map(event => event.date + '|' + event.kind));
+  return calendarEvents.filter(event => !closures.has(event.date + '|' + scheduleKinds[event.kind]?.closure));
+}
+
 function eventLabel(event) {
   const kind = scheduleKinds[event.kind];
   if (kind.shift) return '자빈이 ' + kind.label;
   if (kind.facility) return '남구국민체육센터 1관 · ' + kind.label;
-  if (kind.appointment) return kind.label + ' · ' + event.title + (event.time ? ' · ' + event.time : '') +
-    (event.people ? ' · ' + event.people : '');
+  if (kind.appointment || kind.activity || event.time || event.people) return (kind.appointment || kind.activity ? kind.label + ' · ' : '') +
+    event.title + (event.time ? ' · ' + event.time : '') + (event.people ? ' · ' + event.people : '');
   return kind.farm ? kind.label + ' · ' + event.title : event.title;
 }
 
@@ -4951,7 +5099,7 @@ function renderCalendar() {
   byId('calendar-month').textContent = year + '년 ' + month + '월';
   const today = todayDate();
   const grouped = new Map();
-  for (const event of calendarEvents) {
+  for (const event of availableScheduleEvents()) {
     if (event.date.slice(0, 7) !== displayedMonth) continue;
     if (!grouped.has(event.date)) grouped.set(event.date, []);
     grouped.get(event.date).push(event);
@@ -5049,10 +5197,10 @@ function moveCalendar(offset) {
 
 function scheduleFields() {
   const farm = Boolean(scheduleKinds[scheduleKind.value]?.farm);
-  const golf = scheduleKind.value === 'golf-plan';
-  const personal = scheduleKind.value === 'personal' || farm || golf;
-  byId('schedule-golf-fields').hidden = !golf;
-  for (const id of ['schedule-golf-time', 'schedule-golf-people']) byId(id).disabled = !golf;
+  const timed = scheduleKind.value === 'personal' || Boolean(scheduleKinds[scheduleKind.value]?.appointment || scheduleKinds[scheduleKind.value]?.activity);
+  const personal = timed || farm;
+  byId('schedule-golf-fields').hidden = !timed;
+  for (const id of ['schedule-golf-time', 'schedule-golf-people']) byId(id).disabled = !timed;
   byId('schedule-farm-fields').hidden = !farm;
   byId('schedule-supplies').disabled = !farm;
   byId('schedule-reminder').disabled = !farm;
@@ -5121,9 +5269,10 @@ scheduleForm.onsubmit = async event => {
   const entry = newSchedule(scheduleKind.value, scheduleDate.value);
   entry.id = editing ?? entry.id;
   const farm = Boolean(scheduleKinds[entry.kind].farm);
-  const named = entry.kind === 'personal' || farm || entry.kind === 'golf-plan';
+  const timed = entry.kind === 'personal' || Boolean(scheduleKinds[entry.kind].appointment || scheduleKinds[entry.kind].activity);
+  const named = timed || farm;
   entry.title = named ? scheduleTitle.value.trim() : '';
-  if (entry.kind === 'golf-plan') {
+  if (timed) {
     entry.time = byId('schedule-golf-time').value;
     entry.people = byId('schedule-golf-people').value.trim();
   }
@@ -5330,7 +5479,7 @@ async function checkPickupAlerts() {
   }
 }
 
-for (const kind of ['personal', 'farm-visit', 'farm-work', 'golf-plan']) scheduleKind.append(option(scheduleKinds[kind].label, kind));
+for (const kind of ['personal', 'farm-visit', 'farm-work', 'golf-plan', 'swim-plan', 'gym-plan']) scheduleKind.append(option(scheduleKinds[kind].label, kind));
 for (const kind of monthlyKinds) {
   scheduleKind.append(option(scheduleKinds[kind].label, kind));
   if (scheduleKinds[kind].shift) {
@@ -5365,6 +5514,16 @@ window.addEventListener('storage', event => {
 });
 setVehicleEditor();
 initializeLayout();
+let schedulePhotoUrl = '';
+byId('schedule-photo-reference').onchange = event => {
+  if (schedulePhotoUrl) URL.revokeObjectURL(schedulePhotoUrl);
+  const photo = event.target.files[0];
+  schedulePhotoUrl = photo ? URL.createObjectURL(photo) : '';
+  const image = byId('schedule-photo-preview');
+  if (schedulePhotoUrl) image.src = schedulePhotoUrl;
+  else image.removeAttribute('src');
+  image.hidden = !schedulePhotoUrl;
+};
 for (const [id, kind] of [['farm-plan-visit', 'farm-visit'], ['farm-plan-work', 'farm-work']]) {
   byId(id).onclick = () => {
     openAppScreen('calendar');
