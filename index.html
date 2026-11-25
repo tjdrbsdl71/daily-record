@@ -122,6 +122,13 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 .today-record-row summary{cursor:pointer;overflow-wrap:anywhere}
 #app-menu{margin-top:10px}
 #app-today-records-section p{margin:4px 0}
+.compact-record-row>summary{display:flex;align-items:center;gap:6px;min-width:0;list-style:none}
+.compact-record-row>summary::-webkit-details-marker{display:none}
+.compact-record-row>summary::after{content:'›';margin-inline-start:auto;flex:none;color:#415a73}
+.compact-record-row[open]>summary::after{content:'⌄'}
+.compact-record-clock{flex:none;font-variant-numeric:tabular-nums}
+.compact-record-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.compact-record-date{margin:12px 0 3px;color:#415a73;font-size:.88rem}
 </style>
 </head>
 <body>
@@ -1000,15 +1007,12 @@ function render(records) {
       monthly.expense += amounts.expense;
     }
     if (record.date === (filterDate.value || todayDate()) &&
-        (!filterCategory.value || record.category === filterCategory.value)) visible.push({record, amounts});
+        (!filterCategory.value || record.category === filterCategory.value)) visible.push(record);
   }
   byId('totals').replaceChildren(
     summaryCard(day + ' 일별', daily), summaryCard(month + ' 월별', monthly));
-  const target = byId('records');
-  target.replaceChildren();
-  if (!visible.length) target.textContent = records.length ? '조회 조건에 맞는 기록이 없습니다.' : '저장된 기록이 없습니다.';
-  visible.sort((a, b) => compareRecordTime(a.record, b.record));
-  for (const {record, amounts} of visible) target.append(renderRecordArticle(record, amounts, true));
+  renderCompactRecords(byId('records'), visible,
+    records.length ? '조회 조건에 맞는 기록이 없습니다.' : '저장된 기록이 없습니다.');
 }
 
 function renderRecordArticle(record, amounts, sameDay = false) {
@@ -4706,12 +4710,7 @@ function renderLayoutRecords() {
       ['병원', '보험', '병원·보험'].includes(record.category) || insuranceAmount(record, amounts) > 0;
     return Boolean(amounts.income || amounts.expense) || ['수입', '지출', '담배'].includes(record.category);
   });
-  list.replaceChildren();
-  if (!relevant.length) {
-    list.textContent = '저장된 기록이 없습니다.';
-    return;
-  }
-  for (const record of relevant) list.append(renderRecordArticle(record, recordAmounts(record)));
+  renderCompactRecords(list, relevant, '저장된 기록이 없습니다.', true);
 }
 
 function appendRouteRecords(name) {
@@ -4844,7 +4843,7 @@ function activityClock(record) {
     normalizedClock(record.farm?.depart) || memoClock(record.memo);
 }
 
-function savedClock(value) {
+function savedInstant(value) {
   let instant;
   if (typeof value === 'string' &&
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
@@ -4852,7 +4851,12 @@ function savedClock(value) {
   } else if (Number.isSafeInteger(value) && value >= 1000000000 && value <= 9999999999999) {
     instant = new Date(value < 10000000000 ? value * 1000 : value);
   }
-  return instant && Number.isFinite(instant.getTime()) ? kstStamp(instant).time : '';
+  return instant && Number.isFinite(instant.getTime()) ? instant : null;
+}
+
+function savedClock(value) {
+  const instant = savedInstant(value);
+  return instant ? kstStamp(instant).time : '';
 }
 
 function recordClock(record) {
@@ -4863,28 +4867,79 @@ function newTimedRecord(record, savedAt = new Date()) {
   return {...record, time: activityClock(record) || kstStamp(savedAt).time, savedAt: savedAt.toISOString()};
 }
 
-function compareRecordTime(a, b) {
-  return (recordClock(a) || '99:99').localeCompare(recordClock(b) || '99:99');
+function recordOrder(a, b) {
+  const orderKey = record => {
+    const instant = savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ?? savedInstant(record.timestamp);
+    if (instant) return new Date(instant.getTime() + 9 * 3600000).toISOString();
+    const clock = recordClock(record);
+    return clock ? record.date + 'T' + clock + ':00.000Z' : '';
+  };
+  return orderKey(b).localeCompare(orderKey(a));
+}
+
+function compactRecordText(record) {
+  const memoText = record.memo.trim().replace(/\s+/g, ' ');
+  if (memoText) return memoText;
+  if (record.fitness?.type || recordedWeight(record) !== null) {
+    return [record.fitness?.type, Number.isFinite(record.fitness?.minutes) ? hulaTimeText(record.fitness.minutes) : '',
+      recordedWeight(record) !== null ? '체중 ' + kg(recordedWeight(record)) : ''].filter(Boolean).join(' · ');
+  }
+  if (validCardUse(record.cardUse)) return record.cardUse.merchant + ' ' + moneyText(record.cardUse.amount);
+  if (validFarm(record.farm)) return record.farm.task || record.farm.purpose;
+  if (validVehicle(record.vehicle) && record.vehicle.kind === 'trip') return record.vehicle.purpose;
+  if (validInsurance(record.insurance)) return '보험금 수령 ' + moneyText(record.insurance.received);
+  if (validTobacco(record.tobacco) && record.tobacco.cost !== null) return '담배 구매 ' + moneyText(record.tobacco.cost);
+  return record.category;
+}
+
+function compactRecordRow(record, open = false) {
+  const row = document.createElement('details');
+  const heading = document.createElement('summary');
+  const clock = recordClock(record);
+  row.className = 'today-record-row compact-record-row';
+  row.dataset.recordId = record.id;
+  if (clock) {
+    const time = document.createElement('span');
+    time.className = 'compact-record-clock';
+    time.textContent = clock + ' · ';
+    heading.append(time);
+  }
+  const preview = document.createElement('span');
+  preview.className = 'compact-record-text';
+  preview.textContent = compactRecordText(record);
+  heading.append(preview);
+  row.append(heading);
+  row.ontoggle = () => {
+    if (row.open && !row.querySelector('article')) row.append(renderRecordArticle(record, recordAmounts(record), true));
+  };
+  row.open = open;
+  return row;
+}
+
+function renderCompactRecords(target, records, empty, showDates = false) {
+  const expanded = new Set(Array.from(target.querySelectorAll(':scope > details[open]'), row => row.dataset.recordId));
+  target.replaceChildren();
+  if (!records.length) {
+    target.textContent = empty;
+    return;
+  }
+  const ordered = [...records].sort((a, b) => (showDates ? b.date.localeCompare(a.date) : 0) || recordOrder(a, b));
+  let previousDate;
+  for (const record of ordered) {
+    if (showDates && record.date !== previousDate) {
+      const heading = document.createElement('h3');
+      heading.className = 'compact-record-date';
+      heading.textContent = record.date || '날짜 미확인';
+      target.append(heading);
+      previousDate = record.date;
+    }
+    target.append(compactRecordRow(record, expanded.has(record.id)));
+  }
 }
 
 function renderTodayRecords() {
-  const target = byId('app-today-records');
-  const records = unifiedRecords.filter(record => record.date === todayDate()).sort(compareRecordTime);
-  target.replaceChildren();
-  if (!records.length) target.textContent = '오늘 저장한 기록이 없습니다.';
-  for (const record of records) {
-    const row = document.createElement('details');
-    const heading = document.createElement('summary');
-    row.className = 'today-record-row';
-    const preview = record.memo.trim().split('\n')[0].slice(0, 55);
-    heading.textContent = (recordClock(record) || '시간 미입력') + ' · ' + record.category +
-      (preview ? ' · ' + preview : '');
-    row.append(heading);
-    row.ontoggle = () => {
-      if (row.open && !row.querySelector('article')) row.append(renderRecordArticle(record, recordAmounts(record), true));
-    };
-    target.append(row);
-  }
+  renderCompactRecords(byId('app-today-records'), unifiedRecords.filter(record => record.date === todayDate()),
+    '오늘 저장한 기록이 없습니다.');
 }
 
 function moveRecordDay(offset) {
