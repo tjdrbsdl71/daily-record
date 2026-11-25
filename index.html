@@ -129,6 +129,10 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 .compact-record-clock{flex:none;font-variant-numeric:tabular-nums}
 .compact-record-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .compact-record-date{margin:12px 0 3px;color:#415a73;font-size:.88rem}
+.energy-weight-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.energy-warning{color:#9b1c1c;font-weight:bold}
+.compact-record-energy{flex:none;font-size:.82rem;color:#315371}
+#energy-information{margin-top:8px}
 </style>
 </head>
 <body>
@@ -501,6 +505,38 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 </div>
 <div id="farm-totals" class="totals"></div>
 </section>
+<section id="energy-dashboard" aria-labelledby="energy-heading">
+<h2 id="energy-heading">오늘 운동·칼로리</h2>
+<form id="energy-weight-form">
+<label for="energy-weight">오늘 체중 (kg)</label>
+<div class="energy-weight-row">
+<input id="energy-weight" type="number" min="0.01" max="1000" step="0.01" inputmode="decimal" required>
+<button id="energy-weight-save" type="submit" disabled>저장</button>
+</div>
+<p id="energy-weight-status" role="status"></p>
+</form>
+<dl class="fitness-metrics">
+<div><dt>체중 변화</dt><dd id="energy-weight-change"></dd></div>
+<div><dt id="energy-goal-label">목표까지</dt><dd id="energy-weight-goal"></dd></div>
+<div><dt>하루 예상 총소모</dt><dd id="energy-total"></dd></div>
+<div><dt>오늘 음식 섭취</dt><dd id="energy-meal"></dd></div>
+<div><dt>오늘 운동 소모</dt><dd id="energy-exercise"></dd></div>
+<div><dt>오늘 칼로리 차이</dt><dd id="energy-balance"></dd></div>
+</dl>
+<p id="energy-warning" class="energy-warning" role="status" hidden></p>
+<details id="energy-information">
+<summary>추정 기준·장기 변화</summary>
+<p id="energy-basis"></p>
+<p>음식량을 말하지 않으면 일반 1인분으로 추정합니다. 인식할 수 없는 음식은 기록에 남기고 칼로리 합계에서 제외합니다.</p>
+<p id="energy-trend"></p>
+<form id="energy-settings">
+<label for="energy-baseline">운동 제외 하루 기준 소모량 (kcal, 선택)</label>
+<input id="energy-baseline" type="number" min="1" max="10000" step="1" placeholder="체중 기준으로 추정">
+<button type="submit">기준량 저장</button>
+<p id="energy-settings-status" role="status"></p>
+</form>
+</details>
+</section>
 <section id="weight-dashboard" aria-labelledby="weight-heading">
 <h2 id="weight-heading">운동·체중 현황</h2>
 <dl id="weight-metrics" class="fitness-metrics">
@@ -684,7 +720,7 @@ let editorSaving = false;
 let editorBaseline = '';
 let categoryWasChosen = false;
 const filterCategory = byId('filter-category');
-const categories = ['일상', '지출', '수입', '차량', '시골·농사', '담배', '일정', '방문·이동', '운동', '체중', '병원', '보험', '스크린골프',
+const categories = ['일상', '지출', '수입', '차량', '시골·농사', '담배', '식사', '일정', '방문·이동', '운동', '체중', '병원', '보험', '스크린골프',
   '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
 const categoryRules = [
   ['스크린골프', /스크린\s*골프|골프존|카카오\s*vx|골프/i],
@@ -977,6 +1013,7 @@ function summaryCard(title, amounts) {
 }
 
 function render(records) {
+  renderEnergy(records);
   renderFitnessDashboard(records);
   renderGolf(records);
   renderHula(records);
@@ -1117,7 +1154,6 @@ function renderRecordArticle(record, amounts, sameDay = false) {
     typeof fitness?.type === 'string' ? fitness.type : '',
     Number.isFinite(fitness?.minutes) ? fitness.minutes + '분' : '',
     fitnessIntensities[fitness?.intensity] ?? '',
-    Number.isFinite(fitness?.calories) ? '예상 ' + currency.format(fitness.calories) + 'kcal' : '',
     Number.isFinite(fitness?.weight) ? '체중 ' + fitness.weight + 'kg' : '',
   ].filter(Boolean);
   if (details.length) {
@@ -1138,6 +1174,11 @@ function renderRecordArticle(record, amounts, sameDay = false) {
   }
   if (record.referenceOnly) cardLines(article, ['참고 정보 · 수입·지출 합계 제외']);
   if (record.memo) article.append(content);
+  const energy = energyForRecord(record);
+  cardLines(article, [
+    ...(energy.workout ? ['운동 추가 소모 −약 ' + calorieNumber(energy.workout)] : []),
+    ...energy.foods.map(food => food.name + ' +약 ' + calorieNumber(food.kcal)),
+  ]);
   if (typeof record.voiceOriginal === 'string' && record.voiceOriginal) {
     const original = document.createElement('details');
     const label = document.createElement('summary');
@@ -2136,13 +2177,13 @@ function renderFitnessDashboard(records) {
   const month = workoutMonth.value || todayDate().slice(0, 7);
   const workouts = records.filter(record => record.date.slice(0, 7) === month && isWorkoutRecord(record));
   const minutes = workouts.reduce((total, record) => total + savedWorkoutMinutes(record), 0);
-  const estimates = workouts.filter(({fitness}) => Number.isFinite(fitness?.calories));
-  const calories = estimates.reduce((total, {fitness}) => total + fitness.calories, 0);
+  const estimates = workouts.map(record => activeCalories(record, energyWeight(record.date))).filter(value => value > 0);
+  const calories = estimates.reduce((total, value) => total + value, 0);
   byId('workout-count').textContent = currency.format(workouts.length) + '회';
   byId('workout-minutes').textContent = currency.format(minutes) + '분';
   byId('workout-calories').textContent = currency.format(calories) + 'kcal';
   const missing = workouts.length - estimates.length;
-  byId('workout-calorie-note').textContent = missing ? missing + '건은 운동 시간 또는 강도 정보가 없어 칼로리 합계에서 제외됐습니다.' : '';
+  byId('workout-calorie-note').textContent = missing ? missing + '건은 예상 소모량을 계산할 정보가 없어 칼로리 합계에서 제외됐습니다.' : '';
 }
 
 function setGoalFields() {
@@ -2160,6 +2201,7 @@ byId('weight-goals').onsubmit = event => {
   try {
     localStorage.setItem(weightGoalKey, JSON.stringify({start, target}));
     renderFitnessDashboard(dashboardRecords);
+    renderEnergy(dashboardRecords);
     renderUnifiedHome();
     status.textContent = '시작·목표 체중을 저장했습니다.';
   } catch {
@@ -4102,6 +4144,7 @@ function ledgerGroup(record, flow) {
 
 function isWorkoutRecord(record) {
   if (record.fitness?.type || record.category === '운동') return true;
+  if (!record.categoryManual && repActivity(record.memo)) return true;
   return !record.categoryManual && !/예정|예약|휴관|운동복|운동화/.test(record.memo) &&
     /팔\s*굽혀\s*펴기|푸시\s*업|스쿼트|윗몸\s*일으키기|실내\s*자전거|러닝머신|수영\s*\d|걷기\s*\d/.test(record.memo);
 }
@@ -4703,7 +4746,7 @@ function renderLayoutRecords() {
       record.category === '골프·훌라' && /골프/.test(record.memo);
     if (activeAppScreen === 'hula') return validHula(record.hula) || record.category === '훌라' ||
       record.category === '골프·훌라' && /훌라/.test(record.memo);
-    if (activeAppScreen === 'fitness') return isWorkoutRecord(record) || recordedWeight(record) !== null ||
+    if (activeAppScreen === 'fitness') return isWorkoutRecord(record) || mealEstimate(record.memo).length > 0 || recordedWeight(record) !== null ||
       ['운동', '체중'].includes(record.category);
     const amounts = recordAmounts(record);
     if (activeAppScreen === 'health') return isHospital(record) || validInsurance(record.insurance) ||
@@ -4742,6 +4785,8 @@ function moveStatTail(form, label) {
 function classifyDiary(text, analysis = analyze(text)) {
   if (/담배/.test(text) && /구입|구매|샀|결제|지출|원어치/.test(text)) return '지출';
   if (/팔굽혀펴기|실내\s*자전거|러닝머신|스쿼트|윗몸일으키기/.test(text)) return '운동';
+  if (repActivity(text)) return '운동';
+  if (mealEstimate(text).length) return '식사';
   if (analysis.category !== '일상') return analysis.category;
   if (/약속|예정|예약/.test(text)) return '일정';
   if (/방문|이동|귀가/.test(text)) return '방문·이동';
@@ -4771,8 +4816,8 @@ function speechActivity(source, fallback, relativeBase) {
   const {day, text} = speechDate(clean, fallback, relativeBase);
   const category = classifyDiary(text);
   const body = text.replace(/^지금\s+/, '').trim();
-  const count = /^(팔굽혀펴기|스쿼트|윗몸일으키기)\s*(\d+)\s*(?:회|번)(?:를|을)?\s*(?:했어|했어요|했습니다)?[.!?]?$/u.exec(body);
-  if (count) return {date: day, category: '운동', memo: count[1] + ' ' + count[2] + '회'};
+  const reps = repActivity(body, true);
+  if (reps) return {date: day, category: '운동', memo: reps.name + ' ' + reps.count + '회'};
   const exercise = /^(실내\s*자전거|러닝머신|걷기|수영)\s*(한|두|세|\d+)\s*(시간|분)\s*(?:탔어|탔어요|했어|했어요|했습니다|걸었어|걸었어요)?[.!?]?$/u.exec(body);
   if (exercise) {
     const type = exercise[1].replace(/\s+/g, '');
@@ -4908,6 +4953,13 @@ function compactRecordRow(record, open = false) {
   preview.className = 'compact-record-text';
   preview.textContent = compactRecordText(record);
   heading.append(preview);
+  const energy = energyText(record);
+  if (energy.length) {
+    const label = document.createElement('span');
+    label.className = 'compact-record-energy';
+    label.textContent = ' · ' + energy.join(' · ');
+    heading.append(label);
+  }
   row.append(heading);
   row.ontoggle = () => {
     if (row.open && !row.querySelector('article')) row.append(renderRecordArticle(record, recordAmounts(record), true));
@@ -5011,6 +5063,7 @@ function initializeLayout() {
   appendRouteEntry('finance', '수입 기록', '수입');
   appendRouteEntry('finance', '지출 기록', '지출');
   appScreens.finance.append(byId('receipt-section'));
+  appScreens.fitness.append(byId('energy-dashboard'), scheduleButton('음성으로 운동·식사 기록', () => byId('app-voice').click()));
   appendRouteEntry('fitness', '운동·체중 기록', '운동');
   appendRouteEntry('health', '병원 기록', '병원');
   appendRouteEntry('health', '보험금 기록', '보험');
@@ -5081,6 +5134,237 @@ function initializeLayout() {
   layoutReady = true;
   displayAppScreen(screenFromLocation(), false);
 }
+
+const energyBaselineKey = 'daily-record-energy-baseline-v1';
+const repExercises = [
+  {name: '팔굽혀펴기', pattern: '팔\\s*굽혀\\s*펴기|푸시\\s*업', kcal: 1 / 3},
+  {name: '뒤꿈치 들기', pattern: '(?:발\\s*)?뒤꿈치\\s*들기|까치발\\s*들기|카프\\s*레이즈', kcal: 0.16},
+  {name: '스쿼트', pattern: '스쿼트', kcal: 0.45},
+  {name: '윗몸일으키기', pattern: '윗몸\\s*일으키기|싯\\s*업', kcal: 0.3},
+  {name: '런지', pattern: '런지', kcal: 0.45},
+  {name: '턱걸이', pattern: '턱걸이|풀\\s*업', kcal: 0.8},
+  {name: '점핑잭', pattern: '점핑\\s*잭|팔벌려\\s*뛰기', kcal: 0.25},
+  {name: '버피', pattern: '버피(?:테스트)?', kcal: 0.9},
+];
+// Typical kcal and grams per serving, used only as rough estimates.
+const foodServings = [
+  ['삼겹살', '삼겹살', 495, 150], ['김치찌개', '김치\\s*찌개', 300, 400],
+  ['된장찌개', '된장\\s*찌개', 180, 350], ['김밥', '김밥', 400, 250],
+  ['라면', '라면', 500, 120], ['비빔밥', '비빔밥', 600, 450],
+  ['흰쌀밥', '흰쌀밥|쌀밥|공깃밥|공기밥|밥', 310, 210],
+  ['계란', '삶은\\s*계란|계란|달걀', 75, 50], ['바나나', '바나나', 105, 120],
+  ['사과', '사과', 95, 180], ['식빵', '식빵', 85, 32],
+  ['샌드위치', '샌드위치', 400, 200], ['치킨', '치킨', 280, 100],
+  ['떡볶이', '떡볶이', 350, 200], ['우유', '우유', 125, 200],
+  ['아메리카노', '아메리카노', 5, 250], ['카페라테', '카페\\s*라[테떼]|라[테떼]', 150, 250],
+  ['소주', '소주', 400, 360], ['맥주', '맥주', 210, 500],
+];
+const foodPattern = new RegExp(foodServings.map(([, pattern]) => '(' + pattern + ')').join('|'), 'gu');
+const speechNumbers = {한: 1, 하나: 1, 두: 2, 둘: 2, 세: 3, 셋: 3, 네: 4, 넷: 4, 다섯: 5, 반: .5, 스무: 20, 서른: 30, 마흔: 40, 쉰: 50};
+const spokenNumberPattern = Object.keys(speechNumbers).sort((a, b) => b.length - a.length).join('|');
+let energyWeightSaving = false;
+let energyDays = new Map();
+let energyWeights = [];
+
+function countValue(value) {
+  return speechNumbers[value] ?? Number(value);
+}
+
+function repActivity(text, exact = false) {
+  const clean = text.normalize('NFKC');
+  if (/예정|하려고|미실시|안\s*했|못\s*했/.test(clean)) return null;
+  for (const exercise of repExercises) {
+    const phrase = '(?:' + exercise.pattern + ')\\s*(\\d{1,4}|' + spokenNumberPattern + ')\\s*(?:회|번)?';
+    const pattern = exact
+      ? new RegExp('^' + phrase + '(?:를|을)?\\s*(?:했어|했어요|했습니다|함)?[.!?]?$','u')
+      : new RegExp(phrase + '(?![\\d.,])', 'u');
+    const match = pattern.exec(clean.trim());
+    const count = match ? countValue(match[1]) : 0;
+    if (Number.isInteger(count) && count > 0) return {...exercise, count};
+  }
+  return null;
+}
+
+function mealEstimate(text) {
+  const memo = text.normalize('NFKC');
+  if (/예정|먹을\s*(?:예정|거)|안\s*먹|못\s*먹|구매|구입|샀|장보기/.test(memo)) return [];
+  const mealCue = /먹었|먹음|먹어요|마셨|마심|섭취|식사|아침|점심|저녁|간식/.test(memo);
+  const matches = [...memo.matchAll(foodPattern)];
+  const portions = new RegExp('^\\s*(\\d+(?:\\.\\d+)?|' + spokenNumberPattern +
+    ')\\s*(인분|공기|그릇|개|줄|조각|장|병|잔|캔|컵|팩|g\\b|그램|ml\\b|밀리리터)', 'iu');
+  const items = [];
+  for (const [index, match] of matches.entries()) {
+    const nameIndex = match.slice(1).findIndex(Boolean);
+    const [name, , kcal, grams] = foodServings[nameIndex];
+    const end = match.index + match[0].length;
+    const tail = memo.slice(end, matches[index + 1]?.index ?? memo.length);
+    if (name === '흰쌀밥' && /^(?:상|값|집|통|솥|주걱)/.test(tail)) continue;
+    const portion = portions.exec(tail);
+    if (!mealCue && !portion) continue;
+    const quantity = portion ? countValue(portion[1]) : 1;
+    const weightUnit = portion && /^(?:g|그램|ml|밀리리터)$/i.test(portion[2]);
+    const estimate = Math.round(kcal * quantity / (weightUnit ? grams : 1));
+    if (Number.isFinite(estimate) && estimate >= 0 && estimate <= 15000) items.push({name, kcal: estimate});
+  }
+  return items;
+}
+
+function readEnergyBaseline() {
+  try {
+    const value = Number(localStorage.getItem(energyBaselineKey));
+    return Number.isInteger(value) && value > 0 && value <= 10000 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function energyWeight(date) {
+  return energyWeights.findLast(item => item.date <= date)?.value ?? weightGoals().start;
+}
+
+function activeCalories(record, weight) {
+  if (!isWorkoutRecord(record) || record.referenceOnly) return 0;
+  if (Number.isFinite(record.fitness?.calories)) {
+    const resting = 3.5 * weight / 200 * (record.fitness.minutes ?? 0);
+    return Math.max(0, Math.round(record.fitness.calories - resting));
+  }
+  const reps = repActivity(record.memo);
+  if (reps) return Math.round(reps.kcal * reps.count * weight / 80);
+  const kind = record.fitness?.type || Object.keys(fitnessTypes).find(type => type !== '기타' && record.memo.includes(type));
+  const minutes = savedWorkoutMinutes(record);
+  if (kind && minutes > 0 && Object.hasOwn(fitnessTypes, kind)) {
+    const met = fitnessTypes[kind][record.fitness?.intensity ?? 1];
+    if (met) return Math.max(0, Math.round((met - 1) * 3.5 * weight / 200 * minutes));
+  }
+  return 0;
+}
+
+function energyForRecord(record) {
+  if (record.referenceOnly) return {workout: 0, foods: []};
+  return {workout: activeCalories(record, energyWeight(record.date)), foods: mealEstimate(record.memo)};
+}
+
+function calorieNumber(value) {
+  return currency.format(Math.abs(value)) + 'kcal';
+}
+
+function energyText(record) {
+  const {workout, foods} = energyForRecord(record);
+  const intake = foods.reduce((sum, food) => sum + food.kcal, 0);
+  return [workout ? '−약 ' + calorieNumber(workout) : '', foods.length ? '+약 ' + calorieNumber(intake) : '']
+    .filter(Boolean);
+}
+
+function energyForDay(day) {
+  const {workout = 0, intake = 0, meals = 0} = energyDays.get(day) ?? {};
+  const base = readEnergyBaseline() ?? Math.round(24 * energyWeight(day));
+  return {workout, intake, meals, base, total: base + workout, balance: intake - base - workout};
+}
+
+function renderEnergy(records) {
+  energyWeights = dailyWeights(records);
+  energyDays = new Map();
+  for (const record of records) {
+    if (!validScheduleDate(record.date)) continue;
+    const {workout, foods} = energyForRecord(record);
+    if (!workout && !foods.length) continue;
+    const previous = energyDays.get(record.date) ?? {workout: 0, intake: 0, meals: 0};
+    previous.workout += workout;
+    previous.intake += foods.reduce((sum, item) => sum + item.kcal, 0);
+    previous.meals += foods.length;
+    energyDays.set(record.date, previous);
+  }
+  renderEnergyToday();
+}
+
+function signedCalories(value) {
+  return (value < 0 ? '−' : value > 0 ? '+' : '') + calorieNumber(value);
+}
+
+function renderEnergyToday() {
+  const day = todayDate();
+  const current = energyWeights.find(item => item.date === day);
+  const previous = energyWeights.findLast(item => item.date < day);
+  const weight = byId('energy-weight');
+  if (!weight.matches(':focus') && weight.value === weight.defaultValue) {
+    weight.defaultValue = current?.value ?? '';
+    weight.value = weight.defaultValue;
+  }
+  const reference = current ?? previous;
+  const goal = weightGoals().target;
+  byId('energy-goal-label').textContent = '목표 ' + kg(goal) + '까지';
+  byId('energy-weight-goal').textContent = reference ? kg(Math.max(0, Math.round((reference.value - goal) * 100) / 100)) : '체중 기록 없음';
+  const change = current && previous ? Math.round((current.value - previous.value) * 100) / 100 : null;
+  byId('energy-weight-change').textContent = change === null ? '비교할 오늘·이전 체중 필요' :
+    (change < 0 ? kg(-change) + ' 감소' : change > 0 ? kg(change) + ' 증가' : '변화 없음') + ' · ' + previous.date + ' 기준';
+  const energy = energyForDay(day);
+  byId('energy-total').textContent = '약 ' + calorieNumber(energy.total);
+  byId('energy-meal').textContent = energy.meals ? '+약 ' + calorieNumber(energy.intake) : '기록 없음';
+  byId('energy-exercise').textContent = energy.workout ? '−약 ' + calorieNumber(energy.workout) : '0kcal';
+  byId('energy-balance').textContent = energy.meals ? '약 ' + signedCalories(energy.balance) : '식사 기록 필요';
+  const warning = byId('energy-warning');
+  warning.hidden = !(energy.meals && energy.balance > 0);
+  warning.textContent = warning.hidden ? '' : '기록한 섭취량이 하루 예상 소모량을 넘었습니다.';
+  byId('energy-basis').textContent = '운동 제외 기준 약 ' + calorieNumber(energy.base) +
+    (readEnergyBaseline() ? ' (설정값)' : ' (체중 × 24)') + '에 운동의 추가 소모만 더합니다. 차이는 섭취량에서 총소모량을 뺀 값입니다.';
+  const cutoff = new Date(day + 'T12:00:00Z');
+  cutoff.setUTCDate(cutoff.getUTCDate() - 14);
+  const start = cutoff.toISOString().slice(0, 10);
+  const days = [...energyDays.keys()].filter(date => date >= start && date < day && energyDays.get(date).meals);
+  const trend = byId('energy-trend');
+  trend.textContent = '체중 변화는 여러 주에 걸친 추세로 봅니다. 최근 14일 중 식사를 기록한 지난 날짜가 7일 이상이면 참고값을 표시합니다.';
+  if (days.length >= 7) {
+    const average = days.reduce((total, date) => total + energyForDay(date).balance, 0) / days.length;
+    const weekly = Math.abs(average * 7 / 7700);
+    trend.textContent = '기록된 식사가 모두 포함되고 같은 차이가 장기간 이어진다면 주당 약 ' +
+      kg(Math.round(weekly * 100) / 100) + (average < 0 ? ' 감소' : average > 0 ? ' 증가' : ' 변화') +
+      '에 해당하는 에너지 차이입니다. 실제 체중 변화와는 다를 수 있습니다.';
+  }
+  byId('energy-weight-save').disabled = energyWeightSaving || !weight.validity.valid || weight.value === weight.defaultValue;
+}
+
+byId('energy-weight').addEventListener('input', renderEnergyToday);
+byId('energy-weight-form').onsubmit = async event => {
+  event.preventDefault();
+  const input = byId('energy-weight');
+  const button = byId('energy-weight-save');
+  const status = byId('energy-weight-status');
+  if (button.disabled || !input.validity.valid) return;
+  const weight = input.valueAsNumber;
+  const submitted = input.value;
+  energyWeightSaving = true;
+  button.disabled = true;
+  try {
+    await withRecords(records => {
+      const record = {id: newId(), date: todayDate(), category: '체중', memo: '', fitness: {weight}};
+      const updated = [newTimedRecord(record), ...records];
+      writeRecords(updated);
+      input.defaultValue = submitted;
+      render(updated);
+    });
+    status.textContent = '오늘 체중을 저장했습니다.';
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    energyWeightSaving = false;
+    renderEnergyToday();
+  }
+};
+
+byId('energy-settings').onsubmit = event => {
+  event.preventDefault();
+  const input = byId('energy-baseline');
+  const status = byId('energy-settings-status');
+  try {
+    if (input.value) localStorage.setItem(energyBaselineKey, input.value);
+    else localStorage.removeItem(energyBaselineKey);
+    renderEnergyToday();
+    status.textContent = '기준량을 저장했습니다.';
+  } catch {
+    status.textContent = '기준량을 저장하지 못했습니다.';
+  }
+};
+byId('energy-baseline').value = readEnergyBaseline() ?? '';
 
 initializeFarm();
 initializeGolf();
