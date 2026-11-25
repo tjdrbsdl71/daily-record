@@ -1171,12 +1171,13 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
   const draft = {date: date.value, category: category.value, memo: memo.value.trim()};
   if (byId('reference-record').checked) draft.referenceOnly = true;
   if (categoryWasChosen) draft.categoryManual = true;
-  const inputStamp = kstStamp(startedAt);
+  const spokenDay = kstStamp(startedAt).day;
+  if (recordTimeField.value) draft.time = recordTimeField.value;
   if (fromVoice) {
-    draft.time = memoClock(rawSpeech) || recordTimeField.value || inputStamp.time;
-    if (!previousId && rawSpeech) draft.date = speechDate(cleanSpokenRecord(rawSpeech), draft.date, inputStamp.day).day;
-  } else if (recordTimeField.value) draft.time = recordTimeField.value;
-  else if (!previousId && draft.date === inputStamp.day && !memoClock(draft.memo)) draft.time = inputStamp.time;
+    const spokenTime = memoClock(rawSpeech);
+    if (spokenTime) draft.time = spokenTime;
+    if (!previousId && rawSpeech) draft.date = speechDate(cleanSpokenRecord(rawSpeech), draft.date, spokenDay).day;
+  }
   const type = exerciseType.value.trim();
   const minutes = exerciseMinutes.valueAsNumber;
   const weight = bodyWeight.valueAsNumber;
@@ -1218,9 +1219,11 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
   updateEditorSave();
   try {
     await withRecords(records => {
+      const savedAt = new Date();
       if (fromVoice && rawSpeech) draft.voiceOriginal = rawSpeech.trim();
       const drafts = fromVoice && rawSpeech && !priorMemo.trim() && !previousId && !categoryOverride &&
-        !draft.fitness && !draft.insurance && !draft.tobacco && !draft.referenceOnly ? prepareSpeechRecords(draft, rawSpeech, inputStamp, recordTimeField.value) : [draft];
+        !draft.fitness && !draft.insurance && !draft.tobacco && !draft.referenceOnly
+        ? prepareSpeechRecords(draft, rawSpeech, spokenDay, recordTimeField.value) : [draft];
       const unique = new Set();
       const pending = drafts.filter(item => {
         const identity = JSON.stringify([item.date, voiceMemoKey(item.memo), item.fitness, item.tobacco]);
@@ -1257,7 +1260,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         records[index] = updated;
       } else {
         for (const item of pending) withWorkoutCalories(item, records);
-        records.unshift(...pending.map(item => ({...item, id: newId()})));
+        records.unshift(...pending.map(item => newTimedRecord({...item, id: newId()}, savedAt)));
       }
       writeRecords(records);
       if (previousId) {
@@ -2625,7 +2628,7 @@ golfForm.onsubmit = async event => {
         delete records[index].receiptAmount;
         if (editingId === id) setEditor();
       } else {
-        records.unshift(draft);
+        records.unshift(newTimedRecord(draft));
       }
       writeRecords(records);
       const month = draft.date.slice(0, 7);
@@ -2893,7 +2896,7 @@ hulaForm.onsubmit = async event => {
         delete records[index].receiptAmount;
         if (editingId === editing) setEditor();
       } else {
-        records.unshift(draft);
+        records.unshift(newTimedRecord(draft));
       }
       writeRecords(records);
       hulaMonth.value = draft.date.slice(0, 7);
@@ -3344,7 +3347,7 @@ cardUse.onsubmit = async event => {
         delete records[index].receiptAmount;
         if (editingId === editing) setEditor();
       } else {
-        records.unshift(draft);
+        records.unshift(newTimedRecord(draft));
       }
       writeRecords(records);
       cardReference.value = date;
@@ -3672,7 +3675,7 @@ vehicleForm.onsubmit = async event => {
         if (index === -1) throw new Error('이미 삭제된 운행 기록입니다.');
         records[index] = {...records[index], ...draft};
       } else {
-        records.unshift(draft);
+        records.unshift(newTimedRecord(draft));
       }
       writeRecords(records);
       vehicleMonth.value = date.slice(0, 7);
@@ -3934,7 +3937,7 @@ farmForm.onsubmit = async event => {
         if (index === -1) throw new Error('이미 삭제된 시골 기록입니다.');
         records[index] = {...records[index], ...draft};
       } else {
-        records.unshift(draft);
+        records.unshift(newTimedRecord(draft));
       }
       writeRecords(records);
       farmMonth.value = date.slice(0, 7);
@@ -4791,12 +4794,12 @@ function speechActivity(source, fallback, relativeBase) {
   return {date: day, category, memo: category === '기타' ? source.trim() : clean};
 }
 
-function prepareSpeechRecords(draft, raw, inputStamp, selectedTime) {
+function prepareSpeechRecords(draft, raw, spokenDay, selectedTime) {
   const source = raw.trim();
   const clauses = source.split(/\s+(?:그리고|그다음에|그다음)\s+|(?<=[.!?。！？])\s+/u).filter(Boolean);
-  const firstDay = speechDate(cleanSpokenRecord(source), draft.date, inputStamp.day).day;
-  const prepare = clause => ({...speechActivity(clause, firstDay, inputStamp.day),
-    time: memoClock(clause) || selectedTime || inputStamp.time, voiceOriginal: source});
+  const firstDay = speechDate(cleanSpokenRecord(source), draft.date, spokenDay).day;
+  const prepare = clause => ({...speechActivity(clause, firstDay, spokenDay),
+    time: memoClock(clause) || selectedTime, voiceOriginal: source});
   const activities = clauses.map(prepare);
   return activities.length > 1 && activities.every(activity => activity.category !== '기타')
     ? activities : [prepare(source)];
@@ -4830,9 +4833,34 @@ function memoClock(memoText) {
   return String(hour).padStart(2, '0') + ':' + (spoken[3] ?? '0').padStart(2, '0');
 }
 
+function normalizedClock(value) {
+  const match = typeof value === 'string' && /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d+)?)?$/.exec(value.trim());
+  return match ? match[1].padStart(2, '0') + ':' + match[2] : '';
+}
+
+function activityClock(record) {
+  return normalizedClock(record.time) || normalizedClock(record.golf?.start) ||
+    normalizedClock(record.hula?.start) || normalizedClock(record.vehicle?.times?.[0]) ||
+    normalizedClock(record.farm?.depart) || memoClock(record.memo);
+}
+
+function savedClock(value) {
+  let instant;
+  if (typeof value === 'string' &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    instant = new Date(value);
+  } else if (Number.isSafeInteger(value) && value >= 1000000000 && value <= 9999999999999) {
+    instant = new Date(value < 10000000000 ? value * 1000 : value);
+  }
+  return instant && Number.isFinite(instant.getTime()) ? kstStamp(instant).time : '';
+}
+
 function recordClock(record) {
-  return record.time || record.golf?.start || record.hula?.start || record.vehicle?.times?.[0] ||
-    record.farm?.depart || memoClock(record.memo);
+  return activityClock(record) || savedClock(record.savedAt) || savedClock(record.createdAt) || savedClock(record.timestamp);
+}
+
+function newTimedRecord(record, savedAt = new Date()) {
+  return {...record, time: activityClock(record) || kstStamp(savedAt).time, savedAt: savedAt.toISOString()};
 }
 
 function compareRecordTime(a, b) {
