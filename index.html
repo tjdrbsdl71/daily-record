@@ -214,6 +214,18 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <form id="editor" novalidate>
 <label for="date">날짜</label>
 <input id="date" type="date">
+<label for="record-time">시간 (선택)</label><input id="record-time" type="time">
+<label for="memo">메모</label>
+<textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
+<div id="entry-voice-controls" hidden>
+<button id="voice" type="button" hidden>음성 입력 종료</button>
+<p id="voice-status" role="status">말한 뒤 “끝”이라고 하면 자동으로 저장됩니다.</p>
+<p id="voice-preview" hidden>인식된 내용: <span id="voice-draft"></span></p>
+</div>
+<button id="save" type="submit" disabled>기록 저장</button>
+<button id="cancel-edit" type="button" hidden>수정 취소</button>
+<details id="entry-extra"><summary>세부 항목</summary>
+<div id="record-half-hour"></div>
 <details id="entry-category-options"><summary>자동 분류 확인·수정</summary><label for="category">분류</label>
 <select id="category">
 <option>일상</option>
@@ -243,15 +255,8 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <p>보험금이 들어오면 같은 청구 기록의 수령액을 수정하세요. 담배 비용은 담배 구입만 기록한 항목에 입력하세요.</p>
 </details>
 <label id="reference-record-field" class="calendar-check" hidden><input id="reference-record" type="checkbox"> 미확인 참고 기록 · 수입·지출 합계 제외</label>
-<label for="record-time">기록 시각 (선택)</label><input id="record-time" type="time"><div id="record-half-hour"></div>
-<label for="memo">메모</label>
-<textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
-<button id="voice" type="button">🎤 음성 입력 시작</button>
-<p id="voice-status" role="status">마이크를 누르고 말한 뒤 “끝”이라고 하면 자동으로 저장됩니다.</p>
-<p id="voice-preview" hidden>인식된 내용: <span id="voice-draft"></span></p>
 <p id="amount-preview" role="status" hidden></p>
-<button id="save" type="submit" disabled>기록 저장</button>
-<button id="cancel-edit" type="button" hidden>수정 취소</button>
+</details>
 </form>
 </section>
 <section id="golf-section" aria-labelledby="golf-heading">
@@ -940,6 +945,9 @@ function setEditor(record) {
   if (record) memo.value = record.memo;
   showFitnessFields(record?.fitness);
   trackingFields(record);
+  byId('entry-extra').open = false;
+  byId('entry-category-options').open = false;
+  byId('entry-voice-controls').hidden = true;
   byId('reference-record-field').hidden = !record?.referenceOnly;
   byId('reference-record').checked = Boolean(record?.referenceOnly);
   editorBaseline = editorSnapshot();
@@ -1177,6 +1185,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
   const missingType = Boolean(exerciseMinutes.value && !type);
   if (invalidMinutes || missingType || !bodyWeight.validity.valid) {
     report('운동 시간은 운동 종류와 함께 분 단위로, 체중은 kg 단위로 입력해 주세요.', true);
+    byId('entry-extra').open = true;
     fitnessDetails.open = true;
     (missingType ? exerciseType : invalidMinutes ? exerciseMinutes : bodyWeight).focus();
     return;
@@ -1191,6 +1200,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
   }
   if (!trackingDraft(draft)) {
     report('보험금과 담배 수량·금액은 입력 범위 안의 정수여야 합니다.', true);
+    byId('entry-extra').open = true;
     trackingOptions.open = true;
     return;
   }
@@ -1369,7 +1379,10 @@ function finishVoice(message) {
   clearTimeout(timer);
   clearTimeout(idleTimer);
   voiceInput = null;
-  if (button === voice) showVoiceDraft();
+  if (button === voice) {
+    showVoiceDraft();
+    button.hidden = true;
+  }
   button.disabled = false;
   button.textContent = startLabel;
   status.textContent = message;
@@ -1572,6 +1585,7 @@ function toggleVoice(button, field, status) {
     rawSpeech: '', initialMemo: field.value, startedAt: new Date(),
     session: null, timer: null, idleTimer: null, stopping: false, hasTranscript: false, pendingText: ''
   };
+  if (button === voice) button.hidden = false;
   button.textContent = button === voice ? '음성 입력 종료' : button === golfVoice ? '골프 음성 입력 종료' :
     button === hulaVoice ? '훌라 음성 입력 종료' : button === cardVoice ? '카드 음성 입력 종료' :
     button === vehicleVoice ? '차량 음성 입력 종료' : button === farmVoice ? '시골 음성 입력 종료' : '요청 음성 입력 종료';
@@ -4642,6 +4656,7 @@ function refreshHomeDate() {
 
 function startLayoutEntry(kind, focusText = true) {
   openAppScreen('entry');
+  if (focusText && voiceInput?.button !== voice) byId('entry-voice-controls').hidden = true;
   const hasDraft = [memo, exerciseType, exerciseMinutes, bodyWeight,
     ...['insurance-claim', 'insurance-received', 'tobacco-quantity', 'tobacco-cost'].map(byId)]
     .some(field => field.value.trim());
@@ -4650,6 +4665,7 @@ function startLayoutEntry(kind, focusText = true) {
   }
   if (!editingId && !hasDraft && kind && voiceInput?.button !== voice) {
     if (kind === '운동') {
+      byId('entry-extra').open = true;
       fitnessDetails.open = true;
       exerciseType.focus();
       return;
@@ -4659,6 +4675,7 @@ function startLayoutEntry(kind, focusText = true) {
       categoryOverride = true;
     }
     if (kind === '보험') {
+      byId('entry-extra').open = true;
       trackingOptions.open = true;
       byId('insurance-claim').focus();
       return;
@@ -4971,6 +4988,7 @@ function initializeLayout() {
       return;
     }
     if (document.activeElement === memo) memo.blur();
+    byId('entry-voice-controls').hidden = false;
     voice.click();
   };
   window.addEventListener('popstate', syncAppScreen);
