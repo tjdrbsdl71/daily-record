@@ -93,17 +93,32 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #e7
 label{margin-top:6px}
 p{margin:8px 0}
 article{overflow-wrap:anywhere}
-.app-home-header{padding:6px 0 12px}
-#app-today{display:block;margin-top:4px;color:#415a73}
+.app-home-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0 6px}
+#app-today{flex:none;color:#415a73;font-size:.88rem;white-space:nowrap}
 #app-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 .app-menu-button{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;min-width:0;min-height:62px;margin:0;background:white;border:1px solid var(--app-border);color:var(--app-ink);padding:6px 2px;font-size:.84rem;line-height:1.2}
 .app-menu-icon{font-size:1.25rem;line-height:1.25}
-.app-quick{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}
-.app-quick button{font-size:.9rem}
+.app-quick{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:4px;margin:2px 0 6px}
+.app-quick button,.app-quick input{min-width:0;min-height:38px;margin:0;padding:4px 6px;font-size:.875rem}
+.app-quick button{white-space:nowrap}
+.app-quick input{width:100%;font-size:1rem}
+#home-record-today,#home-record-all{background:#e8eff8;color:#19497e;border:1px solid #cedceb}
 #app-write,#app-back-home{background:#e8eff8;color:#19497e;border:1px solid #cedceb}
-#app-today-list{list-style:none;padding:0;margin:0}
-#app-today-list li{padding:6px 0}
-#app-today-list li+li{border-top:1px solid var(--app-border)}
+#app-today-section,#app-today-records-section{margin:5px 0;padding:4px 7px}
+#app-today-section{display:flex;align-items:center;gap:8px}
+#app-today-section h2{flex:none;margin:0;font-size:1rem}
+#app-today-list{display:flex;align-items:center;list-style:none;padding:3px 0;margin:0;min-width:0;overflow-x:auto;white-space:nowrap;font-size:.9rem;scrollbar-width:thin}
+#app-today-list li{flex:none}
+#app-today-list li+li::before{content:'·';margin:0 7px;color:#415a73}
+.home-record-header{display:flex;align-items:center;gap:6px;min-width:0}
+.home-record-header h2{margin:0;font-size:1rem}
+#home-record-count{color:#415a73;font-size:.85rem;white-space:nowrap}
+#home-record-all{width:auto;min-height:36px;margin:0 0 0 2px;padding:3px 8px;font-size:.875rem;white-space:nowrap}
+#app-today-records>.compact-record-row{margin:0;padding:0;border:0;border-radius:0;background:transparent}
+#app-today-records>.compact-record-row+.compact-record-row{border-top:1px solid var(--app-border)}
+#app-today-records>.compact-record-row>summary{min-height:34px;padding:3px 0;font-size:.92rem}
+@media(max-width:360px){.app-home-header h1{font-size:1.23rem}}
+@media(max-width:300px){.app-quick{grid-template-columns:auto auto minmax(80px,1fr) auto}.app-quick button{padding-inline:4px}}
 #app-detail-header{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:10px;padding:4px 0 6px;background:#f3f6fa}
 #app-back-home{width:auto;flex:none;margin:0;font-size:.88rem;padding:6px 9px}
 #app-route-heading{font-size:1.22rem}
@@ -146,14 +161,23 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 <time id="app-today"></time>
 </header>
 <div class="app-quick">
-<button id="app-voice" type="button">🎙️ 음성으로 기록하기</button>
-<button id="app-write" type="button">✏️ 문자 입력</button>
+<button id="app-voice" type="button" aria-label="음성으로 기록하기">🎙 음성</button>
+<button id="app-write" type="button" aria-label="문자 입력">✏️ 입력</button>
+<input id="home-record-date" type="date" aria-label="기록 날짜">
+<button id="home-record-today" type="button">오늘</button>
 </div>
 <section id="app-today-section" aria-labelledby="app-today-heading">
 <h2 id="app-today-heading">오늘 일정</h2>
-<ul id="app-today-list"></ul>
+<ul id="app-today-list" tabindex="0" aria-label="오늘 일정 목록"></ul>
 </section>
-<section id="app-today-records-section"><h2 id="home-record-heading">오늘 기록</h2><div class="fields"><div><label for="home-record-date">기록 날짜</label><input id="home-record-date" type="date"></div><button id="home-record-today" type="button">오늘</button></div><div id="app-today-records"></div><button id="home-record-all" type="button">전체 보기</button></section>
+<section id="app-today-records-section">
+<div class="home-record-header">
+<h2 id="home-record-heading">오늘 기록</h2>
+<span id="home-record-count" aria-live="polite"></span>
+<button id="home-record-all" type="button">전체 보기</button>
+</div>
+<div id="app-today-records"></div>
+</section>
 <details id="app-menus"><summary>관련 메뉴</summary><nav id="app-menu" aria-label="관리 메뉴"></nav></details>
 </div>
 <header id="app-detail-header" hidden>
@@ -4726,7 +4750,9 @@ function renderHomeToday() {
   lastHomeDate = today;
   const title = byId('app-today');
   title.dateTime = today;
-  title.textContent = new Intl.DateTimeFormat('ko-KR', {dateStyle: 'full'}).format(new Date(today + 'T12:00:00'));
+  const calendarDay = new Date(today + 'T12:00:00');
+  title.textContent = new Intl.DateTimeFormat('ko-KR', {month: 'numeric', day: 'numeric', weekday: 'short'}).format(calendarDay);
+  title.setAttribute('aria-label', new Intl.DateTimeFormat('ko-KR', {dateStyle: 'full'}).format(calendarDay));
   const list = byId('app-today-list');
   list.replaceChildren();
   const events = availableScheduleEvents().filter(event => event.date === today);
@@ -5052,8 +5078,9 @@ function renderTodayRecords() {
   if (homeRecordFollowsToday || !picker.value) picker.value = today;
   const day = picker.value;
   byId('home-record-heading').textContent = day === today ? '오늘 기록' : day + ' 기록';
-  renderCompactRecords(byId('app-today-records'), unifiedRecords.filter(record => record.date === day),
-    '선택한 날짜에 저장한 기록이 없습니다.', false, 5);
+  const records = unifiedRecords.filter(record => record.date === day);
+  byId('home-record-count').textContent = records.length + '건';
+  renderCompactRecords(byId('app-today-records'), records, '선택한 날짜에 저장한 기록이 없습니다.', false, 8);
 }
 
 function moveRecordDay(offset) {
