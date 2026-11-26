@@ -228,6 +228,12 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 #home-record-toggle::after{content:'▾'}
 #home-record-toggle[aria-expanded=false]::after{content:'▸'}
 #home-record-heading{margin:0}
+#calorie-notice{box-sizing:border-box;width:min(92vw,420px);border:1px solid #b7cada;border-radius:14px;text-align:center;padding:20px;color:#17304b}
+#calorie-notice::backdrop{background:#15233588}
+#calorie-notice-value{display:block;font-size:clamp(2.5rem,12vw,4rem);line-height:1.15}
+#calorie-notice[data-over] #calorie-notice-value,#calorie-notice[data-over] #calorie-notice-message{color:#a51e23}
+#app-top button[aria-current=page],#app-menus button[aria-current=page]{background:#1759a0;color:white}
+#app-top .app-quick button:not([aria-current=page]){background:white;color:#17304b}
 </style>
 </head>
 <body>
@@ -536,6 +542,8 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <div><label for="card-use-advance">사용액 중 대신 결제 (원)</label><input id="card-use-advance" type="number" min="0" max="1000000000" step="1"></div>
 <div><label for="card-use-refund">실제 돌려받은 금액 (원)</label><input id="card-use-refund" type="number" min="0" max="1000000000" step="1"></div>
 </div>
+<label for="card-collection">사람별 수금 내역</label>
+<textarea id="card-collection" rows="3" maxlength="3000" placeholder="한 줄에 한 사람: 이름 / 받을 금액 / 받은 금액"></textarea>
 <label class="calendar-check"><input id="card-use-linked" type="checkbox"> 이미 개인 수입·지출에 기록된 거래 · 카드 사용액에만 반영</label>
 <label for="card-use-photo">영수증 사진 첨부</label>
 <input id="card-use-photo" type="file" accept="image/*" capture="environment">
@@ -675,7 +683,7 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <p id="energy-trend"></p>
 <form id="energy-settings">
 <label for="energy-baseline">운동 제외 하루 기준 소모량 (kcal, 선택)</label>
-<input id="energy-baseline" type="number" min="1" max="10000" step="1" placeholder="체중 기준으로 추정">
+<input id="energy-baseline" type="number" min="1" max="10000" step="1" placeholder="기본 2,000">
 <button type="submit">기준량 저장</button>
 <p id="energy-settings-status" role="status"></p>
 </form>
@@ -810,6 +818,7 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 </section>
 <section id="backup-section">
 <h2>백업 및 복원</h2>
+<details><summary>숨긴 기록 관리</summary><div id="app-hidden-records"></div></details>
 <details><summary>실제 데이터 초기 등록</summary><label for="setup-import-text">초기 등록 JSON</label><textarea id="setup-import-text" rows="6" spellcheck="false"></textarea><button type="button" id="setup-import">실제 데이터 등록</button><p>현재 브라우저에 추가하고 같은 기록은 건너뜁니다.</p></details>
 <button id="backup" type="button">JSON 백업 다운로드</button>
 <label for="backup-file">복원할 JSON 파일</label>
@@ -843,6 +852,13 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <button type="button" data-app-route="settings"><span aria-hidden="true">⚙</span>설정</button>
 </nav>
 </main>
+<dialog id="calorie-notice" aria-labelledby="calorie-notice-title">
+<h2 id="calorie-notice-title">남은 섭취 가능 칼로리</h2>
+<strong id="calorie-notice-value"></strong>
+<p id="calorie-notice-message"></p>
+<p>기록을 바탕으로 계산한 추정치입니다.</p>
+<form method="dialog"><button type="submit">닫기</button></form>
+</dialog>
 <script>
 const key = 'daily-record-v1';
 const byId = id => document.getElementById(id);
@@ -1167,6 +1183,7 @@ function summaryCard(title, amounts) {
 }
 
 function render(records) {
+  renderCompactRecords(byId('app-hidden-records'), records.filter(record => record.hiddenFromLists), '숨긴 기록이 없습니다.', true);
   renderEnergy(records);
   renderFitnessDashboard(records);
   renderGolf(records);
@@ -1332,6 +1349,13 @@ function renderRecordArticle(record, amounts, sameDay = false) {
   }
   if (record.sharedMeal) cardLines(article, ['개인 섭취량 확인 대기 · 칼로리 합계 제외']);
   if (record.referenceOnly) cardLines(article, ['참고 정보 · 수입·지출 합계 제외']);
+  const workoutStart = savedInstant(record.workoutStartedAt);
+  const workoutEnd = savedInstant(record.workoutEndedAt);
+  if (workoutStart && workoutEnd) {
+    const start = kstStamp(workoutStart);
+    const end = kstStamp(workoutEnd);
+    cardLines(article, ['운동 시각 ' + start.time + '–' + (start.day === end.day ? '' : end.day + ' ') + end.time + ' KST']);
+  }
   if (record.memo) article.append(content);
   const saved = savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ?? savedInstant(record.timestamp);
   if (saved) {
@@ -1444,8 +1468,8 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         const identity = JSON.stringify([item.date, voiceMemoKey(item.memo), item.fitness, item.tobacco]);
         if (unique.has(identity)) return false;
         unique.add(identity);
-        return (!fromVoice && drafts.length === 1) || previousId || !records.some(record =>
-          record.date === item.date && voiceMemoKey(record.memo) === voiceMemoKey(item.memo) &&
+        return previousId || !records.some(record =>
+          record.date === item.date && (record.time ?? '') === (item.time ?? '') && voiceMemoKey(record.memo) === voiceMemoKey(item.memo) &&
           sameFitness(record.fitness, item.fitness) && sameTracking(record, item));
       });
       if (!pending.length) {
@@ -1617,6 +1641,7 @@ function completeVoiceInput(input) {
   preservePendingSpeech(input);
   const {button, hasTranscript} = input;
   finishVoice(hasTranscript ? '음성 입력 종료' : '인식된 음성이 없습니다.');
+  if (button === voice && hasTranscript && !input.initialMemo.trim() && workoutCommand(input.rawSpeech)) return;
   if (button === voice && hasTranscript) saveEditor({fromVoice: true, rawSpeech: input.rawSpeech, priorMemo: input.initialMemo, startedAt: input.startedAt});
   if (button === golfVoice && hasTranscript) fillGolfFromVoice(input.field.value);
   if (button === hulaVoice && hasTranscript) fillHulaFromVoice(input.field.value);
@@ -1626,14 +1651,54 @@ function completeVoiceInput(input) {
 }
 
 function commitSpeech(input, text) {
-  const command = (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice || input.button === vehicleVoice || input.button === farmVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
+  const timer = input.button === voice && !input.initialMemo.trim() && /^(?:수영|실내\s*자전거|러닝\s*머신|걷기)\s*(?:시작|끝|종료)[\s.!?。]*$/u.test(text.trim());
+  const command = !timer && (input.button === voice || input.button === golfVoice || input.button === hulaVoice || input.button === cardVoice || input.button === vehicleVoice || input.button === farmVoice) && /(?<![\p{L}\p{N}_])끝[\s\p{P}]*$/u.exec(text);
   let content = command ? text.slice(0, command.index).trimEnd() : text;
   if (input.button === voice && content.trim()) {
     input.rawSpeech = [input.rawSpeech, content.trim()].filter(Boolean).join(' ');
     content = cleanSpokenRecord(content);
   }
   if (/[\p{L}\p{N}\p{S}]/u.test(content)) appendSpeech(input, content);
-  return Boolean(command);
+  return timer || Boolean(command);
+}
+
+const workoutTimerKey = 'daily-record-workout-timer-v1';
+
+function workoutCommand(text) {
+  const match = /^(수영|실내\s*자전거|러닝\s*머신|걷기)\s*(시작|끝|종료)[\s.!?。]*$/u.exec(text.trim());
+  if (!match) return false;
+  const type = match[1].replace(/\s/g, '');
+  const now = new Date();
+  withRecords(records => {
+    const timers = JSON.parse(localStorage.getItem(workoutTimerKey) || '{}');
+    if (match[2] === '시작') {
+      if (timers[type]) throw new Error(type + ' 운동이 이미 진행 중입니다.');
+      timers[type] = {id: newId(), startedAt: now.toISOString()};
+      localStorage.setItem(workoutTimerKey, JSON.stringify(timers));
+      memo.value = '';
+      updateAnalysis();
+      report(type + ' 시작 · ' + kstStamp(now).time);
+      return;
+    }
+    const timer = timers[type];
+    const started = savedInstant(timer?.startedAt);
+    if (!started || started >= now) throw new Error(type + ' 시작 기록을 확인해 주세요.');
+    const day = kstStamp(started);
+    const minutes = Math.max(1, Math.round((now - started) / 60000));
+    const record = newTimedRecord({id: timer.id, date: day.day, time: day.time, category: '운동',
+      memo: type + ' ' + hulaTimeText(minutes), voiceOriginal: text, workoutStartedAt: started.toISOString(),
+      workoutEndedAt: now.toISOString(), fitness: {type, minutes}}, now);
+    withWorkoutCalories(record, records);
+    if (!records.some(item => item.id === record.id)) writeRecords([record, ...records]);
+    delete timers[type];
+    localStorage.setItem(workoutTimerKey, JSON.stringify(timers));
+    memo.value = '';
+    updateAnalysis();
+    render(readRecords());
+    report(recordSaveMessage(record));
+    if (activeAppScreen === 'entry') showEntrySaveResult([record]);
+  }).catch(error => report(error.message, true));
+  return true;
 }
 
 function appendSpeech(input, text) {
@@ -3151,10 +3216,11 @@ const cardKey = 'daily-record-cards-v1';
 const cardDefaults = [
   {id: 'mg', name: '개인 새마을금고 체크카드', type: 'personal', limit: null, period: 'all', from: '', to: '', topups: []},
   {id: 'woori', name: '법인 우리카드', type: 'corporate', limit: 900000, period: 'quarter', from: '', to: '', topups: []},
-  {id: 'kb', name: '법인 KB카드', type: 'corporate', limit: 500000, period: 'all', from: '', to: '', topups: []},
+  {id: 'kb', name: '법인 KB카드', type: 'corporate', limit: 500000, period: 'month', from: '', to: '', topups: []},
 ];
 const cardPeriods = {all: '누적', month: '월별', quarter: '분기별', year: '연간', range: '지정 기간'};
 const cardReference = byId('card-reference');
+const cardCollection = byId('card-collection');
 const cardUse = byId('card-use');
 const cardSelect = byId('card-use-card');
 const cardConfig = byId('card-config');
@@ -3175,7 +3241,8 @@ function readCards() {
   if (raw === null) return cardDefaults;
   const cards = JSON.parse(raw);
   if (!Array.isArray(cards)) throw new Error('저장된 카드 설정을 읽을 수 없습니다.');
-  return cards;
+  return cards.map(card => card.id === 'kb' && card.limit === 500000 && card.period === 'all' &&
+    !card.from && !card.to && !card.limitPeriodConfirmed ? {...card, period: 'month'} : card);
 }
 
 function changeCards(operation) {
@@ -3194,11 +3261,19 @@ function cardKind(type) {
   return type === 'corporate' ? '법인카드' : type === 'unconfirmed' ? '구분 미확인' : '개인카드';
 }
 
+function validCardCollection(rows) {
+  return Array.isArray(rows) && rows.length <= 40 && rows.every(row => row &&
+    typeof row.name === 'string' && row.name.trim() && row.name.length <= 80 &&
+    Number.isSafeInteger(row.due) && row.due > 0 && row.due <= 1000000000 &&
+    Number.isSafeInteger(row.received) && row.received >= 0 && row.received <= row.due);
+}
+
 function validCardUse(value) {
   if (!value || !['personal', 'corporate', 'unconfirmed'].includes(value.type) ||
       !['id', 'name', 'merchant', 'purpose', 'people', 'photo'].every(key => typeof value[key] === 'string')) return false;
   const money = number => Number.isSafeInteger(number) && number >= 0 && number <= 1000000000;
-  return value.id && value.name && value.merchant && typeof value.onlyCard === 'boolean' &&
+  return (value.collection === undefined || validCardCollection(value.collection)) &&
+    value.id && value.name && value.merchant && typeof value.onlyCard === 'boolean' &&
     [value.amount, value.advance, value.refund].every(money) && value.amount > 0 &&
     value.advance <= value.amount && value.refund <= value.advance &&
     (!value.photo || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value.photo)) && value.photo.length <= 220000;
@@ -3261,6 +3336,11 @@ function cardUseDetails(value, includePhoto = true) {
       ' · 돌려받음 ' + moneyText(value.refund) + ' · 미회수 ' + moneyText(value.advance - value.refund)] : []),
     ...(value.onlyCard ? ['카드 사용액에만 반영'] : []),
   ]);
+  for (const person of value.collection ?? []) {
+    cardLines(node, [person.name + ' · 받을 돈 ' + moneyText(person.due) + ' · 받은 돈 ' +
+      moneyText(person.received) + ' · ' + (person.due === person.received ? '수금 완료' :
+      '미수금 ' + moneyText(person.due - person.received))]);
+  }
   if (includePhoto && value.photo) {
     const receipt = document.createElement('details');
     const summary = document.createElement('summary');
@@ -3299,7 +3379,7 @@ function showCardDetail(card, records) {
   const list = byId('card-detail-records');
   list.replaceChildren();
   if (!records.length) list.textContent = '등록된 사용 내역이 없습니다.';
-  for (const record of [...records].sort((a, b) => b.date.localeCompare(a.date))) {
+  for (const record of records.filter(item => !item.hiddenFromLists).sort((a, b) => b.date.localeCompare(a.date))) {
     const article = document.createElement('article');
     const dateLabel = document.createElement('strong');
     dateLabel.textContent = record.date;
@@ -3363,6 +3443,11 @@ function renderCards(records) {
       '기준일까지 한도 사용 ' + moneyText(stats.period),
       '남은 한도 ' + moneyText(Math.max(0, stats.limit - stats.period)) +
       (stats.period > stats.limit ? ' · 초과 ' + moneyText(stats.period - stats.limit) : ''));
+    const collection = uses.filter(record => record.date <= ref).flatMap(record => record.cardUse.collection ?? []);
+    const due = collection.reduce((sum, person) => sum + person.due, 0);
+    const received = collection.reduce((sum, person) => sum + person.received, 0);
+    if (collection.length) labels.push('받을 돈 ' + moneyText(due), '받은 돈 ' + moneyText(received),
+      '미수금 ' + moneyText(due - received));
     cardLines(box, [cardKind(card.type), ...labels.slice(4)]);
     cardLines(breakdown, [cardKind(card.type), ...labels]);
     if (stats.limit) {
@@ -3429,7 +3514,7 @@ cardConfig.onsubmit = async event => {
   event.preventDefault();
   const editing = cardConfigId;
   const draft = {name: byId('card-name').value.trim(), type: byId('card-type').value,
-    limit: byId('card-limit').valueAsNumber || null, period: byId('card-period').value,
+    limit: byId('card-limit').valueAsNumber || null, period: byId('card-period').value, limitPeriodConfirmed: true,
     from: byId('card-from').value, to: byId('card-to').value};
   if (!draft.name || draft.period === 'range' && (!draft.from || !draft.to) ||
       draft.from && draft.to && draft.from > draft.to) {
@@ -3483,6 +3568,8 @@ function setCardUse(record) {
   byId('card-use-amount').value = value?.amount ?? (record ? recordAmounts(record).expense || '' : '');
   cardPurpose.value = value?.purpose ?? record?.memo ?? '';
   byId('card-use-people').value = value?.people ?? '';
+  cardCollection.value = (value?.collection ?? []).map(person =>
+    [person.name, person.due, person.received].join(' / ')).join('\n');
   byId('card-use-advance').value = value?.advance ?? '';
   byId('card-use-refund').value = value?.refund ?? '';
   byId('card-use-linked').checked = value?.onlyCard ?? false;
@@ -3562,6 +3649,16 @@ cardUse.onsubmit = async event => {
     advance: personal ? byId('card-use-advance').valueAsNumber || 0 : 0,
     refund: personal ? byId('card-use-refund').valueAsNumber || 0 : 0,
     onlyCard: byId('card-use-linked').checked, photo: cardAttachedPhoto};
+  const collection = cardCollection.value.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+    const parts = line.split('/').map(part => part.trim());
+    if (parts.length !== 3 || !parts.slice(1).every(part => /^\d[\d,]*$/.test(part))) return null;
+    return {name: parts[0], due: Number(parts[1].replaceAll(',', '')), received: Number(parts[2].replaceAll(',', ''))};
+  });
+  if (!validCardCollection(collection)) {
+    cardUseStatus.textContent = '수금 내역은 이름 / 받을 금액 / 받은 금액 순서로 입력해 주세요. 아직 받지 않았다면 0을 입력하세요.';
+    return;
+  }
+  if (collection.length) value.collection = collection;
   const date = byId('card-use-date').value;
   if (!validScheduleDate(date) || !validCardUse(value)) {
     cardUseStatus.textContent = '사용 정보를 확인해 주세요. 대신 낸 금액은 사용액 이내, 돌려받은 금액은 대신 낸 금액 이내여야 합니다.';
@@ -4273,6 +4370,8 @@ function tobaccoEntry(record, flow) {
 
 function outstandingAmount(record) {
   if (validGolf(record.golf)) return golfCashFlow(record.golf).pending;
+  if (record.cardUse?.collection?.length) return record.cardUse.collection.reduce((sum, person) =>
+    sum + person.due - person.received, 0);
   if (validCardUse(record.cardUse) && record.cardUse.type === 'personal' && !record.cardUse.onlyCard) {
     return record.cardUse.advance - record.cardUse.refund;
   }
@@ -4287,7 +4386,7 @@ function recordSearchText(record) {
   const {golf, hula, cardUse, vehicle, farm, fitness} = record;
   return normalizedSearch([record.category, record.memo, golf?.players.map(p => p.name).join(' '),
     hula?.names.join(' '), cardUse?.name, cardSettings.find(card => card.id === cardUse?.id)?.name,
-    cardUse?.merchant, cardUse?.purpose, cardUse?.people, vehicle?.from, vehicle?.to, vehicle?.purpose,
+    cardUse?.merchant, cardUse?.purpose, cardUse?.people, cardUse?.collection?.map(person => person.name).join(' '), vehicle?.from, vehicle?.to, vehicle?.purpose,
     farm?.purpose, farm?.task, farm?.next, fitness?.type].filter(Boolean).join(' '));
 }
 
@@ -4475,7 +4574,7 @@ function renderUnifiedSearch() {
   const terms = normalizedSearch(c.keyword).split(/\s+/).filter(Boolean);
   const results = [];
   for (const record of unifiedRecords) {
-    if (!dateMatches(record.date)) continue;
+    if (record.hiddenFromLists || !dateMatches(record.date)) continue;
     const flow = recordAmounts(record);
     if (c.kind.startsWith('category:') ? record.category !== c.kind.slice(9) :
         c.kind && !unifiedTypes[c.kind]?.[1](record, flow)) continue;
@@ -4842,8 +4941,10 @@ function displayAppScreen(name, focus = true) {
   activeAppScreen = name;
   byId('app-menus').hidden = true;
   byId('app-menu-toggle').setAttribute('aria-expanded', 'false');
-  for (const button of byId('home-tabs').querySelectorAll('button')) {
-    if (button.dataset.appRoute === name) button.setAttribute('aria-current', 'page');
+  for (const button of document.querySelectorAll('#home-tabs button, #app-menus button, #app-top button')) {
+    const route = button.dataset.screen || button.dataset.appRoute ||
+      (button.id === 'app-write' ? 'entry' : '');
+    if (route === name) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   }
   byId('app-home').hidden = name !== 'home';
@@ -4886,7 +4987,7 @@ function renderHomeToday() {
   title.setAttribute('aria-label', new Intl.DateTimeFormat('ko-KR', {dateStyle: 'full'}).format(calendarDay));
   const list = byId('app-today-list');
   list.replaceChildren();
-  const events = availableScheduleEvents().filter(event => event.date === today);
+  const events = availableScheduleEvents().filter(event => event.date === today && eventLabel(event).trim());
   renderTodayRecords();
   renderHomeTotals();
   if (!events.length) {
@@ -5119,7 +5220,8 @@ function recordClockLabel(record) {
   const range = /(?:^|[^\d])([01]?\d|2[0-3]):([0-5]\d)\s*(?:~|～|–|—|-)\s*([01]?\d|2[0-3]):([0-5]\d)(?!\d)/u.exec(record.memo);
   const memoEnd = range && range[1].padStart(2, '0') + ':' + range[2] === start
     ? range[3].padStart(2, '0') + ':' + range[4] : '';
-  const end = structured || memoEnd;
+  const timerEnd = savedInstant(record.workoutEndedAt);
+  const end = structured || (timerEnd ? kstStamp(timerEnd).time : '') || memoEnd;
   return end && end !== start ? start + '–' + end : start;
 }
 
@@ -5179,7 +5281,21 @@ function compactRecordRow(record, open = false) {
   }
   row.append(heading);
   row.ontoggle = () => {
-    if (row.open && !row.querySelector('article')) row.append(renderRecordArticle(record, recordAmounts(record), true));
+    if (!row.open || row.querySelector('article')) return;
+    const article = renderRecordArticle(record, recordAmounts(record), true);
+    const actions = article.querySelector('.inline-actions');
+    actions?.prepend(scheduleButton('닫기', () => { row.open = false; }));
+    actions?.append(scheduleButton(record.hiddenFromLists ? '다시 표시' : '숨기기', () => {
+      withRecords(records => {
+        const current = records.find(item => item.id === record.id);
+        if (!current) return;
+        if (current.hiddenFromLists) delete current.hiddenFromLists;
+        else current.hiddenFromLists = true;
+        writeRecords(records);
+        render(records);
+      }).catch(error => report(error.message, true));
+    }));
+    row.append(article);
   };
   row.open = open;
   return row;
@@ -5188,6 +5304,7 @@ function compactRecordRow(record, open = false) {
 function renderCompactRecords(target, records, empty, showDates = false, limit = Infinity) {
   const expanded = new Set(Array.from(target.querySelectorAll(':scope > details[open]'), row => row.dataset.recordId));
   target.replaceChildren();
+  records = records.filter(record => !record.hiddenFromLists || target === byId('app-hidden-records'));
   if (!records.length) {
     target.textContent = empty;
     return;
@@ -5214,7 +5331,7 @@ function renderTodayRecords() {
   const day = picker.value;
   byId('home-record-label').textContent = day === today ? '오늘 기록' : day + ' 기록';
   const records = unifiedRecords.filter(record => record.date === day);
-  byId('home-record-count').textContent = records.length + '건';
+  byId('home-record-count').textContent = records.filter(record => !record.hiddenFromLists).length + '건';
   renderCompactRecords(byId('app-today-records'), records, '선택한 날짜에 저장한 기록이 없습니다.', false, 8);
 }
 
@@ -5669,8 +5786,8 @@ function activeCalories(record, weight) {
 
 function energyForRecord(record) {
   if (record.referenceOnly) return {workout: 0, foods: []};
-  if (record.sharedMeal) return {workout: 0, foods: []};
-  return {workout: activeCalories(record, energyWeight(record.date)), foods: mealEstimate(record.memo, record.category === '식사')};
+  return {workout: activeCalories(record, energyWeight(record.date)),
+    foods: record.sharedMeal ? [] : mealEstimate(record.memo, record.category === '식사')};
 }
 
 function calorieNumber(value) {
@@ -5686,8 +5803,11 @@ function energyText(record) {
 
 function energyForDay(day) {
   const {workout = 0, intake = 0, meals = 0} = energyDays.get(day) ?? {};
-  const base = readEnergyBaseline() ?? Math.round(24 * energyWeight(day));
-  return {workout, intake, meals, base, total: base + workout, balance: intake - base - workout};
+  const base = readEnergyBaseline() ?? 2000;
+  const breakfast = !energyDays.get(day)?.breakfast;
+  const consumed = intake + (breakfast ? 700 : 0);
+  return {workout, intake: consumed, meals: meals + Number(breakfast), base, breakfast,
+    total: base + workout, balance: consumed - base - workout};
 }
 
 function renderEnergy(records) {
@@ -5696,10 +5816,18 @@ function renderEnergy(records) {
   for (const record of records) {
     if (!validScheduleDate(record.date)) continue;
     const {workout, foods} = energyForRecord(record);
-    if (!workout && !foods.length) continue;
+    const breakfast = !record.referenceOnly && !record.sharedMeal && /(?:^|[\s,])(?:아침\s*(?:식사|밥)?|조식)(?=\s|[:：]|은|는|으로|을|를|$)/.test(record.memo)
+      && !/아침\s*(?:운동|회의|출근)|예정|먹을/.test(record.memo)
+      && (foods.length > 0 || record.category === '식사' || /안\s*먹|먹지\s*않|거름|걸렀|생략|대신|먹었|변경|섭취|kcal|칼로리/i.test(record.memo));
+    const skipped = breakfast && /안\s*먹|먹지\s*않|거름|걸렀|생략/.test(record.memo);
+    const enteredCalories = breakfast && /([\d,]+)\s*(?:kcal|킬로칼로리|칼로리)/i.exec(record.memo);
+    if (!workout && !foods.length && !breakfast) continue;
     const previous = energyDays.get(record.date) ?? {workout: 0, intake: 0, meals: 0};
     previous.workout += workout;
-    previous.intake += foods.reduce((sum, item) => sum + item.kcal, 0);
+    previous.breakfast ||= breakfast;
+    const calories = enteredCalories ? Number(enteredCalories[1].replaceAll(',', '')) : NaN;
+    previous.intake += skipped ? 0 : Number.isFinite(calories) ? calories :
+      foods.reduce((sum, item) => sum + item.kcal, 0);
     previous.meals += foods.length;
     energyDays.set(record.date, previous);
   }
@@ -5728,15 +5856,16 @@ function renderEnergyToday() {
     (change < 0 ? kg(-change) + ' 감소' : change > 0 ? kg(change) + ' 증가' : '변화 없음') + ' · ' + previous.date + ' 기준';
   const energy = energyForDay(day);
   byId('energy-total').textContent = '약 ' + calorieNumber(energy.total);
-  byId('energy-meal').textContent = energy.meals ? '+약 ' + calorieNumber(energy.intake) : '기록 없음';
+  byId('energy-meal').textContent = '+약 ' + calorieNumber(energy.intake) + (energy.breakfast ? ' (기본 아침 700kcal 포함)' : '');
   byId('energy-exercise').textContent = energy.workout ? '−약 ' + calorieNumber(energy.workout) : '0kcal';
-  byId('energy-balance').textContent = energy.meals ? '약 ' + signedCalories(energy.balance) : '식사 기록 필요';
-  byId('energy-remaining').textContent = '약 ' + calorieNumber(Math.max(0, -energy.balance));
+  byId('energy-balance').textContent = '약 ' + signedCalories(energy.balance);
+  byId('energy-remaining').textContent = '약 ' + signedCalories(-energy.balance);
+  updateCalorieNotice();
   const warning = byId('energy-warning');
   warning.hidden = !(energy.meals && energy.balance > 0);
   warning.textContent = warning.hidden ? '' : '기록한 섭취량이 하루 예상 소모량을 넘었습니다.';
   byId('energy-basis').textContent = '운동 제외 기준 약 ' + calorieNumber(energy.base) +
-    (readEnergyBaseline() ? ' (설정값)' : ' (체중 × 24)') + '에 운동의 추가 소모만 더합니다. 차이는 섭취량에서 총소모량을 뺀 값입니다.';
+    (readEnergyBaseline() ? ' (설정값)' : ' (기본값)') + '에 운동의 추가 소모만 더합니다. 차이는 섭취량에서 총소모량을 뺀 값입니다.';
   const cutoff = new Date(day + 'T12:00:00Z');
   cutoff.setUTCDate(cutoff.getUTCDate() - 14);
   const start = cutoff.toISOString().slice(0, 10);
@@ -5794,7 +5923,47 @@ byId('energy-settings').onsubmit = event => {
     status.textContent = '기준량을 저장하지 못했습니다.';
   }
 };
-byId('energy-baseline').value = readEnergyBaseline() ?? '';
+byId('energy-baseline').value = readEnergyBaseline() ?? 2000;
+
+const calorieNotice = byId('calorie-notice');
+const calorieNoticeKey = 'daily-record-calorie-notice-v1';
+let calorieNoticeTimeout;
+let lastCalorieSlot = '';
+function updateCalorieNotice() {
+  if (!calorieNotice.open) return;
+  const remaining = -energyForDay(todayDate()).balance;
+  calorieNotice.toggleAttribute('data-over', remaining < 0);
+  byId('calorie-notice-value').textContent = signedCalories(remaining);
+  byId('calorie-notice-message').textContent = remaining < 0 ? '오늘은 과다 섭취입니다' :
+    '오늘 추가로 ' + calorieNumber(remaining) + '를 섭취할 수 있습니다';
+}
+
+function checkCalorieNotice() {
+  if (document.hidden || calorieNotice.open) return;
+  const {day, time} = kstStamp();
+  const hour = Number(time.slice(0, 2));
+  if (hour < 8) return;
+  const slot = hour < 13 ? 0 : hour < 18 ? 1 : 2;
+  const marker = day + ':' + slot;
+  if (marker === lastCalorieSlot) return;
+  function show() {
+    if (document.hidden || calorieNotice.open || marker === lastCalorieSlot) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(calorieNoticeKey) || '{}');
+      const slots = saved.day === day && Array.isArray(saved.slots) ? saved.slots : [];
+      if (slots.includes(slot)) return;
+      localStorage.setItem(calorieNoticeKey, JSON.stringify({day, slots: [...slots, slot]}));
+    } catch {}
+    lastCalorieSlot = marker;
+    calorieNotice.showModal();
+    updateCalorieNotice();
+    calorieNoticeTimeout = setTimeout(() => calorieNotice.close(), 10000);
+  }
+  if (navigator.locks) navigator.locks.request(calorieNoticeKey, show).catch(show);
+  else show();
+}
+
+calorieNotice.addEventListener('close', () => clearTimeout(calorieNoticeTimeout));
 
 initializeFarm();
 initializeGolf();
@@ -6447,6 +6616,10 @@ window.addEventListener('storage', event => {
 });
 setVehicleEditor();
 initializeLayout();
+withRecords(render).then(checkCalorieNotice).catch(error => report(error.message, true));
+window.addEventListener('pageshow', checkCalorieNotice);
+window.addEventListener('focus', checkCalorieNotice);
+document.addEventListener('visibilitychange', checkCalorieNotice);
 let schedulePhotoUrl = '';
 byId('schedule-photo-reference').onchange = event => {
   if (schedulePhotoUrl) URL.revokeObjectURL(schedulePhotoUrl);
