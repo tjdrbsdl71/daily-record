@@ -1128,6 +1128,7 @@ function render(records) {
     renderTodayRecords();
     renderHomeTotals();
     renderCalendar();
+    syncDiarySchedules(records).catch(error => showScheduleError(error));
   }
   const selected = filterCategory.value;
   const names = [...new Set([...categories, ...records.map(record => record.category)])];
@@ -1422,7 +1423,11 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         records[index] = updated;
       } else {
         for (const item of pending) withWorkoutCalories(item, records);
-        records.unshift(...pending.map(item => newTimedRecord({...item, id: newId()}, savedAt)));
+        records.unshift(...pending.map(item => {
+          const record = newTimedRecord({...item, id: newId()}, savedAt);
+          const appointment = plannedDiaryAppointment(item, kstStamp(savedAt).day);
+          return appointment ? {...record, diaryAppointment: appointment} : record;
+        }));
       }
       writeRecords(records);
       if (previousId) {
@@ -5255,7 +5260,7 @@ function maybeWarnGolf(event) {
 function completedActivities(month) {
   const result = new Map();
   for (const record of unifiedRecords) {
-    if (record.referenceOnly || !record.date.startsWith(month + '-')) continue;
+    if (record.referenceOnly || record.diaryAppointment || !record.date.startsWith(month + '-')) continue;
     let label = '';
     let kind = '';
     if (validGolf(record.golf) || record.category === '스크린골프' && !/예정|약속|예약/.test(record.memo)) {
@@ -5774,9 +5779,74 @@ function eventLabel(event) {
   const kind = scheduleKinds[event.kind];
   if (kind.shift) return '자빈이 ' + kind.label;
   if (kind.facility) return '남구국민체육센터 1관 · ' + kind.label;
+  if (event.diarySource) return event.title + ' · ' + (event.time || '시간 미정');
   if (kind.appointment || kind.activity || event.time || event.people) return (kind.appointment || kind.activity ? kind.label + ' · ' : '') +
     event.title + (event.time ? ' · ' + event.time : '') + (event.people ? ' · ' + event.people : '');
   return kind.farm ? kind.label + ' · ' + event.title : event.title;
+}
+
+function plannedDiaryAppointment(record, savedDay) {
+  if (!validScheduleDate(record.date) || record.date < savedDay) return null;
+  const memo = cleanSpokenRecord(record.memo);
+  if (!/조문|문상|약속|모임|병원|진료|장례식/.test(memo) ||
+      /다녀왔|다녀옴|갔었|갔다|갔어|갔음|방문했|마쳤|완료|취소|못\s*가|안\s*가|끝났/.test(memo)) return null;
+  const explicit = /예정|계획|가기로|하기로|가야|갈\s*(?:거|것|게)|할\s*(?:거|것|게)|예약|참석할|방문할|약속(?:이)?\s*있|모임(?:이)?\s*있/.test(memo);
+  const concise = /(?:조문|문상|약속|모임|병원\s*방문|병원\s*진료|진료|장례식)[.!?。！？]*$/.test(memo);
+  if (!(record.date > savedDay || explicit || concise)) return null;
+  const title = speechDate(memo, record.date, savedDay).text
+    .replace(/^(?:오전|오후)?\s*(?:[01]?\d|2[0-3])(?::[0-5]\d|시(?:\s*[0-5]?\d\s*분)?)(?:에)?\s*/u, '')
+    .replace(/\s*(?:갈\s*(?:예정|거(?:야|예요)?)|가야\s*해|가기로\s*(?:했어|했다)?|예정(?:입니다|이야)?|할\s*예정)[.!?。！？]*$/u, '')
+    .trim().replace(/[.!?。！？]+$/u, '');
+  return title ? {date: record.date, title, time: memoClock(memo)} : null;
+}
+
+function existingCondolenceAppointment(records) {
+  const record = records.find(item => item.date === '2026-11-26' &&
+    /대표(?:님)?\s*(?:의\s*)?모친상/.test(item.memo));
+  if (!record) return null;
+  const text = cleanSpokenRecord(record.memo);
+  const subject = /([가-힣]{2,6}\s*대표(?:님)?\s*(?:의\s*)?모친상)/u.exec(text)?.[1];
+  if (!subject) return null;
+  return {id: record.id, date: record.date, title: subject + ' 조문', time: memoClock(text)};
+}
+
+function diaryAppointmentTitle(title) {
+  return title.normalize('NFKC').replace(/[\s\p{P}]+/gu, '').replace(/문상/g, '조문')
+    .replace(/조문예정$/, '조문').replace(/모친상$/, '모친상조문').replace(/대표님/g, '대표');
+}
+
+async function syncDiarySchedules(records) {
+  const candidates = records.filter(record => record.diaryAppointment).map(record =>
+    ({...record.diaryAppointment, id: record.id}));
+  const condolence = existingCondolenceAppointment(records);
+  if (condolence && !candidates.some(candidate => candidate.id === condolence.id)) candidates.push(condolence);
+  if (!candidates.length) return;
+  const changed = await withSchedule(state => {
+    const sources = new Set(Array.isArray(state.diaryScheduleSources) ? state.diaryScheduleSources : []);
+    let dirty = false;
+    let added = false;
+    for (const item of candidates) {
+      if (sources.has(item.id) || !validScheduleDate(item.date) || typeof item.title !== 'string' || !item.title.trim()) continue;
+      sources.add(item.id);
+      dirty = true;
+      const title = diaryAppointmentTitle(item.title);
+      const duplicate = state.events.some(event => event.date === item.date && (
+        event.diarySource === item.id ||
+        typeof event.title === 'string' && diaryAppointmentTitle(event.title) === title &&
+        (!item.time || !event.time || event.time === item.time)
+      ));
+      if (duplicate) continue;
+      state.events.push({...newSchedule('personal', item.date), title: item.title,
+        time: normalizedClock(item.time), diarySource: item.id});
+      added = true;
+    }
+    if (dirty) {
+      state.diaryScheduleSources = [...sources];
+      writeSchedule(state);
+    }
+    return added;
+  });
+  if (changed) await refreshSchedule();
 }
 
 function eventSlot(event) {
@@ -6020,7 +6090,10 @@ scheduleForm.onsubmit = async event => {
       if (state.events.some(item => item.id !== editing && eventSlot(item) === eventSlot(entry))) {
         throw new Error('해당 날짜에 같은 종류의 일정이 이미 있습니다. 기존 일정을 수정해 주세요.');
       }
-      if (editing) state.events[index] = entry;
+      if (editing) {
+        const source = state.events[index].diarySource;
+        state.events[index] = source ? {...entry, diarySource: source} : entry;
+      }
       else state.events.push(entry);
       writeSchedule(state);
     });
