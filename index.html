@@ -189,6 +189,29 @@ main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 #home-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;margin:0;padding:4px 2px;background:transparent;color:#233a55;font-size:.84rem}
 #home-tabs button span{line-height:1;font-size:1.25rem}
 #home-tabs button[aria-current=page]{color:#0756aa;background:#edf5fd}
+
+.inline-actions,.schedule-actions{display:flex;align-items:center;flex-wrap:wrap;gap:5px;min-width:0;margin:5px 0}
+.inline-actions>button,.schedule-actions>button{width:auto;min-width:44px;min-height:38px;margin:0;padding:4px 9px;font-size:.87rem}
+.inline-actions>.app-records-callout{margin:0}
+#app-today-section{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 6px;padding:4px 7px}
+#app-today-heading{grid-area:1/1}
+#app-today-section .home-chevron{grid-area:1/2}
+#app-today-list{grid-column:1/-1;display:block;overflow:visible;white-space:normal;border-left:0;padding:0 0 2px}
+#app-today-list li{line-height:1.35;padding:2px 0;overflow-wrap:anywhere}
+#app-today-list li+li::before{content:none}
+.app-quick{grid-template-columns:repeat(3,minmax(0,1.22fr)) repeat(5,minmax(0,1fr))}
+#app-menu-toggle{background:#e8eff8;color:#19497e}
+#app-menus{margin:4px 0}
+#app-menus[open] #app-menu{margin:0 0 8px}
+#entry-save-items{margin:5px 0 10px;padding-inline-start:22px}
+#entry-save-items li{padding:3px 0;overflow-wrap:anywhere}
+main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden]))> #status{display:none}
+@media(max-width:375px){
+  .app-quick{grid-template-columns:repeat(15,minmax(0,1fr));gap:3px}
+  .app-quick>button{grid-column:span 5;min-height:36px;font-size:.82rem}
+  .app-quick>.home-module{grid-column:span 3;min-height:36px;flex-direction:row;gap:2px;font-size:.75rem}
+  .home-module span{font-size:.83rem}
+}
 </style>
 </head>
 <body>
@@ -203,6 +226,7 @@ main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 </header>
 <div class="app-quick">
 <button id="app-voice" type="button" aria-label="음성으로 기록하기">🎙 음성</button>
+<button id="app-menu-toggle" type="button" aria-controls="app-menus" aria-expanded="false">전체 메뉴</button>
 <button id="app-write" type="button" aria-label="문자 입력">✏️ 입력</button>
 <button type="button" class="home-module" data-app-route="fitness"><span aria-hidden="true">🏃</span>운동</button>
 <button type="button" class="home-module" id="home-weight"><span aria-hidden="true">⚖️</span>체중</button>
@@ -234,7 +258,7 @@ main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 <div><h2>오늘 합계</h2><dl><div><dt>지출</dt><dd id="home-today-expense"></dd></div><div><dt>운동</dt><dd id="home-today-energy"></dd></div></dl></div>
 <div><h2 id="home-month-heading">이번 달 합계</h2><dl><div><dt>지출</dt><dd id="home-month-expense"></dd></div><div><dt>운동</dt><dd id="home-month-energy"></dd></div></dl></div>
 </section>
-<details id="app-menus"><summary>관련 메뉴</summary><nav id="app-menu" aria-label="관리 메뉴"></nav></details>
+<details id="app-menus"><summary hidden>전체 메뉴</summary><nav id="app-menu" aria-label="관리 메뉴"></nav></details>
 </div>
 <header id="app-detail-header" hidden>
 <button id="app-back-home" type="button">‹ 홈으로</button>
@@ -302,6 +326,11 @@ main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 <summary>전송한 요청 내역</summary>
 <div id="improvement-sent"></div>
 </details>
+</section>
+<section id="entry-save-result" aria-labelledby="entry-save-heading" hidden>
+<h2 id="entry-save-heading" tabindex="-1">저장 결과</h2>
+<ul id="entry-save-items"></ul>
+<div class="inline-actions"><button id="entry-save-more" type="button">계속 입력</button><button id="entry-save-view" type="button">기록 보기</button></div>
 </section>
 <section id="editor-section">
 <h2 id="editor-title">새 기록</h2>
@@ -1193,6 +1222,7 @@ function renderRecordArticle(record, amounts, sameDay = false) {
       return;
     }
     openAppScreen('entry');
+    clearEntrySaveResult();
     setEditor(record);
     report();
     memo.focus();
@@ -1303,7 +1333,7 @@ function renderRecordArticle(record, amounts, sameDay = false) {
     finance.textContent = '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense);
     article.append(finance);
   }
-  article.append(edit, remove);
+  article.append(inlineActions(edit, remove));
   return article;
 }
 
@@ -1444,6 +1474,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
       }
       render(records);
       report(previousId ? '수정한 기록을 저장했습니다.' : pending.map(recordSaveMessage).join(' '));
+      if (activeAppScreen === 'entry') showEntrySaveResult(previousId ? [draft] : pending);
     });
   } catch (error) {
     report(error.message, true);
@@ -3335,10 +3366,11 @@ function renderCards(records) {
       showCardDetail(card, uses);
       byId('card-detail').scrollIntoView({block: 'nearest'});
     };
-    box.append(scheduleButton('상세 내역 확인', cardDetails));
+    const management = inlineActions(scheduleButton('상세 내역 확인', cardDetails));
     breakdown.append(scheduleButton('상세 내역 확인', cardDetails));
-    if (!card.archived) box.append(scheduleButton('카드 수정', () => setCardConfig(card)),
+    if (!card.archived) management.append(scheduleButton('카드 수정', () => setCardConfig(card)),
       scheduleButton('카드 삭제', () => archiveCard(card)));
+    box.append(management);
     overview.append(box);
   }
   if (!overview.children.length) overview.textContent = '등록된 카드가 없습니다.';
@@ -4403,13 +4435,13 @@ function unifiedScheduleArticle(event) {
   node.append(heading);
   cardLines(node, [event.supplies ? '준비물 · ' + event.supplies : '',
     event.pickup ? '픽업 ' + event.pickup : '', event.reminder ? '알림 ' + event.reminder.replace('T', ' ') : ''].filter(Boolean));
-  node.append(scheduleButton('수정', () => {
+  node.append(inlineActions(scheduleButton('수정', () => {
     selectedDay = event.date;
     displayedMonth = event.date.slice(0, 7);
     bulkMonth.value = displayedMonth;
     renderCalendar();
     editSchedule(event);
-  }), scheduleButton('삭제', () => removeSchedule(event)));
+  }), scheduleButton('삭제', () => removeSchedule(event))));
   return node;
 }
 
@@ -4801,7 +4833,7 @@ function displayAppScreen(name, focus = true) {
   if (layoutListScreens.includes(name)) renderLayoutRecords();
   if (focus) {
     window.scrollTo(0, 0);
-    (name === 'home' ? byId('app-menus').querySelector('summary') : byId('app-route-heading')).focus({preventScroll: true});
+    (name === 'home' ? byId('app-menu-toggle') : byId('app-route-heading')).focus({preventScroll: true});
   }
 }
 
@@ -4854,6 +4886,7 @@ function refreshHomeDate() {
 
 function startLayoutEntry(kind, focusText = true) {
   openAppScreen('entry');
+  clearEntrySaveResult();
   if (focusText && voiceInput?.button !== voice) byId('entry-voice-controls').hidden = true;
   const hasDraft = [memo, exerciseType, exerciseMinutes, bodyWeight,
     ...['insurance-claim', 'insurance-received', 'tobacco-quantity', 'tobacco-cost'].map(byId)]
@@ -4917,7 +4950,9 @@ function appendRouteRecords(name) {
 function appendRouteEntry(name, label, kind) {
   const button = scheduleButton(label, () => startLayoutEntry(kind));
   button.className = 'app-records-callout';
-  appScreens[name].append(button);
+  const last = appScreens[name].lastElementChild;
+  if (last?.classList.contains('inline-actions')) last.append(button);
+  else appScreens[name].append(inlineActions(button));
 }
 
 function moveStatTail(form, label) {
@@ -5295,7 +5330,53 @@ function recordSaveMessage(record) {
   return '“' + label + '” 항목을 ' + (purchase ? '지출 기록' : category) + '에 저장했습니다.';
 }
 
+function inlineActions(...buttons) {
+  const row = document.createElement('div');
+  row.className = 'inline-actions';
+  row.append(...buttons);
+  return row;
+}
+
+function clearEntrySaveResult() {
+  byId('entry-save-result').hidden = true;
+  byId('editor-section').hidden = false;
+}
+
+function showEntrySaveResult(records) {
+  const items = byId('entry-save-items');
+  items.replaceChildren(...records.map(record => {
+    const item = document.createElement('li');
+    item.textContent = recordSaveMessage(record);
+    return item;
+  }));
+  byId('editor-section').hidden = true;
+  byId('entry-save-result').hidden = false;
+  byId('entry-save-heading').focus();
+  byId('entry-save-more').onclick = () => startLayoutEntry();
+  byId('entry-save-view').onclick = () => {
+    const dates = records.map(record => record.date).filter(Boolean).sort();
+    if (dates.length && dates[0] === dates.at(-1)) {
+      filterDate.value = dates[0];
+      filterCategory.value = '';
+      followRecordToday = dates[0] === todayDate();
+      openAppScreen('search');
+      refresh();
+    } else {
+      openUnifiedDetails('', dates[0] || '', dates.at(-1) || '');
+    }
+  };
+}
+
 function initializeLayout() {
+  for (const id of ['cancel-edit', 'golf-cancel', 'hula-cancel', 'card-config-cancel', 'card-use-cancel',
+    'vehicle-cancel', 'farm-cancel', 'schedule-cancel']) {
+    const cancel = byId(id);
+    const saveButton = cancel.previousElementSibling;
+    if (saveButton?.tagName !== 'BUTTON') continue;
+    const row = inlineActions();
+    saveButton.before(row);
+    row.append(saveButton, cancel);
+  }
   const nav = byId('app-menu');
   const root = byId('app-screens');
   root.before(byId('status'), byId('error'));
@@ -5319,7 +5400,7 @@ function initializeLayout() {
     nav.append(button);
   }
   appScreens.calendar.append(byId('calendar-section'));
-  appScreens.entry.append(byId('editor-section'));
+  appScreens.entry.append(byId('entry-save-result'), byId('editor-section'));
   appendRouteEntry('finance', '수입 기록', '수입');
   appendRouteEntry('finance', '지출 기록', '지출');
   appScreens.finance.append(byId('receipt-section'));
@@ -5402,6 +5483,10 @@ function initializeLayout() {
   };
   byId('app-back-home').onclick = () => openAppScreen('home');
   byId('app-write').onclick = () => startLayoutEntry();
+  const menuDisclosure = byId('app-menus');
+  const menuToggle = byId('app-menu-toggle');
+  menuToggle.onclick = () => { menuDisclosure.open = !menuDisclosure.open; };
+  menuDisclosure.ontoggle = () => menuToggle.setAttribute('aria-expanded', String(menuDisclosure.open));
   byId('app-voice').onclick = () => {
     startLayoutEntry(undefined, false);
     if (editingId) {
