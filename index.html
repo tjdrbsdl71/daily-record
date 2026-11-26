@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>나의 일상기록</title>
 <style>
 body{font-family:Arial,sans-serif;background:#f4f6fa;margin:0;padding:20px;color:#222}
@@ -205,18 +205,34 @@ main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 #app-menus[open] #app-menu{margin:0 0 8px}
 #entry-save-items{margin:5px 0 10px;padding-inline-start:22px}
 #entry-save-items li{padding:3px 0;overflow-wrap:anywhere}
-main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden]))> #status{display:none}
+main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden])) #status{display:none}
 @media(max-width:375px){
   .app-quick{grid-template-columns:repeat(15,minmax(0,1fr));gap:3px}
   .app-quick>button{grid-column:span 5;min-height:36px;font-size:.82rem}
   .app-quick>.home-module{grid-column:span 3;min-height:36px;flex-direction:row;gap:2px;font-size:.75rem}
   .home-module span{font-size:.83rem}
 }
+/* The header and tabs stay outside the only page scroll container. */
+body{margin:0;padding:0;overflow:hidden}
+main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-direction:column;padding:0}
+#app-top,#home-tabs{flex:none}
+#app-top{padding:env(safe-area-inset-top,0px) 8px 0;background:#f4f6fa;border-bottom:1px solid var(--app-border)}
+#app-content{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 8px}
+#home-tabs{position:static;width:100%;transform:none}
+#app-top .app-quick,.home-menu-shortcuts{grid-template-columns:repeat(3,minmax(0,1fr))}
+#app-top .app-quick button,#app-menus .home-module{grid-column:auto;min-height:44px}
+#app-menus{padding:5px 0}
+#app-menus #app-menu{margin:0}
+#app-today-records-section{touch-action:pan-y pinch-zoom}
+#home-record-toggle{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:44px;margin:0;padding:0 4px;background:transparent;color:inherit;text-align:left;font:inherit;font-weight:700}
+#home-record-toggle::after{content:'▾'}
+#home-record-toggle[aria-expanded=false]::after{content:'▸'}
+#home-record-heading{margin:0}
 </style>
 </head>
 <body>
 <main>
-<div id="app-home">
+<div id="app-top">
 <header class="app-home-header">
 <div class="home-title"><h1>나의 일상기록</h1><time id="app-today"></time></div>
 <div class="home-header-actions">
@@ -228,12 +244,20 @@ main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden]))> #sta
 <button id="app-voice" type="button" aria-label="음성으로 기록하기">🎙 음성</button>
 <button id="app-menu-toggle" type="button" aria-controls="app-menus" aria-expanded="false">전체 메뉴</button>
 <button id="app-write" type="button" aria-label="문자 입력">✏️ 입력</button>
+</div>
+</div>
+<div id="app-content">
+<div id="app-menus" hidden>
+<div class="app-quick home-menu-shortcuts">
 <button type="button" class="home-module" data-app-route="fitness"><span aria-hidden="true">🏃</span>운동</button>
 <button type="button" class="home-module" id="home-weight"><span aria-hidden="true">⚖️</span>체중</button>
 <button type="button" class="home-module" data-app-route="finance"><span aria-hidden="true">◉</span>지출</button>
 <button type="button" class="home-module" data-app-route="health"><span aria-hidden="true">✚</span>의료</button>
 <button type="button" class="home-module" data-app-route="calendar"><span aria-hidden="true">▦</span>일정</button>
 </div>
+<nav id="app-menu" aria-label="관리 메뉴"></nav>
+</div>
+<div id="app-home">
 <section id="app-today-section" aria-labelledby="app-today-heading">
 <h2 id="app-today-heading">오늘 일정</h2>
 <ul id="app-today-list" tabindex="0" aria-label="오늘 일정 목록"></ul>
@@ -248,8 +272,7 @@ main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden]))> #sta
 </div>
 <section id="app-today-records-section">
 <div class="home-record-header">
-<h2 id="home-record-heading">오늘 기록</h2>
-<span id="home-record-count" aria-live="polite"></span>
+<h2 id="home-record-heading"><button id="home-record-toggle" type="button" aria-expanded="true" aria-controls="app-today-records"><span id="home-record-label">오늘 기록</span><span id="home-record-count" aria-live="polite"></span></button></h2>
 <button id="home-record-all" type="button">전체 보기 ›</button>
 </div>
 <div id="app-today-records"></div>
@@ -258,7 +281,6 @@ main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden]))> #sta
 <div><h2>오늘 합계</h2><dl><div><dt>지출</dt><dd id="home-today-expense"></dd></div><div><dt>운동</dt><dd id="home-today-energy"></dd></div></dl></div>
 <div><h2 id="home-month-heading">이번 달 합계</h2><dl><div><dt>지출</dt><dd id="home-month-expense"></dd></div><div><dt>운동</dt><dd id="home-month-energy"></dd></div></dl></div>
 </section>
-<details id="app-menus"><summary hidden>전체 메뉴</summary><nav id="app-menu" aria-label="관리 메뉴"></nav></details>
 </div>
 <header id="app-detail-header" hidden>
 <button id="app-back-home" type="button">‹ 홈으로</button>
@@ -812,6 +834,7 @@ main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden]))> #sta
 <div class="totals" id="totals"></div></details>
 <div id="records"></div>
 </section>
+</div>
 <nav id="home-tabs" aria-label="하단 메뉴">
 <button type="button" data-app-route="home" aria-current="page"><span aria-hidden="true">◆</span>홈</button>
 <button type="button" data-app-route="search"><span aria-hidden="true">▤</span>기록</button>
@@ -4817,6 +4840,8 @@ function screenFromLocation() {
 
 function displayAppScreen(name, focus = true) {
   activeAppScreen = name;
+  byId('app-menus').hidden = true;
+  byId('app-menu-toggle').setAttribute('aria-expanded', 'false');
   for (const button of byId('home-tabs').querySelectorAll('button')) {
     if (button.dataset.appRoute === name) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
@@ -4832,7 +4857,7 @@ function displayAppScreen(name, focus = true) {
   }
   if (layoutListScreens.includes(name)) renderLayoutRecords();
   if (focus) {
-    window.scrollTo(0, 0);
+    byId('app-content').scrollTop = 0;
     (name === 'home' ? byId('app-menu-toggle') : byId('app-route-heading')).focus({preventScroll: true});
   }
 }
@@ -5187,7 +5212,7 @@ function renderTodayRecords() {
   const today = todayDate();
   if (homeRecordFollowsToday || !picker.value) picker.value = today;
   const day = picker.value;
-  byId('home-record-heading').textContent = day === today ? '오늘 기록' : day + ' 기록';
+  byId('home-record-label').textContent = day === today ? '오늘 기록' : day + ' 기록';
   const records = unifiedRecords.filter(record => record.date === day);
   byId('home-record-count').textContent = records.length + '건';
   renderCompactRecords(byId('app-today-records'), records, '선택한 날짜에 저장한 기록이 없습니다.', false, 8);
@@ -5483,10 +5508,38 @@ function initializeLayout() {
   };
   byId('app-back-home').onclick = () => openAppScreen('home');
   byId('app-write').onclick = () => startLayoutEntry();
-  const menuDisclosure = byId('app-menus');
+  const menu = byId('app-menus');
   const menuToggle = byId('app-menu-toggle');
-  menuToggle.onclick = () => { menuDisclosure.open = !menuDisclosure.open; };
-  menuDisclosure.ontoggle = () => menuToggle.setAttribute('aria-expanded', String(menuDisclosure.open));
+  menuToggle.onclick = () => {
+    menu.hidden = !menu.hidden;
+    menuToggle.setAttribute('aria-expanded', String(!menu.hidden));
+    if (!menu.hidden) byId('app-content').scrollTop = 0;
+  };
+  const recordSection = byId('app-today-records-section');
+  const recordList = byId('app-today-records');
+  const recordToggle = byId('home-record-toggle');
+  function showRecords(expanded) {
+    recordList.hidden = !expanded;
+    recordToggle.setAttribute('aria-expanded', String(expanded));
+  }
+  recordToggle.onclick = () => showRecords(recordList.hidden);
+  let touchStart;
+  recordSection.addEventListener('touchstart', event => {
+    touchStart = event.touches.length === 1 ? event.touches[0] : null;
+  }, {passive: true});
+  recordSection.addEventListener('touchcancel', () => { touchStart = null; });
+  recordSection.addEventListener('touchend', event => {
+    const start = touchStart;
+    touchStart = null;
+    if (!start || event.touches.length) return;
+    const end = [...event.changedTouches].find(touch => touch.identifier === start.identifier);
+    if (!end) return;
+    const dx = end.clientX - start.clientX;
+    const dy = end.clientY - start.clientY;
+    if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
+    event.preventDefault();
+    showRecords(dx > 0);
+  }, {passive: false});
   byId('app-voice').onclick = () => {
     startLayoutEntry(undefined, false);
     if (editingId) {
