@@ -1071,7 +1071,7 @@ function render(records) {
 function renderRecordArticle(record, amounts, sameDay = false) {
   const article = document.createElement('article');
   const heading = document.createElement('strong');
-  const clock = recordClock(record);
+  const clock = recordClockLabel(record);
   heading.textContent = (sameDay ? clock || '시각 미입력' : (record.date || '날짜 미확인') + (clock ? ' ' + clock : '')) + ' · ' + record.category;
   const content = document.createElement('p');
   content.textContent = record.memo;
@@ -1191,6 +1191,11 @@ function renderRecordArticle(record, amounts, sameDay = false) {
   if (record.sharedMeal) cardLines(article, ['개인 섭취량 확인 대기 · 칼로리 합계 제외']);
   if (record.referenceOnly) cardLines(article, ['참고 정보 · 수입·지출 합계 제외']);
   if (record.memo) article.append(content);
+  const saved = savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ?? savedInstant(record.timestamp);
+  if (saved) {
+    const stamp = kstStamp(saved);
+    cardLines(article, ['입력 시각 ' + stamp.day + ' ' + stamp.time + ' KST']);
+  }
   const energy = energyForRecord(record);
   cardLines(article, [
     ...(energy.workout ? ['운동 추가 소모 −약 ' + calorieNumber(energy.workout)] : []),
@@ -1236,10 +1241,10 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
   if (categoryWasChosen) draft.categoryManual = true;
   const spokenDay = kstStamp(startedAt).day;
   if (recordTimeField.value) draft.time = recordTimeField.value;
-  if (fromVoice) {
-    const spokenTime = memoClock(rawSpeech);
-    if (spokenTime) draft.time = spokenTime;
-    if (!previousId && rawSpeech) draft.date = speechDate(cleanSpokenRecord(rawSpeech), draft.date, spokenDay).day;
+  if (fromVoice && memoClock(rawSpeech)) draft.time = memoClock(rawSpeech);
+  const activityText = fromVoice && rawSpeech ? rawSpeech : draft.memo;
+  if (!previousId && activityText) {
+    draft.date = speechDate(cleanSpokenRecord(activityText), draft.date, spokenDay).day;
   }
   const type = exerciseType.value.trim();
   const minutes = exerciseMinutes.valueAsNumber;
@@ -4941,27 +4946,36 @@ function savedInstant(value) {
   return instant && Number.isFinite(instant.getTime()) ? instant : null;
 }
 
-function savedClock(value) {
-  const instant = savedInstant(value);
-  return instant ? kstStamp(instant).time : '';
+function recordClock(record) {
+  return activityClock(record);
 }
 
-function recordClock(record) {
-  return activityClock(record) || savedClock(record.savedAt) || savedClock(record.createdAt) || savedClock(record.timestamp);
+function recordClockLabel(record) {
+  const start = recordClock(record);
+  if (!start) return '';
+  const structured = normalizedClock(record.golf?.end) || normalizedClock(record.hula?.end) ||
+    normalizedClock(record.vehicle?.times?.at(-1)) || normalizedClock(record.farm?.home);
+  const range = /(?:^|[^\d])([01]?\d|2[0-3]):([0-5]\d)\s*(?:~|～|–|—|-)\s*([01]?\d|2[0-3]):([0-5]\d)(?!\d)/u.exec(record.memo);
+  const memoEnd = range && range[1].padStart(2, '0') + ':' + range[2] === start
+    ? range[3].padStart(2, '0') + ':' + range[4] : '';
+  const end = structured || memoEnd;
+  return end && end !== start ? start + '–' + end : start;
 }
 
 function newTimedRecord(record, savedAt = new Date()) {
-  return {...record, time: activityClock(record) || kstStamp(savedAt).time, savedAt: savedAt.toISOString()};
+  const {time, ...data} = record;
+  const activity = activityClock(record);
+  return {...data, ...(activity ? {time: activity} : {}), savedAt: savedAt.toISOString()};
 }
 
 function recordOrder(a, b) {
-  const orderKey = record => {
-    const instant = savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ?? savedInstant(record.timestamp);
-    if (instant) return new Date(instant.getTime() + 9 * 3600000).toISOString();
-    const clock = recordClock(record);
-    return clock ? record.date + 'T' + clock + ':00.000Z' : '';
-  };
-  return orderKey(b).localeCompare(orderKey(a));
+  const first = recordClock(a);
+  const second = recordClock(b);
+  if (first && second) return second.localeCompare(first);
+  if (first || second) return first ? 1 : -1;
+  const saved = record => (savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ??
+    savedInstant(record.timestamp))?.getTime() ?? 0;
+  return saved(b) - saved(a);
 }
 
 function compactRecordText(record) {
@@ -4982,7 +4996,7 @@ function compactRecordText(record) {
 function compactRecordRow(record, open = false) {
   const row = document.createElement('details');
   const heading = document.createElement('summary');
-  const clock = recordClock(record);
+  const clock = recordClockLabel(record);
   row.className = 'today-record-row compact-record-row';
   row.dataset.recordId = record.id;
   if (clock) {
