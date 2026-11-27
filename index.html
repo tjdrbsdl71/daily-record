@@ -251,6 +251,11 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 .value-debit,.hula-loss,#home-totals .value-debit{color:#a51e23}
 .compact-record-clock{white-space:nowrap}
 @media(max-width:390px){.compact-record-clock{font-size:.74rem}.compact-record-energy{font-size:.72rem}}
+#food-photo-tools{margin:6px 0}
+#food-photo-tools .inline-actions{margin:4px 0}
+#food-photo-items{width:100%;box-sizing:border-box}
+#app-today-list .registration-alert{background:#fff1ce;color:#573600;border-radius:6px;padding:5px;font-weight:700}
+#registration-form .fields{margin-bottom:4px}
 </style>
 </head>
 <body>
@@ -388,6 +393,19 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <label for="record-time">시간 (선택)</label><input id="record-time" type="time">
 <label for="memo">메모</label>
 <textarea id="memo" rows="5" placeholder="오늘의 기록을 입력하세요"></textarea>
+<div id="food-photo-tools">
+<div class="inline-actions"><button id="food-camera-button" type="button">음식 사진 찍기</button><button id="food-gallery-button" type="button">사진 선택</button></div>
+<input id="food-camera" type="file" accept="image/*" capture="environment" hidden>
+<input id="food-gallery" type="file" accept="image/*" hidden>
+<details id="food-photo-review"><summary>예상 칼로리 직접 확인·입력</summary>
+<p id="food-photo-status" role="status">사진에 적힌 음식명을 읽거나 아래에 직접 입력할 수 있습니다.</p>
+<label for="food-photo-items">음식명 / 섭취량 / 예상 kcal (한 줄에 한 음식)</label>
+<textarea id="food-photo-items" rows="3" maxlength="2400" placeholder="김치찌개 / 1인분 / 250"></textarea>
+<img id="food-photo-preview" class="card-photo" alt="선택한 음식 사진" hidden>
+<button id="food-photo-clear" type="button" hidden>음식 사진·분석 취소</button>
+<output id="food-photo-total" class="value-debit"></output>
+</details>
+</div>
 <div id="entry-voice-controls" hidden>
 <button id="voice" type="button" hidden>음성 입력 종료</button>
 <p id="voice-status" role="status">말한 뒤 “끝”이라고 하면 자동으로 저장됩니다.</p>
@@ -798,11 +816,25 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <button id="schedule-save" type="submit">일정 저장</button>
 <button id="schedule-cancel" type="button" hidden>일정 수정 취소</button>
 </form>
+<details><summary>체육센터 재등록 · 일정 사진</summary>
+<label for="schedule-photo-reference">일정 사진 선택</label><input id="schedule-photo-reference" type="file" accept="image/*">
+<img id="schedule-photo-preview" class="card-photo" alt="입력 참고용 일정 사진" hidden>
+<form id="registration-form">
+<h3>남구국민체육센터 1관 재등록</h3>
+<label for="registration-month">일정표 기준 월</label><input id="registration-month" type="month" required>
+<div class="inline-actions"><button type="button" id="registration-read">사진에서 날짜 읽기</button></div>
+<div class="fields">
+<div><label for="registration-swim-start">수영 시작</label><input id="registration-swim-start" type="date"></div>
+<div><label for="registration-swim-end">수영 종료 (선택)</label><input id="registration-swim-end" type="date"></div>
+<div><label for="registration-gym-start">헬스 시작</label><input id="registration-gym-start" type="date"></div>
+<div><label for="registration-gym-end">헬스 종료 (선택)</label><input id="registration-gym-end" type="date"></div>
+</div>
+<label class="calendar-check"><input type="checkbox" id="registration-confirm" required> 사진과 날짜·종목을 확인했습니다</label>
+<button type="submit">확인한 재등록 일정 저장</button>
+<p id="registration-status" role="status"></p>
+</form></details>
 <details>
 <summary>월별 근무·시설 일정 일괄 등록</summary>
-<details><summary>근무·시설 일정 사진 참고</summary>
-<label for="schedule-photo-reference">일정 사진 선택</label><input id="schedule-photo-reference" type="file" accept="image/*">
-<img id="schedule-photo-preview" class="card-photo" alt="입력 참고용 일정 사진" hidden></details>
 <form id="schedule-bulk">
 <label for="bulk-month">등록할 월</label>
 <input id="bulk-month" type="month" required>
@@ -1097,6 +1129,13 @@ function report(message = '', isError = false) {
   byId('error').textContent = isError ? message : '';
 }
 
+function validFoodItems(items) {
+  return Array.isArray(items) && items.length > 0 && items.length <= 30 && items.every(item =>
+    item && typeof item.name === 'string' && item.name.trim() && item.name.length <= 100 &&
+    typeof item.portion === 'string' && item.portion.trim() && item.portion.length <= 60 &&
+    Number.isSafeInteger(item.kcal) && item.kcal >= 0 && item.kcal <= 15000);
+}
+
 function validRecord(record) {
   return record && typeof record.date === 'string' &&
     typeof record.category === 'string' && typeof record.memo === 'string' &&
@@ -1105,7 +1144,9 @@ function validRecord(record) {
     (record.vehicle === undefined || validVehicle(record.vehicle)) &&
     (record.farm === undefined || validFarm(record.farm)) &&
     (record.insurance === undefined || validInsurance(record.insurance)) &&
-    (record.tobacco === undefined || validTobacco(record.tobacco));
+    (record.tobacco === undefined || validTobacco(record.tobacco)) &&
+    (record.foodItems === undefined || validFoodItems(record.foodItems)) &&
+    (record.foodPhotoHash === undefined || (typeof record.foodPhotoHash === 'string' && /^[a-f0-9]{64}$/.test(record.foodPhotoHash)));
 }
 
 function newId() {
@@ -1171,6 +1212,7 @@ function setEditor(record) {
   editingId = record?.id ?? null;
   editingReceipt = Number.isSafeInteger(record?.receiptAmount) && record.receiptAmount > 0 ? record : null;
   form.reset();
+  resetFoodPhoto(record);
   date.value = record?.date ?? todayDate();
   recordTimeField.value = record?.time ?? '';
   const names = [...new Set([...categories, ...(record ? [record.category] : [])])];
@@ -1396,7 +1438,7 @@ function renderRecordArticle(record, amounts) {
   const energy = energyForRecord(record);
   cardLines(article, [
     ...(energy.workout ? ['운동 추가 소모 −약 ' + calorieNumber(energy.workout)] : []),
-    ...energy.foods.map(food => food.name + ' +약 ' + calorieNumber(food.kcal)),
+    ...energy.foods.map(food => food.name + (food.portion ? ' (' + food.portion + ')' : '') + ' +약 ' + calorieNumber(food.kcal)),
   ]);
   if (typeof record.voiceOriginal === 'string' && record.voiceOriginal) {
     const original = document.createElement('details');
@@ -1429,7 +1471,7 @@ function voiceMemoKey(text) {
 }
 
 async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', startedAt} = {}) {
-  if (editorSaving) return;
+  if (editorSaving || foodPhotoBusy) return;
   updateAnalysis();
   const previousId = editingId;
   const draft = {date: date.value, category: category.value, memo: memo.value.trim()};
@@ -1470,6 +1512,22 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
     trackingOptions.open = true;
     return;
   }
+  const foodText = byId('food-photo-items').value.trim();
+  if (foodText) {
+    const items = parseFoodItems(foodText);
+    if (!validFoodItems(items)) {
+      report('음식마다 이름 / 섭취량 / 칼로리를 입력해 주세요.', true);
+      byId('food-photo-items').focus();
+      return;
+    }
+    draft.foodItems = items;
+    if (foodPhotoHash) draft.foodPhotoHash = foodPhotoHash;
+    draft.category = '식사';
+    draft.memo ||= items.map(item => item.name).join('와 ');
+  } else if (foodPhotoHash && !fromVoice) {
+    report('사진의 음식명과 예상 칼로리를 확인해 주세요.', true);
+    return;
+  }
   if (!draft.memo && !draft.fitness && !draft.insurance && !draft.tobacco) {
     report('메모나 기록 항목을 입력해 주세요.', true);
     memo.focus();
@@ -1486,7 +1544,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
     await withRecords(records => {
       const savedAt = new Date();
       if (fromVoice && rawSpeech) draft.voiceOriginal = rawSpeech.trim();
-      const canSplit = !previousId && !categoryOverride && !draft.fitness && !draft.insurance && !draft.tobacco && !draft.referenceOnly && !draft.sharedMeal;
+      const canSplit = !previousId && !categoryOverride && !draft.fitness && !draft.insurance && !draft.tobacco && !draft.referenceOnly && !draft.sharedMeal && !draft.foodItems;
       let drafts = [draft];
       if (canSplit && fromVoice && rawSpeech && !priorMemo.trim()) {
         drafts = prepareSpeechRecords(draft, rawSpeech, spokenDay, recordTimeField.value);
@@ -1499,6 +1557,9 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         const identity = JSON.stringify([item.date, voiceMemoKey(item.memo), item.fitness, item.tobacco]);
         if (unique.has(identity)) return false;
         unique.add(identity);
+        if (item.foodPhotoHash && records.some(record => record.id !== previousId && record.foodPhotoHash === item.foodPhotoHash)) {
+          throw new Error('이미 저장한 음식 사진입니다.');
+        }
         return previousId || !records.some(record =>
           record.date === item.date && (record.time ?? '') === (item.time ?? '') && voiceMemoKey(record.memo) === voiceMemoKey(item.memo) &&
           sameFitness(record.fitness, item.fitness) && sameTracking(record, item));
@@ -1526,6 +1587,8 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         if (!draft.fitness) delete updated.fitness;
         if (!draft.insurance) delete updated.insurance;
         if (!draft.tobacco) delete updated.tobacco;
+        if (!draft.foodItems) delete updated.foodItems;
+        if (!draft.foodPhotoHash) delete updated.foodPhotoHash;
         if (!draft.referenceOnly) delete updated.referenceOnly;
         if (!draft.sharedMeal) delete updated.sharedMeal;
         if (!draft.time) delete updated.time;
@@ -1544,6 +1607,7 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         setEditor();
       } else {
         stopVoiceForEditor();
+        resetFoodPhoto();
         memo.value = '';
         recordTimeField.value = '';
         showFitnessFields();
@@ -1591,7 +1655,7 @@ byId('backup').onclick = async () => {
 };
 
 function sameRecord(a, b) {
-  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm) && sameTracking(a, b) && Boolean(a.referenceOnly) === Boolean(b.referenceOnly) && Boolean(a.sharedMeal) === Boolean(b.sharedMeal) && (a.time ?? '') === (b.time ?? '') && (a.voiceOriginal ?? '') === (b.voiceOriginal ?? '');
+  return a.date === b.date && a.category === b.category && a.memo === b.memo && sameFitness(a.fitness, b.fitness) && JSON.stringify(a.golf) === JSON.stringify(b.golf) && JSON.stringify(a.hula) === JSON.stringify(b.hula) && JSON.stringify(a.cardUse) === JSON.stringify(b.cardUse) && JSON.stringify(a.vehicle) === JSON.stringify(b.vehicle) && JSON.stringify(a.farm) === JSON.stringify(b.farm) && sameTracking(a, b) && JSON.stringify(a.foodItems) === JSON.stringify(b.foodItems) && a.foodPhotoHash === b.foodPhotoHash && Boolean(a.referenceOnly) === Boolean(b.referenceOnly) && Boolean(a.sharedMeal) === Boolean(b.sharedMeal) && (a.time ?? '') === (b.time ?? '') && (a.voiceOriginal ?? '') === (b.voiceOriginal ?? '');
 }
 
 function mergeBackup(current, incoming) {
@@ -2148,14 +2212,7 @@ function receiptDetails(text) {
   return {date, merchant, amount};
 }
 
-receiptPhoto.onchange = async () => {
-  const photo = receiptPhoto.files[0];
-  if (!photo) return;
-  receiptPhoto.disabled = true;
-  receiptFields.hidden = true;
-  receiptFields.disabled = true;
-  receiptDate.value = receiptMerchant.value = receiptAmount.value = '';
-  receiptStatus.textContent = '영수증 인식을 준비하고 있습니다…';
+async function readPhotoText(photo, onProgress = () => {}) {
   let worker;
   try {
     const ocr = await loadOcr();
@@ -2166,13 +2223,123 @@ receiptPhoto.onchange = async () => {
       workerPath: ocrBase + '/dist/worker.min.js',
       logger: progress => {
         if (progress.status === 'recognizing text') {
-          receiptStatus.textContent = '영수증 인식 중… ' + Math.round(progress.progress * 100) + '%';
+          onProgress(Math.round(progress.progress * 100));
         }
       },
     });
     worker = await Promise.race([startup, workerFailure]);
     const result = await Promise.race([worker.recognize(photo), workerFailure]);
-    const details = receiptDetails(result.data.text);
+    return result.data.text;
+  } finally {
+    if (worker) {
+      try { await worker.terminate(); } catch { /* The worker may already have stopped. */ }
+    }
+  }
+}
+
+let foodPhotoHash = '';
+let foodPhotoBusy = false;
+let foodPhotoRun = 0;
+let foodPhotoUrl = '';
+
+function parseFoodItems(text) {
+  return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+    const fields = line.split('/').map(field => field.trim());
+    return fields.length === 3 && /^\d{1,5}$/.test(fields[2])
+      ? {name: fields[0], portion: fields[1], kcal: Number(fields[2])} : null;
+  });
+}
+
+function updateFoodPhotoTotal() {
+  const items = parseFoodItems(byId('food-photo-items').value);
+  byId('food-photo-total').textContent = validFoodItems(items) ? '예상 합계 +' +
+    calorieNumber(items.reduce((sum, item) => sum + item.kcal, 0)) :
+    items.length ? '음식명, 섭취량, 숫자로 된 칼로리를 확인해 주세요.' : '';
+  updateEditorSave();
+}
+
+function resetFoodPhoto(record) {
+  if (foodPhotoUrl) URL.revokeObjectURL(foodPhotoUrl);
+  foodPhotoUrl = '';
+  const image = byId('food-photo-preview');
+  image.removeAttribute('src');
+  image.hidden = true;
+  byId('food-photo-clear').hidden = !record?.foodItems;
+  foodPhotoRun++;
+  foodPhotoBusy = false;
+  foodPhotoHash = record?.foodPhotoHash ?? '';
+  byId('food-photo-items').value = (record?.foodItems ?? []).map(item =>
+    [item.name, item.portion, item.kcal].join(' / ')).join('\n');
+  byId('food-photo-review').open = Boolean(record?.foodItems);
+  byId('food-photo-total').textContent = record?.foodItems ? '예상 합계 +' +
+    calorieNumber(record.foodItems.reduce((sum, item) => sum + item.kcal, 0)) : '';
+  byId('food-photo-status').textContent = '사진에 적힌 음식명을 읽거나 아래에 직접 입력할 수 있습니다.';
+}
+
+async function readFoodPhoto(file) {
+  if (!file) return;
+  const run = ++foodPhotoRun;
+  if (foodPhotoUrl) URL.revokeObjectURL(foodPhotoUrl);
+  foodPhotoUrl = URL.createObjectURL(file);
+  const image = byId('food-photo-preview');
+  image.src = foodPhotoUrl;
+  image.hidden = false;
+  byId('food-photo-clear').hidden = false;
+  const status = byId('food-photo-status');
+  const items = byId('food-photo-items');
+  byId('food-photo-review').open = true;
+  status.textContent = '사진에서 음식명을 읽고 있습니다…';
+  foodPhotoBusy = true;
+  foodPhotoHash = '';
+  updateEditorSave();
+  try {
+    const hash = crypto.subtle ? await crypto.subtle.digest('SHA-256', await file.arrayBuffer()) : null;
+    if (run !== foodPhotoRun) return;
+    if (hash) foodPhotoHash = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+    const text = await readPhotoText(file);
+    if (run !== foodPhotoRun) return;
+    const found = new Map();
+    for (const line of text.split(/\r?\n/)) {
+      for (const food of mealEstimate(line, true)) found.set(food.name, food.kcal);
+    }
+    if (found.size && !items.value.trim()) items.value = [...found].map(([name, kcal]) => name + ' / 약 1인분 / ' + kcal).join('\n');
+    status.textContent = found.size ? '사진 속 글자를 기준으로 추정했습니다. 음식명·섭취량·칼로리를 확인해 주세요.' :
+      '사진에서 음식명을 읽지 못했습니다. 음식명과 칼로리를 직접 입력해 주세요.';
+  } catch {
+    if (run === foodPhotoRun) status.textContent = '사진 인식에 실패했습니다. 음식명과 칼로리를 직접 입력해 주세요.';
+  } finally {
+    if (run === foodPhotoRun) {
+      foodPhotoBusy = false;
+      updateFoodPhotoTotal();
+    }
+  }
+}
+
+for (const [button, input] of [['food-camera-button', 'food-camera'], ['food-gallery-button', 'food-gallery']]) {
+  byId(button).onclick = () => byId(input).click();
+  byId(input).onchange = event => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    readFoodPhoto(file);
+  };
+}
+byId('food-photo-items').oninput = updateFoodPhotoTotal;
+byId('food-photo-clear').onclick = () => {
+  resetFoodPhoto();
+  updateEditorSave();
+};
+
+receiptPhoto.onchange = async () => {
+  const photo = receiptPhoto.files[0];
+  if (!photo) return;
+  receiptPhoto.disabled = true;
+  receiptFields.hidden = true;
+  receiptFields.disabled = true;
+  receiptDate.value = receiptMerchant.value = receiptAmount.value = '';
+  receiptStatus.textContent = '영수증 인식을 준비하고 있습니다…';
+  try {
+    const text = await readPhotoText(photo, percent => { receiptStatus.textContent = '영수증 인식 중… ' + percent + '%'; });
+    const details = receiptDetails(text);
     receiptDate.value = details.date;
     receiptMerchant.value = details.merchant;
     receiptAmount.value = details.amount || '';
@@ -2182,9 +2349,6 @@ receiptPhoto.onchange = async () => {
   } catch {
     receiptStatus.textContent = '사진을 읽지 못했습니다. 인터넷 연결을 확인하고 다시 촬영하거나 아래 항목을 입력해 주세요.';
   } finally {
-    if (worker) {
-      try { await worker.terminate(); } catch { /* The worker may already have stopped. */ }
-    }
     receiptPhoto.value = '';
     receiptPhoto.disabled = false;
     receiptFields.hidden = false;
@@ -4587,7 +4751,7 @@ function renderUnifiedHome() {
   const monthEnd = calendarDate(month, calendarDayCount(month));
   const events = availableScheduleEvents().sort((a, b) => a.date.localeCompare(b.date));
   const todayEvents = events.filter(event => event.date === now);
-  const upcoming = events.filter(event => event.date > now);
+  const upcoming = events.filter(event => event.date > now && !scheduleKinds[event.kind].shift);
   const eventLines = items => items.slice(0, 5).map(event => event.date + ' · ' + eventLabel(event) +
     (event.pickup ? ' · 픽업 ' + event.pickup : ''));
   unifiedCard(root, '오늘 일정', todayEvents.length ? eventLines(todayEvents) : ['일정 없음'],
@@ -4652,7 +4816,7 @@ function renderUnifiedSearch() {
   }
   if ((!c.kind || c.kind === 'calendar') && c.min === null && c.max === null) {
     for (const event of availableScheduleEvents()) {
-      if (dateMatches(event.date) && terms.every(term =>
+      if (!scheduleKinds[event.kind].shift && dateMatches(event.date) && terms.every(term =>
         normalizedSearch([eventLabel(event), event.supplies].filter(Boolean).join(' ')).includes(term))) {
         results.push({date: event.date, event});
       }
@@ -5070,7 +5234,7 @@ function renderHomeToday() {
   const list = byId('app-today-list');
   list.replaceChildren();
   const schedules = availableScheduleEvents();
-  const events = schedules.filter(event => event.date === today);
+  const events = schedules.filter(event => event.date === today || renewalOnDate(event, today, true));
   const week = byId('home-week-list');
   week.replaceChildren();
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -5079,7 +5243,8 @@ function renderHomeToday() {
     const heading = document.createElement('h3');
     heading.textContent = day + ' (' + weekdays[new Date(day + 'T12:00:00Z').getUTCDay()] + ')';
     const daily = document.createElement('ul');
-    const labels = schedules.filter(event => event.date === day).map(event => eventLabel(event) +
+    const labels = schedules.filter(event => !scheduleKinds[event.kind].shift &&
+      (event.date === day || renewalOnDate(event, day))).map(event => eventLabel(event) +
       (event.pickup ? ' · 픽업 예정 ' + event.pickup : '') + (event.completedAt ? ' · 완료' : ''));
     for (const text of labels.length ? labels : ['일정 없음']) {
       const item = document.createElement('li');
@@ -5098,17 +5263,22 @@ function renderHomeToday() {
   for (const event of events) {
     const item = document.createElement('li');
     item.textContent = eventLabel(event) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
+    const renewal = scheduleKinds[event.kind].renewal;
+    if (renewal) item.classList.add('registration-alert');
     if (event.completedAt) {
       const label = document.createElement('span');
       label.className = 'completed-label';
       label.textContent = '완료';
       item.append(label);
+    } else if (renewal && today < event.date) {
+      item.append(' · 재등록 예정');
     } else if (!scheduleKinds[event.kind].shift && !scheduleKinds[event.kind].facility) {
+      if (renewal) item.append(' · 미완료');
       item.append(scheduleButton('완료', async () => {
         try {
           await withSchedule(state => {
             const current = state.events.find(item => item.id === event.id);
-            if (!current || current.date !== todayDate() || current.completedAt) return;
+            if (!current || current.completedAt || (current.date !== todayDate() && !renewalOnDate(current, todayDate()))) return;
             current.completedAt = new Date().toISOString();
             writeSchedule(state);
           });
@@ -5133,7 +5303,7 @@ function startLayoutEntry(kind, focusText = true) {
   openAppScreen('entry');
   clearEntrySaveResult();
   if (focusText && voiceInput?.button !== voice) byId('entry-voice-controls').hidden = true;
-  const hasDraft = [memo, exerciseType, exerciseMinutes, bodyWeight,
+  const hasDraft = [memo, exerciseType, exerciseMinutes, bodyWeight, byId('food-photo-items'),
     ...['insurance-claim', 'insurance-received', 'tobacco-quantity', 'tobacco-cost'].map(byId)]
     .some(field => field.value.trim());
   if (!editingId && !hasDraft && voiceInput?.button !== voice) {
@@ -5290,8 +5460,8 @@ function editorSnapshot() {
 
 function updateEditorSave() {
   const ids = ['insurance-claim', 'insurance-received', 'tobacco-quantity', 'tobacco-cost'];
-  const hasRecord = [memo, exerciseType, bodyWeight, ...ids.map(byId)].some(field => field.value.trim());
-  save.disabled = editorSaving || !hasRecord || Boolean(editingId && editorSnapshot() === editorBaseline);
+  const hasRecord = [memo, exerciseType, bodyWeight, byId('food-photo-items'), ...ids.map(byId)].some(field => field.value.trim());
+  save.disabled = editorSaving || foodPhotoBusy || !hasRecord || Boolean(editingId && editorSnapshot() === editorBaseline);
 }
 
 function memoClock(memoText) {
@@ -5356,13 +5526,11 @@ function recordSavedStamp(record) {
   return saved ? kstStamp(saved) : null;
 }
 
-function recordDisplayStamp(record) {
+function recordDisplayStamp(record, timeOnly = false) {
   const activity = recordClockLabel(record);
   const saved = recordSavedStamp(record);
+  if (timeOnly) return activity || saved?.time || '';
   const date = record.date || '날짜 미확인';
-  if (saved && record.voiceOriginal) {
-    return date + ' · 저장 ' + (saved.day === record.date ? '' : saved.day + ' ') + saved.time;
-  }
   const time = activity || (saved && saved.day === record.date ? saved.time : '');
   return date + (time ? ' ' + time : saved ? ' · 저장 ' + saved.day + ' ' + saved.time : '');
 }
@@ -5370,8 +5538,8 @@ function recordDisplayStamp(record) {
 function recordOrder(a, b) {
   const date = b.date.localeCompare(a.date);
   if (date) return date;
-  const first = recordSavedStamp(a)?.time || recordClock(a);
-  const second = recordSavedStamp(b)?.time || recordClock(b);
+  const first = recordClock(a) || recordSavedStamp(a)?.time || '';
+  const second = recordClock(b) || recordSavedStamp(b)?.time || '';
   if (first !== second) return second.localeCompare(first);
   const saved = record => (savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ??
     savedInstant(record.timestamp))?.getTime() ?? 0;
@@ -5393,10 +5561,10 @@ function compactRecordText(record) {
   return record.category;
 }
 
-function compactRecordRow(record, open = false) {
+function compactRecordRow(record, open = false, timeOnly = false) {
   const row = document.createElement('details');
   const heading = document.createElement('summary');
-  const clock = recordDisplayStamp(record);
+  const clock = recordDisplayStamp(record, timeOnly);
   row.className = 'today-record-row compact-record-row';
   row.dataset.recordId = record.id;
   if (clock) {
@@ -5457,7 +5625,7 @@ function renderCompactRecords(target, records, empty, showDates = false, limit =
       target.append(heading);
       previousDate = record.date;
     }
-    target.append(compactRecordRow(record, expanded.has(record.id)));
+    target.append(compactRecordRow(record, expanded.has(record.id), target.id === 'app-today-records' && record.date === todayDate()));
   }
 }
 
@@ -5825,6 +5993,10 @@ function initializeLayout() {
     showRecords(dx > 0);
   }, {passive: false});
   byId('app-voice').onclick = () => {
+    if (foodPhotoBusy || byId('food-photo-items').value.trim() || foodPhotoHash) {
+      report('음식 사진 기록을 먼저 저장하거나 사진 선택을 취소해 주세요.', true);
+      return;
+    }
     startLayoutEntry(undefined, false);
     if (editingId) {
       report('수정 중인 기록을 저장하거나 취소한 뒤 새 음성 기록을 시작하세요.');
@@ -5977,7 +6149,7 @@ function mealSignature(record, foods) {
 function energyForRecord(record) {
   if (record.referenceOnly) return {workout: 0, foods: []};
   return {workout: activeCalories(record, energyWeight(record.date)),
-    foods: record.sharedMeal ? [] : mealEstimate(plannedMeal(record) ?
+    foods: record.sharedMeal ? [] : record.foodItems ?? mealEstimate(plannedMeal(record) ?
       record.memo.replace(/예정|먹을\s*(?:거|것)/g, '') : record.memo, record.category === '식사')};
 }
 
@@ -6224,6 +6396,8 @@ refresh();
 const scheduleKey = 'daily-record-schedule-v1';
 const scheduleKinds = {
   personal: {label: '개인 일정', short: '개인'},
+  'swim-renewal': {label: '수영 재등록', short: '수영재등록', renewal: true},
+  'gym-renewal': {label: '헬스 재등록', short: '헬스재등록', renewal: true},
   'farm-visit': {label: '시골 방문 예정', short: '시골', farm: true},
   'farm-work': {label: '농사·작업 예정', short: '농사', farm: true},
   'swim-plan': {label: '수영 이용 예정', short: '수영', activity: true, closure: 'pool'},
@@ -6376,6 +6550,8 @@ function eventLabel(event) {
   if (kind.shift) return '자빈이 ' + kind.label;
   if (kind.facility) return '남구국민체육센터 1관 · ' + kind.label;
   const title = displayScheduleTitle(event);
+  if (kind.renewal) return '남구국민체육센터 1관 · ' + kind.label + ' · ' +
+    event.date.slice(5) + (event.end && event.end !== event.date ? ' ~ ' + event.end.slice(5) : '');
   if (event.diarySource) return title + (event.time ? ' · ' + event.time : '');
   if (kind.appointment || kind.activity || event.time || event.people) return (kind.appointment || kind.activity ? kind.label + ' · ' : '') +
     title + (event.time ? ' · ' + event.time : '') + (event.people ? ' · ' + event.people : '');
@@ -6383,7 +6559,7 @@ function eventLabel(event) {
 }
 
 function plannedDiaryAppointment(record, savedDay) {
-  if (!validScheduleDate(record.date) || record.date < savedDay) return null;
+  if ((record.foodItems && !plannedMeal(record)) || !validScheduleDate(record.date) || record.date < savedDay) return null;
   const memo = cleanSpokenRecord(record.memo);
   if ((!/조문|문상|약속|모임|병원|의원|진료|치료|장례식/.test(memo) && !plannedMeal(record)) ||
       /다녀왔|다녀옴|갔었|갔다|갔어|갔음|방문했|마쳤|완료|취소|못\s*가|안\s*가|끝났/.test(memo)) return null;
@@ -6473,9 +6649,13 @@ function renderCalendar() {
   const grouped = new Map();
   const completed = completedActivities(displayedMonth);
   for (const event of availableScheduleEvents()) {
-    if (event.date.slice(0, 7) !== displayedMonth) continue;
-    if (!grouped.has(event.date)) grouped.set(event.date, []);
-    grouped.get(event.date).push(event);
+    const monthStart = displayedMonth + '-01';
+    const monthEnd = calendarDate(displayedMonth, calendarDayCount(displayedMonth));
+    const end = scheduleKinds[event.kind].renewal ? event.end || event.date : event.date;
+    for (let day = event.date < monthStart ? monthStart : event.date; day <= end && day <= monthEnd; day = offsetDay(day, 1)) {
+      if (!grouped.has(day)) grouped.set(day, []);
+      grouped.get(day).push(event);
+    }
   }
   calendarDays.replaceChildren();
   const first = new Date(year, month - 1, 1);
@@ -6531,6 +6711,7 @@ function renderCalendar() {
     const item = document.createElement('article');
     item.append(scheduleBadge(event.kind, eventLabel(event)));
     if (event.completedAt) item.append(scheduleBadge('actual', '완료'));
+    else if (scheduleKinds[event.kind].renewal && renewalOnDate(event, today)) item.append(scheduleBadge(event.kind, '미완료'));
     if (event.kind === 'golf-plan') {
       const previous = priorGolfResults(event);
       cardLines(item, [previous.last ? '지난 경기 ' + previous.last.golf.myRank + '등 · 연속 1등 ' + previous.streak + '회 · ' + (previous.blue ? '블루티' : '화이트티') : '이전 경기 기록 없음']);
@@ -6621,6 +6802,13 @@ function resetScheduleForm() {
 
 function editSchedule(event) {
   openAppScreen('calendar');
+  if (scheduleKinds[event.kind].renewal) {
+    byId('registration-form').closest('details').open = true;
+    byId('registration-month').value = event.scheduleMonth || event.date.slice(0, 7);
+    loadRegistrationFields();
+    byId('registration-' + event.kind.split('-')[0] + '-start').focus();
+    return;
+  }
   maybeWarnGolf(event);
   scheduleEditingId = event.id;
   scheduleDate.value = event.date;
@@ -6920,8 +7108,132 @@ withRecords(render).then(showCalorieNotice).catch(error => {
 window.addEventListener('pageshow', event => {
   if (event.persisted) withRecords(render).then(showCalorieNotice).catch(error => report(error.message, true));
 });
+function renewalOnDate(event, day, includeReminder = false) {
+  if (!scheduleKinds[event.kind]?.renewal) return false;
+  const first = includeReminder ? offsetDay(event.date, -2) : event.date;
+  return day >= first && day <= (event.end || event.date);
+}
+
+const registrationSports = ['swim', 'gym'];
+const registrationForm = byId('registration-form');
+const registrationMonth = byId('registration-month');
+const registrationStatus = byId('registration-status');
+const registrationConfirm = byId('registration-confirm');
+
+function loadRegistrationFields() {
+  for (const sport of registrationSports) {
+    const event = calendarEvents.find(item => item.kind === sport + '-renewal' && item.scheduleMonth === registrationMonth.value);
+    byId('registration-' + sport + '-start').value = event?.date ?? '';
+    byId('registration-' + sport + '-end').value = event?.end ?? '';
+  }
+  registrationConfirm.checked = false;
+}
+
+function registrationDates(text, month) {
+  const [year, selectedMonth] = month.split('-').map(Number);
+  const result = {};
+  if (!year || !selectedMonth) return result;
+  const lines = text.normalize('NFKC').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  for (const [sport, pattern] of [['swim', /수영/], ['gym', /헬스|체력단련/]]) {
+    const candidates = [];
+    for (const [index, line] of lines.entries()) {
+      if (!pattern.test(line)) continue;
+      const next = lines[index + 1] ?? '';
+      const crossSport = /수영|헬스|체력단련/.test(next);
+      const otherSport = sport === 'swim' ? /헬스|체력단련/.test(line) : /수영/.test(line);
+      if (otherSport) continue;
+      const block = line + (crossSport ? '' : ' ' + next);
+      if (!/재\s*(?:등록|접수)|기존\s*회원/.test(block) || /신규|추첨/.test(line)) continue;
+      const tail = block
+        .replace(/\b(\d{4})[./-](\d{1,2})[./-](\d{1,2})\b/g, '$1년 $2월 $3일')
+        .replace(/\b(\d{1,2})[./](\d{1,2})\b/g, '$1월 $2일');
+      const statedYears = [...tail.matchAll(/(\d{4})\s*년/g)].map(match => Number(match[1]));
+      if (statedYears.some(value => value !== year)) continue;
+      const match = /(?:(\d{1,2})\s*(?:월|[.\/])\s*)?(\d{1,2})\s*(?:일|(?=\s*[~～–-]))(?:\s*[~～–-]\s*(?:(\d{1,2})\s*(?:월|[.\/])\s*)?(\d{1,2})\s*일?)?/.exec(tail.replace(/\d{4}\s*년\s*/g, ''));
+      if (!match) continue;
+      const values = match;
+      const startMonth = Number(values[1] || selectedMonth);
+      const start = calendarDate(year + '-' + String(startMonth).padStart(2, '0'), Number(values[2]));
+      const end = values[4] ? calendarDate(year + '-' + String(Number(values[3] || startMonth)).padStart(2, '0'), Number(values[4])) : start;
+      if (validScheduleDate(start) && validScheduleDate(end) && end >= start && end <= offsetDay(start, 31)) candidates.push(start + '|' + end);
+    }
+    const unique = [...new Set(candidates)];
+    if (unique.length === 1) result[sport] = unique[0].split('|');
+  }
+  return result;
+}
+
+registrationMonth.value = todayDate().slice(0, 7);
+registrationMonth.onchange = loadRegistrationFields;
+registrationForm.oninput = event => {
+  if (event.target !== registrationConfirm) registrationConfirm.checked = false;
+};
+byId('registration-read').onclick = async event => {
+  const file = byId('schedule-photo-reference').files[0];
+  if (!file || !registrationMonth.value) {
+    registrationStatus.textContent = '일정표 사진과 기준 월을 선택해 주세요. 날짜를 직접 입력할 수도 있습니다.';
+    return;
+  }
+  const button = event.currentTarget;
+  const month = registrationMonth.value;
+  registrationConfirm.checked = false;
+  button.disabled = true;
+  registrationStatus.textContent = '재등록 날짜를 읽고 있습니다…';
+  try {
+    const candidates = registrationDates(await readPhotoText(file), month);
+    if (month !== registrationMonth.value || file !== byId('schedule-photo-reference').files[0]) return;
+    for (const [sport, [start, end]] of Object.entries(candidates)) {
+      byId('registration-' + sport + '-start').value = start;
+      byId('registration-' + sport + '-end').value = end;
+    }
+    registrationConfirm.checked = false;
+    const found = Object.keys(candidates).length;
+    registrationStatus.textContent = found === 2 ? '두 종목의 날짜를 사진과 대조한 뒤 확인해 주세요.' :
+      '일부 날짜가 불확실합니다. 사진에서 수영·헬스 재등록 날짜를 확인해 직접 입력해 주세요.';
+  } catch {
+    registrationStatus.textContent = '사진을 읽지 못했습니다. 사진을 확인하고 날짜를 직접 입력해 주세요.';
+  } finally {
+    button.disabled = false;
+  }
+};
+
+registrationForm.onsubmit = async event => {
+  event.preventDefault();
+  if (!registrationConfirm.checked) return;
+  const month = registrationMonth.value;
+  const updates = [];
+  for (const sport of registrationSports) {
+    const date = byId('registration-' + sport + '-start').value;
+    const end = byId('registration-' + sport + '-end').value || date;
+    if (!date && !end) continue;
+    if (!validScheduleDate(date) || !validScheduleDate(end) || end < date || end > offsetDay(date, 31)) {
+      registrationStatus.textContent = '각 종목의 시작일과 종료일을 확인해 주세요.';
+      return;
+    }
+    updates.push({kind: sport + '-renewal', date, end});
+  }
+  if (!updates.length || !/^\d{4}-\d{2}$/.test(month)) {
+    registrationStatus.textContent = '기준 월과 재등록 날짜를 입력해 주세요.';
+    return;
+  }
+  try {
+    await withSchedule(state => {
+      for (const update of updates) {
+        const existing = state.events.find(item => item.kind === update.kind && item.scheduleMonth === month);
+        if (existing) Object.assign(existing, update);
+        else state.events.push({...newSchedule(update.kind, update.date), ...update, scheduleMonth: month});
+      }
+      writeSchedule(state);
+    });
+    await refreshSchedule();
+    registrationConfirm.checked = false;
+    registrationStatus.textContent = '확인한 재등록 일정을 저장했습니다.';
+  } catch (error) { registrationStatus.textContent = error.message; }
+};
+
 let schedulePhotoUrl = '';
 byId('schedule-photo-reference').onchange = event => {
+  registrationConfirm.checked = false;
   if (schedulePhotoUrl) URL.revokeObjectURL(schedulePhotoUrl);
   const photo = event.target.files[0];
   schedulePhotoUrl = photo ? URL.createObjectURL(photo) : '';
