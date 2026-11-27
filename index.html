@@ -242,6 +242,15 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 #home-totals dl>div{flex-wrap:wrap}
 #home-totals .negative{color:#a51e23}
 #weight-review-chart{height:85px;width:100%;display:block}
+#home-week{margin:5px 0;padding:4px 8px}
+#home-week>summary{min-height:36px;line-height:36px;cursor:pointer;font-weight:700}
+#home-week-list h3{margin:6px 0 2px;font-size:.9rem}
+#home-week-list ul{margin:0 0 6px;padding-left:1.2em}
+#home-week-list li{overflow-wrap:anywhere}
+.value-credit,.hula-profit,#calorie-notice-value{color:#1254a0}
+.value-debit,.hula-loss,#home-totals .value-debit{color:#a51e23}
+.compact-record-clock{white-space:nowrap}
+@media(max-width:390px){.compact-record-clock{font-size:.74rem}.compact-record-energy{font-size:.72rem}}
 </style>
 </head>
 <body>
@@ -277,6 +286,7 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <ul id="app-today-list" tabindex="0" aria-label="오늘 일정 목록"></ul>
 <button class="home-chevron" type="button" data-app-route="calendar" aria-label="오늘 일정 자세히 보기">›</button>
 </section>
+<details id="home-week"><summary>일주일 일정 보기</summary><div id="home-week-list"></div></details>
 <div class="home-date-controls">
 <label for="home-record-date">기록 날짜</label>
 <input id="home-record-date" type="date">
@@ -1190,6 +1200,8 @@ function summaryCard(title, amounts) {
   const income = document.createElement('p');
   const expense = document.createElement('p');
   heading.textContent = title;
+  income.className = 'value-credit';
+  expense.className = 'value-debit';
   income.textContent = '수입 ' + moneyText(amounts.income);
   expense.textContent = '지출 ' + moneyText(amounts.expense);
   card.append(heading, income, expense);
@@ -1240,11 +1252,15 @@ function render(records) {
     records.length ? '조회 조건에 맞는 기록이 없습니다.' : '저장된 기록이 없습니다.');
 }
 
-function renderRecordArticle(record, amounts, sameDay = false) {
+function renderRecordArticle(record, amounts) {
   const article = document.createElement('article');
   const heading = document.createElement('strong');
   const clock = recordClockLabel(record);
-  heading.textContent = (sameDay ? clock || '시각 미입력' : (record.date || '날짜 미확인') + (clock ? ' ' + clock : '')) + ' · ' + record.category;
+  heading.textContent = recordDisplayStamp(record) + ' · ';
+  const categoryLabel = document.createElement('span');
+  categoryLabel.textContent = record.category;
+  colorRecordValue(categoryLabel, record, amounts);
+  heading.append(categoryLabel);
   const content = document.createElement('p');
   content.textContent = record.memo;
   const edit = document.createElement('button');
@@ -1372,6 +1388,7 @@ function renderRecordArticle(record, amounts, sameDay = false) {
   }
   if (record.memo) article.append(content);
   const saved = savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ?? savedInstant(record.timestamp);
+  if (clock && record.voiceOriginal) cardLines(article, ['활동 시각 ' + clock]);
   if (saved) {
     const stamp = kstStamp(saved);
     cardLines(article, ['입력 시각 ' + stamp.day + ' ' + stamp.time + ' KST']);
@@ -1391,7 +1408,7 @@ function renderRecordArticle(record, amounts, sameDay = false) {
   }
   if (amounts.income || amounts.expense) {
     const finance = document.createElement('p');
-    finance.textContent = '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense);
+    appendValueText(finance, '수입 ' + moneyText(amounts.income) + ' / 지출 ' + moneyText(amounts.expense));
     article.append(finance);
   }
   article.append(inlineActions(edit, remove));
@@ -2424,7 +2441,7 @@ function renderFitnessDashboard(records) {
   byId('weight-chart-note').textContent = weightPoints.length ? descriptions[weightPeriod.value] : '표시할 체중 기록이 없습니다.';
   const rows = byId('weight-data');
   rows.replaceChildren();
-  for (const point of weightPoints) {
+  for (const point of [...weightPoints].reverse()) {
     const row = rows.insertRow();
     row.insertCell().textContent = weightPeriod.value === 'month' ? point.date.slice(0, 7) : point.date;
     row.insertCell().textContent = weightNumber.format(point.value);
@@ -2748,7 +2765,7 @@ function golfSummary(title, records) {
     '순수익 ' + moneyText(profit) + ' · 순손실 ' + moneyText(loss),
     '손익 합계 ' + moneyText(profit - loss), '미정산 ' + moneyText(pending)]) {
     const line = document.createElement('p');
-    line.textContent = text;
+    appendValueText(line, text);
     card.append(line);
   }
   return card;
@@ -3333,10 +3350,40 @@ function cardUsageStats(card, reference, records) {
   return totals;
 }
 
+function colorRecordValue(node, record, amounts) {
+  let sign = amounts.income - amounts.expense;
+  if (validCardUse(record.cardUse)) sign = -record.cardUse.amount;
+  if (validGolf(record.golf)) sign = golfCashFlow(record.golf).net;
+  if (validHula(record.hula)) sign = hulaNet(record.hula);
+  if (sign > 0 || record.category === '수입' && !sign) node.classList.add('value-credit');
+  if (sign < 0 || record.category === '지출' && !sign) node.classList.add('value-debit');
+}
+
+function appendValueText(node, text) {
+  const signed = /(?:순손익|손익 합계|평균 손익)\s+([+−-]?[\d,]+)원/u;
+  for (const part of text.split(/( · | \/ )/u)) {
+    const amount = signed.exec(part);
+    let tone = '';
+    if (amount) {
+      const value = Number(amount[1].replaceAll(',', '').replace('−', '-'));
+      tone = value > 0 ? 'credit' : value < 0 ? 'debit' : '';
+    } else if (/\d(?:원|kcal)/.test(part)) {
+      if (/^(?:.*?\s)?(?:수입|순수익|총수익|보험금 수령|실제 수령|수령|받은 돈|받은 금액|돌려받음|게임비 현금 수령 완료|운동 추가 소모|운동 소모|예상 소모|총소모)/.test(part)) tone = 'credit';
+      else if (/^(?:.*?\s)?(?:지출|순손실|총손실|게임비|식사비|비용|사용액|대신 결제|한도 사용|(?:개인|법인)카드 결제|초과|총섭취|음식·음주)/.test(part) ||
+          / \+약 [\d,]+kcal/.test(part)) tone = 'debit';
+    }
+    if (!tone) { node.append(part); continue; }
+    const span = document.createElement('span');
+    span.className = 'value-' + tone;
+    span.textContent = part;
+    node.append(span);
+  }
+}
+
 function cardLines(container, lines) {
   for (const text of lines) {
     const p = document.createElement('p');
-    p.textContent = text;
+    appendValueText(p, text);
     container.append(p);
   }
 }
@@ -3345,7 +3392,7 @@ function cardUseDetails(value, includePhoto = true) {
   const node = document.createElement('div');
   cardLines(node, [
     value.name + ' · ' + cardKind(value.type),
-    value.merchant + ' · ' + moneyText(value.amount),
+    value.merchant + ' · 카드 지출 ' + moneyText(value.amount),
     ...(value.purpose ? ['목적 · ' + value.purpose] : []),
     ...(value.people ? ['참석자 · ' + value.people] : []),
     ...(value.advance || value.refund ? ['대신 결제 ' + moneyText(value.advance) +
@@ -3395,10 +3442,10 @@ function showCardDetail(card, records) {
   const list = byId('card-detail-records');
   list.replaceChildren();
   if (!records.length) list.textContent = '등록된 사용 내역이 없습니다.';
-  for (const record of records.filter(item => !item.hiddenFromLists).sort((a, b) => b.date.localeCompare(a.date))) {
+  for (const record of records.filter(item => !item.hiddenFromLists).sort(recordOrder)) {
     const article = document.createElement('article');
     const dateLabel = document.createElement('strong');
-    dateLabel.textContent = record.date;
+    dateLabel.textContent = recordDisplayStamp(record);
     article.append(dateLabel, cardUseDetails(record.cardUse),
       scheduleButton('사용 기록 수정', () => openCardUse(record)));
     list.append(article);
@@ -3439,7 +3486,9 @@ function renderCards(records) {
   }
   const corporateMonth = records.reduce((total, record) => total +
     (record.cardUse?.type === 'corporate' && record.date.slice(0, 7) === ref.slice(0, 7) ? record.cardUse.amount : 0), 0);
-  byId('card-corporate-total').textContent = ref.slice(0, 7) + ' 법인카드 사용 합계 ' + moneyText(corporateMonth);
+  const corporateTotal = byId('card-corporate-total');
+  corporateTotal.textContent = ref.slice(0, 7) + ' 법인카드 사용 합계 ' + moneyText(corporateMonth);
+  corporateTotal.classList.add('value-debit');
   for (const card of cards.values()) {
     const uses = grouped.get(card.id) ?? [];
     if (card.archived && !uses.length) continue;
@@ -3451,8 +3500,8 @@ function renderCards(records) {
     breakdown.append(title.cloneNode(true));
     statistics.append(breakdown);
     const stats = cardUsageStats(card, ref, uses);
-    const labels = ['일별 ' + moneyText(stats.day), '월별 ' + moneyText(stats.month),
-      '분기별 ' + moneyText(stats.quarter), '누적 ' + moneyText(stats.all)];
+    const labels = ['일별 지출 ' + moneyText(stats.day), '월별 지출 ' + moneyText(stats.month),
+      '분기별 지출 ' + moneyText(stats.quarter), '누적 지출 ' + moneyText(stats.all)];
     if (!stats.limit) labels.push(card.limit ? '현재 한도 적용 기간 외' : '한도 없음');
     else labels.push(cardPeriods[card.period] + ' 한도 ' + moneyText(stats.limit) +
       (stats.topup ? ' (충전 ' + moneyText(stats.topup) + ' 포함)' : ''),
@@ -4509,6 +4558,8 @@ function unifiedCard(container, title, lines, detail) {
   const card = document.createElement('div');
   const heading = document.createElement('h3');
   heading.textContent = title;
+  if (title === '수입') heading.classList.add('value-credit');
+  if (title === '지출') heading.classList.add('value-debit');
   card.append(heading);
   cardLines(card, lines);
   if (detail) card.append(scheduleButton('상세보기', detail));
@@ -4555,7 +4606,7 @@ function renderUnifiedHome() {
   const active = cardSettings.filter(card => !card.archived);
   unifiedCard(root, '카드별 이번 달 사용액·잔여 한도', active.length ? active.map(card => {
     const totals = cardUsageStats(card, now, unifiedRecords.filter(record => record.cardUse?.id === card.id));
-    return card.name + ' · ' + moneyText(totals.month) +
+    return card.name + ' · 월별 지출 ' + moneyText(totals.month) +
       (totals.limit ? ' · 잔여 ' + moneyText(Math.max(0, totals.limit - totals.period)) : ' · 적용 한도 없음');
   }) : ['등록된 카드 없음'], () => openAppScreen('cards'));
   unifiedCard(root, '미수령 보험금', [moneyText(unifiedRecords.reduce((sum, record) => sum + insuranceUnpaid(record), 0))],
@@ -4607,7 +4658,12 @@ function renderUnifiedSearch() {
       }
     }
   }
-  results.sort((a, b) => c.kind === 'calendar' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+  const today = todayDate();
+  results.sort((a, b) => {
+    if (a.record && b.record) return recordOrder(a.record, b.record);
+    if (Boolean(a.record) !== Boolean(b.record)) return a.record ? -1 : 1;
+    return scheduleListOrder(a.event, b.event, today);
+  });
   const target = byId('search-results');
   target.replaceChildren(...results.slice(0, searchLimit).map(item => item.event
     ? unifiedScheduleArticle(item.event) : renderRecordArticle(item.record, item.flow)));
@@ -4676,14 +4732,14 @@ function statsItems(totals) {
   return [
     ['income', ['수입 ' + moneyText(totals.income)]],
     ['expense', ['지출 ' + moneyText(totals.expense)]],
-    ['corporate', [moneyText(totals.corporate)]],
-    ['hospital', [moneyText(totals.hospital)]],
+    ['corporate', ['법인카드 지출 ' + moneyText(totals.corporate)]],
+    ['hospital', ['병원비 지출 ' + moneyText(totals.hospital)]],
     ['insurance', ['수령 ' + moneyText(totals.insurance)]],
     ['golf', ['정산 기록 순손익 ' + moneyText(totals.golf)]],
     ['hula', ['게임 기록 순손익 ' + moneyText(totals.hula)]],
     ['workout', [totals.workouts + '회 · ' + hulaTimeText(totals.minutes)]],
     ['weight', [weightChange(totals.weights)]],
-    ['vehicle', [moneyText(totals.vehicle)]],
+    ['vehicle', ['운행비 지출 ' + moneyText(totals.vehicle)]],
     ['farm', ['방문 ' + totals.visits + '회 · 작업 ' + hulaTimeText(totals.farmMinutes), '비용 ' + moneyText(totals.farmCost)]],
     ['tobacco', [tobaccoCount(totals), '구입 지출 ' + moneyText(totals.tobaccoCost)]],
   ];
@@ -4692,7 +4748,7 @@ function statsItems(totals) {
 function statsBar(container, label, value, max, expense = false) {
   const text = document.createElement('span');
   const bar = document.createElement('progress');
-  text.className = 'stats-bar-label';
+  text.className = 'stats-bar-label ' + (expense ? 'value-debit' : 'value-credit');
   text.textContent = label;
   bar.className = expense ? 'stats-bar stats-expense-bar' : 'stats-bar';
   bar.max = max || 1;
@@ -5013,7 +5069,25 @@ function renderHomeToday() {
   title.setAttribute('aria-label', new Intl.DateTimeFormat('ko-KR', {dateStyle: 'full'}).format(calendarDay));
   const list = byId('app-today-list');
   list.replaceChildren();
-  const events = availableScheduleEvents().filter(event => event.date === today && eventLabel(event).trim());
+  const schedules = availableScheduleEvents();
+  const events = schedules.filter(event => event.date === today);
+  const week = byId('home-week-list');
+  week.replaceChildren();
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+  for (let offset = 0; offset < 7; offset++) {
+    const day = offsetDay(today, offset);
+    const heading = document.createElement('h3');
+    heading.textContent = day + ' (' + weekdays[new Date(day + 'T12:00:00Z').getUTCDay()] + ')';
+    const daily = document.createElement('ul');
+    const labels = schedules.filter(event => event.date === day).map(event => eventLabel(event) +
+      (event.pickup ? ' · 픽업 예정 ' + event.pickup : '') + (event.completedAt ? ' · 완료' : ''));
+    for (const text of labels.length ? labels : ['일정 없음']) {
+      const item = document.createElement('li');
+      item.textContent = text;
+      daily.append(item);
+    }
+    week.append(heading, daily);
+  }
   renderTodayRecords();
   renderHomeTotals();
   if (!events.length) {
@@ -5277,11 +5351,28 @@ function newTimedRecord(record, savedAt = new Date()) {
   return {...data, ...(activity ? {time: activity} : {}), savedAt: savedAt.toISOString()};
 }
 
+function recordSavedStamp(record) {
+  const saved = savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ?? savedInstant(record.timestamp);
+  return saved ? kstStamp(saved) : null;
+}
+
+function recordDisplayStamp(record) {
+  const activity = recordClockLabel(record);
+  const saved = recordSavedStamp(record);
+  const date = record.date || '날짜 미확인';
+  if (saved && record.voiceOriginal) {
+    return date + ' · 저장 ' + (saved.day === record.date ? '' : saved.day + ' ') + saved.time;
+  }
+  const time = activity || (saved && saved.day === record.date ? saved.time : '');
+  return date + (time ? ' ' + time : saved ? ' · 저장 ' + saved.day + ' ' + saved.time : '');
+}
+
 function recordOrder(a, b) {
-  const first = recordClock(a);
-  const second = recordClock(b);
-  if (first && second) return second.localeCompare(first);
-  if (first || second) return first ? 1 : -1;
+  const date = b.date.localeCompare(a.date);
+  if (date) return date;
+  const first = recordSavedStamp(a)?.time || recordClock(a);
+  const second = recordSavedStamp(b)?.time || recordClock(b);
+  if (first !== second) return second.localeCompare(first);
   const saved = record => (savedInstant(record.savedAt) ?? savedInstant(record.createdAt) ??
     savedInstant(record.timestamp))?.getTime() ?? 0;
   return saved(b) - saved(a);
@@ -5305,7 +5396,7 @@ function compactRecordText(record) {
 function compactRecordRow(record, open = false) {
   const row = document.createElement('details');
   const heading = document.createElement('summary');
-  const clock = recordClockLabel(record);
+  const clock = recordDisplayStamp(record);
   row.className = 'today-record-row compact-record-row';
   row.dataset.recordId = record.id;
   if (clock) {
@@ -5317,18 +5408,19 @@ function compactRecordRow(record, open = false) {
   const preview = document.createElement('span');
   preview.className = 'compact-record-text';
   preview.textContent = compactRecordText(record);
+  colorRecordValue(preview, record, recordAmounts(record));
   heading.append(preview);
   const energy = energyText(record);
-  if (energy.length) {
+  for (const value of energy) {
     const label = document.createElement('span');
-    label.className = 'compact-record-energy';
-    label.textContent = ' · ' + energy.join(' · ');
+    label.className = 'compact-record-energy ' + (value.startsWith('−') ? 'value-credit' : 'value-debit');
+    label.textContent = ' · ' + value;
     heading.append(label);
   }
   row.append(heading);
   row.ontoggle = () => {
     if (!row.open || row.querySelector('article')) return;
-    const article = renderRecordArticle(record, recordAmounts(record), true);
+    const article = renderRecordArticle(record, recordAmounts(record));
     const actions = article.querySelector('.inline-actions');
     actions?.prepend(scheduleButton('닫기', () => { row.open = false; }));
     actions?.append(scheduleButton(record.hiddenFromLists ? '다시 표시' : '숨기기', () => {
@@ -5355,7 +5447,7 @@ function renderCompactRecords(target, records, empty, showDates = false, limit =
     target.textContent = empty;
     return;
   }
-  const ordered = [...records].sort((a, b) => (showDates ? b.date.localeCompare(a.date) : 0) || recordOrder(a, b));
+  const ordered = [...records].sort(recordOrder);
   let previousDate;
   for (const record of ordered.slice(0, limit)) {
     if (showDates && record.date !== previousDate) {
@@ -5407,7 +5499,10 @@ function renderHomeTotals() {
   for (const [id, value] of [['today', -daily.balance], ['month', -monthly.balance]]) {
     const field = byId('home-' + id + '-balance');
     field.textContent = signedCalories(value);
-    field.classList.toggle('negative', value < 0);
+    for (const node of [field, field.previousElementSibling]) {
+      node.classList.toggle('value-debit', value < 0);
+      node.classList.toggle('value-credit', value >= 0);
+    }
   }
 }
 
@@ -5679,6 +5774,9 @@ function initializeLayout() {
     openAppScreen('search');
     refresh();
   };
+  byId('home-week').ontoggle = event => {
+    event.currentTarget.querySelector('summary').textContent = event.currentTarget.open ? '접기' : '일주일 일정 보기';
+  };
   byId('app-back-home').onclick = () => openAppScreen('home');
   byId('app-write').onclick = () => {
     startLayoutEntry(undefined, false);
@@ -5744,6 +5842,14 @@ function initializeLayout() {
   window.addEventListener('focus', refreshHomeDate);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshHomeDate(); });
   layoutReady = true;
+  for (const [id, tone] of Object.entries({'home-today-expense': 'debit', 'home-month-expense': 'debit',
+    'home-today-intake': 'debit', 'home-month-intake': 'debit', 'home-today-energy': 'credit',
+    'home-month-energy': 'credit', 'home-today-base': 'credit', 'energy-meal': 'debit',
+    'energy-total': 'credit', 'energy-exercise': 'credit'})) {
+    const field = byId(id);
+    field.classList.add('value-' + tone);
+    field.previousElementSibling.classList.add('value-' + tone);
+  }
   displayAppScreen(screenFromLocation(), false);
 }
 
@@ -6022,6 +6128,9 @@ function renderEnergyToday() {
   byId('energy-exercise').textContent = energy.workout ? '−약 ' + calorieNumber(energy.workout) : '0kcal';
   byId('energy-balance').textContent = '약 ' + signedCalories(energy.balance);
   byId('energy-remaining').textContent = '약 ' + signedCalories(-energy.balance);
+  const remainingTone = energy.balance > 0 ? 'value-debit' : 'value-credit';
+  byId('energy-remaining').className = remainingTone;
+  byId('energy-remaining').previousElementSibling.className = remainingTone;
   updateCalorieNotice();
   const warning = byId('energy-warning');
   warning.hidden = !(energy.meals && energy.balance > 0);
@@ -6089,8 +6198,6 @@ byId('energy-settings').onsubmit = event => {
 byId('energy-baseline').value = readEnergyBaseline() ?? 2000;
 
 const calorieNotice = byId('calorie-notice');
-const calorieNoticeKey = 'daily-record-calorie-notice-v1';
-let lastCalorieSlot = '';
 function updateCalorieNotice() {
   if (!calorieNotice.open) return;
   const remaining = -energyForDay(todayDate()).balance;
@@ -6100,28 +6207,9 @@ function updateCalorieNotice() {
     '오늘 추가로 ' + calorieNumber(remaining) + '를 섭취할 수 있습니다';
 }
 
-function checkCalorieNotice() {
-  if (document.hidden || calorieNotice.open) return;
-  const {day, time} = kstStamp();
-  const hour = Number(time.slice(0, 2));
-  if (hour < 8) return;
-  const slot = hour < 13 ? 0 : hour < 18 ? 1 : 2;
-  const marker = day + ':' + slot;
-  if (marker === lastCalorieSlot) return;
-  function show() {
-    if (document.hidden || calorieNotice.open || marker === lastCalorieSlot) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(calorieNoticeKey) || '{}');
-      const slots = saved.day === day && Array.isArray(saved.slots) ? saved.slots : [];
-      if (slots.includes(slot)) return;
-      localStorage.setItem(calorieNoticeKey, JSON.stringify({day, slots: [...slots, slot]}));
-    } catch {}
-    lastCalorieSlot = marker;
-    calorieNotice.showModal();
-    updateCalorieNotice();
-  }
-  if (navigator.locks) navigator.locks.request(calorieNoticeKey, show).catch(show);
-  else show();
+function showCalorieNotice() {
+  if (!calorieNotice.open) calorieNotice.showModal();
+  updateCalorieNotice();
 }
 
 calorieNotice.addEventListener('cancel', event => event.preventDefault());
@@ -6262,13 +6350,21 @@ function withSchedule(operation) {
   return navigator.locks ? navigator.locks.request(scheduleKey, run) : Promise.resolve().then(run);
 }
 
+function scheduleListOrder(a, b, today) {
+  const pastA = a.date < today;
+  const pastB = b.date < today;
+  if (pastA !== pastB) return pastA ? 1 : -1;
+  return (pastA ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)) ||
+    (a.time || a.pickup || (pastA ? '' : '99:99')).localeCompare(b.time || b.pickup || (pastA ? '' : '99:99')) * (pastA ? -1 : 1);
+}
+
 function availableScheduleEvents() {
   const closures = new Set(calendarEvents.filter(event => event.kind === 'pool' || event.kind === 'gym')
     .map(event => event.date + '|' + event.kind));
   const seen = new Set();
   return calendarEvents.filter(event => {
     const key = JSON.stringify([event.date, event.kind, scheduleTitleKey(displayScheduleTitle(event)), event.time || '', event.pickup || '', event.people || '']);
-    if (seen.has(key) || closures.has(event.date + '|' + scheduleKinds[event.kind]?.closure)) return false;
+    if (!scheduleKinds[event.kind] || !eventLabel(event)?.trim() || seen.has(key) || closures.has(event.date + '|' + scheduleKinds[event.kind]?.closure)) return false;
     seen.add(key);
     return true;
   }).sort((a, b) => a.date.localeCompare(b.date) ||
@@ -6817,10 +6913,13 @@ window.addEventListener('storage', event => {
 });
 setVehicleEditor();
 initializeLayout();
-withRecords(render).then(checkCalorieNotice).catch(error => report(error.message, true));
-window.addEventListener('pageshow', checkCalorieNotice);
-window.addEventListener('focus', checkCalorieNotice);
-document.addEventListener('visibilitychange', checkCalorieNotice);
+withRecords(render).then(showCalorieNotice).catch(error => {
+  report(error.message, true);
+  showCalorieNotice();
+});
+window.addEventListener('pageshow', event => {
+  if (event.persisted) withRecords(render).then(showCalorieNotice).catch(error => report(error.message, true));
+});
 let schedulePhotoUrl = '';
 byId('schedule-photo-reference').onchange = event => {
   if (schedulePhotoUrl) URL.revokeObjectURL(schedulePhotoUrl);
