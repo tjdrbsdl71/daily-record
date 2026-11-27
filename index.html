@@ -398,7 +398,17 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <input id="food-camera" type="file" accept="image/*" capture="environment" hidden>
 <input id="food-gallery" type="file" accept="image/*" hidden>
 <details id="food-photo-review"><summary>예상 칼로리 직접 확인·입력</summary>
-<p id="food-photo-status" role="status">사진에 적힌 음식명을 읽거나 아래에 직접 입력할 수 있습니다.</p>
+<p id="food-photo-status" role="status">사진을 고르면 기기에서 AI 후보를 찾습니다. 처음에는 무료 모델을 내려받으므로 Wi-Fi 사용이 좋습니다.</p>
+<fieldset id="food-label-review" hidden>
+<legend>포장지 영양정보</legend>
+<label for="food-label-name">제품명</label><input id="food-label-name" maxlength="100">
+<label for="food-label-kcal">표시 열량 (kcal)</label><input id="food-label-kcal" type="number" min="0" max="15000" step="1">
+<label for="food-label-basis">표시 열량 기준</label><select id="food-label-basis"><option value="g">기준 중량(g)</option><option value="portion">표시 기준량(봉지 또는 1회분)</option></select>
+<label for="food-label-size">표시 기준량</label><input id="food-label-size" type="number" min="0.01" step="any">
+<label for="food-label-eaten">실제로 먹은 양 (같은 단위)</label><input id="food-label-eaten" type="number" min="0.01" step="any">
+<button id="food-label-apply" type="button">먹은 양으로 계산</button>
+</fieldset>
+<button id="food-photo-manual" type="button" hidden>분석 건너뛰고 직접 입력</button>
 <label for="food-photo-items">음식명 / 섭취량 / 예상 kcal (한 줄에 한 음식)</label>
 <textarea id="food-photo-items" rows="3" maxlength="2400" placeholder="김치찌개 / 1인분 / 250"></textarea>
 <img id="food-photo-preview" class="card-photo" alt="선택한 음식 사진" hidden>
@@ -2273,8 +2283,112 @@ function resetFoodPhoto(record) {
   byId('food-photo-review').open = Boolean(record?.foodItems);
   byId('food-photo-total').textContent = record?.foodItems ? '예상 합계 +' +
     calorieNumber(record.foodItems.reduce((sum, item) => sum + item.kcal, 0)) : '';
-  byId('food-photo-status').textContent = '사진에 적힌 음식명을 읽거나 아래에 직접 입력할 수 있습니다.';
+  byId('food-label-review').hidden = true;
+  byId('food-photo-manual').hidden = true;
+  byId('food-photo-status').textContent = '사진을 고르면 기기에서 AI 후보를 찾습니다. 처음에는 무료 모델을 내려받으므로 Wi-Fi 사용이 좋습니다.';
 }
+
+// ONNX weights and runtime are public downloads. Photos are decoded and classified in this browser.
+const visualFoodLabels = {
+  'Korean kimchi stew with tofu': '김치찌개', 'Korean soybean paste stew': '된장찌개',
+  'Korean seaweed rice rolls gimbap': '김밥', 'bowl of instant ramen': '라면',
+  'Korean bibimbap mixed rice': '비빔밥', 'bowl of plain cooked white rice': '흰쌀밥',
+  'fried egg or boiled egg': '계란', 'banana fruit': '바나나', 'fresh persimmon fruit': '단감',
+  'apple fruit': '사과', 'slice of white bread': '식빵', 'sandwich with bread': '샌드위치',
+  'fried chicken pieces': '치킨', 'Korean spicy rice cakes tteokbokki': '떡볶이',
+  'grilled pork belly samgyeopsal': '삼겹살', 'cup of black coffee': '아메리카노',
+  'cup of milk coffee latte': '카페라테', 'glass of lager beer': '맥주',
+};
+const otherPhotoLabels = ['packaged snack with a nutrition label', 'empty dish or cutlery',
+  'other food not listed', 'a document or a non-food object', 'a group of different dishes'];
+let foodClassifier;
+function getFoodClassifier() {
+  foodClassifier ??= import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2')
+    .then(({pipeline}) => pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', {quantized: true}))
+    .catch(error => { foodClassifier = undefined; throw error; });
+  return foodClassifier;
+}
+
+async function visualFoodCandidates(file, isCurrent) {
+  const classifier = await getFoodClassifier();
+  if (!isCurrent()) return [];
+  const bitmap = await createImageBitmap(file);
+  try {
+    const labels = [...Object.keys(visualFoodLabels), ...otherPhotoLabels];
+    const regions = [[0, 0, 1, 1], [0, 0, .58, .58], [.42, 0, .58, .58],
+      [0, .42, .58, .58], [.42, .42, .58, .58]];
+    const found = new Map();
+    for (const [x, y, w, h] of regions) {
+      if (!isCurrent()) return [];
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 224;
+      canvas.getContext('2d').drawImage(bitmap, x * bitmap.width, y * bitmap.height,
+        w * bitmap.width, h * bitmap.height, 0, 0, 224, 224);
+      const [best, alternative] = await classifier(canvas.toDataURL('image/jpeg'), labels, {hypothesis_template: 'A photo of {}.'});
+      const name = visualFoodLabels[best?.label];
+      if (name && best.score >= .42 && best.score - (alternative?.score ?? 0) >= .16) {
+        found.set(name, Math.max(found.get(name) ?? 0, best.score));
+      }
+    }
+    return [...found].sort((a, b) => b[1] - a[1]).slice(0, 4).flatMap(([name]) => {
+      const serving = foodServings.find(item => item[0] === name);
+      return serving ? [{name, kcal: serving[2]}] : [];
+    });
+  } finally {
+    bitmap.close();
+  }
+}
+
+function packagedNutrition(text) {
+  const clean = text.normalize('NFKC');
+  if (!/영양\s*정보|영양\s*성분|nutrition|총\s*내용량|1회\s*제공량|100\s*g\s*당/i.test(clean)) return null;
+  const name = /(?:제품명|상품명)\s*[:：]?\s*([^\n]{1,100})/.exec(clean)?.[1]?.trim() ?? '';
+  const values = [...clean.matchAll(/(\d[\d,]*(?:\.\d+)?)\s*kcal\b/gi)];
+  // Multiple printed calorie values can refer to different serving sizes.
+  const unique = [...new Set(values.map(match => Number(match[1].replaceAll(',', ''))))];
+  const grams = /(?:\(\s*)?(\d+(?:\.\d+)?)\s*(?:g|그램)\s*(?:\)?\s*당)/i.exec(clean);
+  const contents = /총\s*내용량\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:g|그램)/i.exec(clean);
+  const serving = /1회\s*제공량\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:g|그램)/i.exec(clean);
+  const size = grams?.[1] ?? (contents && !serving ? contents[1] : serving && !contents ? serving[1] : '');
+  return {name, kcal: unique.length === 1 ? Math.round(unique[0]) : '', size};
+}
+
+function showPackagedNutrition(info) {
+  byId('food-label-review').hidden = false;
+  byId('food-label-name').value = info.name;
+  byId('food-label-kcal').value = info.kcal;
+  byId('food-label-basis').value = info.size ? 'g' : 'portion';
+  byId('food-label-size').value = info.size;
+  byId('food-label-eaten').value = '';
+}
+
+byId('food-label-apply').onclick = () => {
+  const name = byId('food-label-name').value.trim();
+  const kcal = byId('food-label-kcal').valueAsNumber;
+  const size = byId('food-label-size').valueAsNumber;
+  const eaten = byId('food-label-eaten').valueAsNumber;
+  const calculated = Math.round(kcal * eaten / size);
+  if (!name || !(kcal >= 0 && size > 0 && eaten > 0 && calculated <= 15000)) {
+    byId('food-photo-status').textContent = '제품명, 표시 열량, 기준량, 실제 먹은 양을 확인해 주세요.';
+    return;
+  }
+  const items = byId('food-photo-items');
+  const line = name.replaceAll('/', ' ') + ' / ' + eaten +
+    (byId('food-label-basis').value === 'g' ? 'g' : ' 표시 기준량') + ' / ' + calculated;
+  const entries = items.value.split(/\r?\n/).filter(entry => entry.trim() && entry.split('/')[0].trim() !== name.replaceAll('/', ' '));
+  items.value = [...entries, line].join('\n');
+  byId('food-photo-status').textContent = '먹은 양을 반영했습니다. 아래 음식 항목을 확인하고 기록을 저장하세요.';
+  updateFoodPhotoTotal();
+};
+
+byId('food-photo-manual').onclick = () => {
+  foodPhotoRun++;
+  foodPhotoBusy = false;
+  byId('food-photo-manual').hidden = true;
+  byId('food-photo-status').textContent = '음식명, 실제 먹은 양, 예상 칼로리를 직접 입력하세요.';
+  updateFoodPhotoTotal();
+  byId('food-photo-items').focus();
+};
 
 async function readFoodPhoto(file) {
   if (!file) return;
@@ -2288,28 +2402,52 @@ async function readFoodPhoto(file) {
   const status = byId('food-photo-status');
   const items = byId('food-photo-items');
   byId('food-photo-review').open = true;
-  status.textContent = '사진에서 음식명을 읽고 있습니다…';
+  status.textContent = '포장지 영양정보를 먼저 확인하고 있습니다…';
   foodPhotoBusy = true;
+  byId('food-photo-manual').hidden = true;
+  byId('food-label-review').hidden = true;
   foodPhotoHash = '';
   updateEditorSave();
   try {
     const hash = crypto.subtle ? await crypto.subtle.digest('SHA-256', await file.arrayBuffer()) : null;
-    if (run !== foodPhotoRun) return;
+    const isCurrent = () => run === foodPhotoRun;
+    if (!isCurrent()) return;
     if (hash) foodPhotoHash = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
-    const text = await readPhotoText(file);
-    if (run !== foodPhotoRun) return;
-    const found = new Map();
-    for (const line of text.split(/\r?\n/)) {
-      for (const food of mealEstimate(line, true)) found.set(food.name, food.kcal);
+    byId('food-photo-manual').hidden = false;
+    const text = await readPhotoText(file).catch(() => '');
+    if (!isCurrent()) return;
+    const nutrition = packagedNutrition(text);
+    if (nutrition) {
+      showPackagedNutrition(nutrition);
+      status.textContent = '제품명과 표시 열량의 기준을 포장지와 대조한 뒤 실제 먹은 양을 넣어 주세요.';
+      return;
     }
-    if (found.size && !items.value.trim()) items.value = [...found].map(([name, kcal]) => name + ' / 약 1인분 / ' + kcal).join('\n');
-    status.textContent = found.size ? '사진 속 글자를 기준으로 추정했습니다. 음식명·섭취량·칼로리를 확인해 주세요.' :
-      '사진에서 음식명을 읽지 못했습니다. 음식명과 칼로리를 직접 입력해 주세요.';
+    status.textContent = '기기에서 음식 사진을 분석하고 있습니다…';
+    let analysisFailed = false;
+    const visual = await visualFoodCandidates(file, isCurrent).catch(() => {
+      analysisFailed = true;
+      return [];
+    });
+    const textCandidates = new Map();
+    if (!visual.length) {
+      for (const line of text.split(/\r?\n/)) {
+        for (const food of mealEstimate(line, true)) textCandidates.set(food.name, food);
+      }
+    }
+    const candidates = visual.length ? visual : [...textCandidates.values()];
+    if (!isCurrent()) return;
+    if (candidates.length && !items.value.trim()) items.value = candidates.map(({name, kcal}) =>
+      name + ' / 약 1인분 / ' + kcal).join('\n');
+    status.textContent = visual.length ? 'AI가 제안한 음식과 1인분 기준 예상 열량입니다. 빠진 음식과 실제 섭취량을 확인해 수정하세요.' :
+      candidates.length ? '사진에서 읽은 글자를 기준으로 제안했습니다. 실제 음식과 섭취량을 확인해 주세요.' :
+      analysisFailed ? 'AI 분석을 실행하지 못했습니다. 음식명과 칼로리를 직접 입력해 주세요.' :
+      '확실한 음식 후보가 없습니다. 음식명과 칼로리를 직접 입력해 주세요.';
   } catch {
-    if (run === foodPhotoRun) status.textContent = '사진 인식에 실패했습니다. 음식명과 칼로리를 직접 입력해 주세요.';
+    if (run === foodPhotoRun) status.textContent = 'AI 분석을 실행하지 못했습니다. 음식명과 칼로리를 직접 입력해 주세요.';
   } finally {
     if (run === foodPhotoRun) {
       foodPhotoBusy = false;
+      byId('food-photo-manual').hidden = true;
       updateFoodPhotoTotal();
     }
   }
