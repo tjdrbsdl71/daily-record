@@ -9,7 +9,7 @@ body{font-family:Arial,sans-serif;background:#f4f6fa;margin:0;padding:20px;color
 main{max-width:650px;margin:auto}
 h1{color:#234b83}
 section{background:white;padding:18px;border-radius:14px;margin:15px 0;box-shadow:0 2px 8px #ddd}
-input,textarea,select,button{box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border:1px solid #ccc;border-radius:8px;font-size:16px}
+input,textarea,select,button{box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border:1px solid #ccc;border-radius:8px;font-size:17.6px}
 button{background:#2463b6;color:white;border:0;font-weight:bold}
 .fields,.totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .totals h3{margin:0 0 6px;font-size:1rem}
@@ -26,19 +26,19 @@ button:disabled{opacity:.6}
 #status,#voice-status,#error{margin:8px 0}
 #voice-preview{padding:8px 12px;background:#edf4ff;border-radius:8px;overflow-wrap:anywhere}
 .calendar-nav{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;text-align:center}
-.calendar-nav button{padding:8px;font-size:24px}
+.calendar-nav button{padding:8px;font-size:26.4px}
 .calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
-.calendar-grid>span{align-self:center;font-size:.85rem}
-.calendar-day{display:flex;flex-direction:column;align-items:center;gap:3px;margin:0;padding:5px 0;min-height:58px;background:#f4f6fa;color:#222;border:1px solid #dae1ec;font-size:.85rem}
+.calendar-grid>span{align-self:center;font-size:0.85rem}
+.calendar-day{display:flex;flex-direction:column;align-items:center;gap:3px;margin:0;padding:5px 0;min-height:58px;background:#f4f6fa;color:#222;border:1px solid #dae1ec;font-size:0.85rem}
 .calendar-day[aria-pressed="true"]{border-color:#2463b6;box-shadow:inset 0 0 0 1px #2463b6}
 .calendar-day[aria-current="date"] .calendar-number{background:#234b83;color:white;border-radius:12px;padding:0 5px}
-.schedule-badge{display:inline-block;padding:2px 5px;border-radius:4px;background:#e4eaf2;color:#202b3d;font-size:.75rem;font-weight:bold}
+.schedule-badge{display:inline-block;padding:2px 5px;border-radius:4px;background:#e4eaf2;color:#202b3d;font-size:0.75rem;font-weight:bold}
 .schedule-d{background:#ffe66b}.schedule-e{background:#a8d1ff}.schedule-n{background:#c8ee8e}
 .schedule-so{background:#fce1eb}.schedule-off{background:#f3a3cb}.schedule-leave{background:#93e1d8}
 .schedule-farm-visit,.schedule-farm-work{background:#d8ead1}
 #farm-alert{padding:10px;background:#fff3c4;border-radius:8px}
 .schedule-pool{background:#ccecf5}.schedule-gym{background:#e5d7f7}.schedule-gym-open{background:#d3efdb}
-.calendar-day .schedule-badge{padding:1px 2px;font-size:clamp(.6rem,2.6vw,.75rem);line-height:1.25}
+.calendar-day .schedule-badge{padding:1px 2px;font-size:clamp(0.6rem,2.86vw,0.75rem);line-height:1.25}
 #shift-legend{display:flex;flex-wrap:wrap;gap:5px;padding:0;list-style:none}
 #schedule-form h4{margin:8px 0}
 #schedule-list article{white-space:normal}
@@ -52,7 +52,7 @@ button:disabled{opacity:.6}
 @media(max-width:420px){#calendar-section{padding:12px}.calendar-day{min-height:54px}}
 .fitness-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:12px 0}
 .fitness-metrics div{padding:9px;background:#edf4ff;border-radius:8px;overflow-wrap:anywhere}
-.fitness-metrics dt{font-size:.86rem}
+.fitness-metrics dt{font-size:0.86rem}
 .fitness-metrics dd{margin:4px 0 0;font-weight:bold}
 #weight-chart{display:block;width:100%;height:210px}
 #weight-dashboard details{margin:10px 0}
@@ -94,12 +94,12 @@ label{margin-top:6px}
 p{margin:8px 0}
 article{overflow-wrap:anywhere}
 .app-home-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0 6px}
-#app-today{flex:none;color:#415a73;font-size:.88rem;white-space:nowrap}
+#app-today{flex:none;color:#415a73;font-size:0.88rem;white-space:nowrap}
 #app-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
-.app-menu-button{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;min-width:0;min-height:62px;margin:0;background:white;border:1px solid var(--app-border);color:var(--app-ink);padding:6px 2px;font-size:.84rem;line-height:1.2}
+.app-menu-button{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;min-width:0;min-height:62px;margin:0;background:white;border:1px solid var(--app-border);color:var(--app-ink);padding:6px 2px;font-size:0.84rem;line-height:1.2}
 .app-menu-icon{font-size:1.25rem;line-height:1.25}
 .app-quick{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:4px;margin:2px 0 6px}
-.app-quick button,.app-quick input{min-width:0;min-height:38px;margin:0;padding:4px 6px;font-size:.875rem}
+.app-quick button,.app-quick input{min-width:0;min-height:38px;margin:0;padding:4px 6px;font-size:0.875rem}
 .app-quick button{white-space:nowrap}
 .app-quick input{width:100%;font-size:1rem}
 #home-record-today,#home-record-all{background:#e8eff8;color:#19497e;border:1px solid #cedceb}
@@ -107,20 +107,20 @@ article{overflow-wrap:anywhere}
 #app-today-section,#app-today-records-section{margin:5px 0;padding:4px 7px}
 #app-today-section{display:flex;align-items:center;gap:8px}
 #app-today-section h2{flex:none;margin:0;font-size:1rem}
-#app-today-list{display:flex;align-items:center;list-style:none;padding:3px 0;margin:0;min-width:0;overflow-x:auto;white-space:nowrap;font-size:.9rem;scrollbar-width:thin}
+#app-today-list{display:flex;align-items:center;list-style:none;padding:3px 0;margin:0;min-width:0;overflow-x:auto;white-space:nowrap;font-size:0.9rem;scrollbar-width:thin}
 #app-today-list li{flex:none}
 #app-today-list li+li::before{content:'·';margin:0 7px;color:#415a73}
 .home-record-header{display:flex;align-items:center;gap:6px;min-width:0}
 .home-record-header h2{margin:0;font-size:1rem}
-#home-record-count{color:#415a73;font-size:.85rem;white-space:nowrap}
-#home-record-all{width:auto;min-height:36px;margin:0 0 0 2px;padding:3px 8px;font-size:.875rem;white-space:nowrap}
+#home-record-count{color:#415a73;font-size:0.85rem;white-space:nowrap}
+#home-record-all{width:auto;min-height:36px;margin:0 0 0 2px;padding:3px 8px;font-size:0.875rem;white-space:nowrap}
 #app-today-records>.compact-record-row{margin:0;padding:0;border:0;border-radius:0;background:transparent}
 #app-today-records>.compact-record-row+.compact-record-row{border-top:1px solid var(--app-border)}
-#app-today-records>.compact-record-row>summary{min-height:34px;padding:3px 0;font-size:.92rem}
+#app-today-records>.compact-record-row>summary{min-height:34px;padding:3px 0;font-size:0.92rem}
 @media(max-width:360px){.app-home-header h1{font-size:1.23rem}}
 @media(max-width:300px){.app-quick{grid-template-columns:auto auto minmax(80px,1fr) auto}.app-quick button{padding-inline:4px}}
 #app-detail-header{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:10px;padding:4px 0 6px;background:#f3f6fa}
-#app-back-home{width:auto;flex:none;margin:0;font-size:.88rem;padding:6px 9px}
+#app-back-home{width:auto;flex:none;margin:0;font-size:0.88rem;padding:6px 9px}
 #app-route-heading{font-size:1.22rem}
 #app-screens section,#app-screens form,#app-screens input,main [id="calendar-heading"]{scroll-margin-top:66px}
 .app-records-callout{margin:10px 0}
@@ -128,7 +128,7 @@ article{overflow-wrap:anywhere}
 .app-stat-block>summary{cursor:pointer;font-weight:700}
 .app-stat-block>h3{margin:10px 0}
 
-@media(max-width:400px){body{padding:9px}section{padding:10px}.app-menu-button{font-size:.78rem}.app-menu-icon{font-size:1.16rem}}
+@media(max-width:400px){body{padding:9px}section{padding:10px}.app-menu-button{font-size:0.78rem}.app-menu-icon{font-size:1.16rem}}
 
 #status:empty,#error:empty{display:none}
 .record-day-nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:5px;align-items:center}
@@ -143,34 +143,34 @@ article,.today-record-row{border:1px solid #b8c8d8;border-radius:8px;padding:9px
 .compact-record-row[open]>summary::after{content:'⌄'}
 .compact-record-clock{flex:none;font-variant-numeric:tabular-nums}
 .compact-record-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.compact-record-date{margin:12px 0 3px;color:#415a73;font-size:.88rem}
+.compact-record-date{margin:12px 0 3px;color:#415a73;font-size:0.88rem}
 .energy-weight-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .energy-warning{color:#9b1c1c;font-weight:bold}
-.compact-record-energy{flex:none;font-size:.82rem;color:#315371}
+.compact-record-energy{flex:none;font-size:0.82rem;color:#315371}
 #energy-information{margin-top:8px}
 #app-menus>summary{font-size:1.16rem;font-weight:700}
-#app-menu{gap:10px}.app-menu-button{font-size:.92rem;min-height:68px}
+#app-menu{gap:10px}.app-menu-button{font-size:0.92rem;min-height:68px}
 .schedule-actual{background:#d8eee1;color:#14452a;white-space:normal;overflow-wrap:anywhere}
 
 main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 .app-home-header{gap:4px;padding:4px 0 9px}
 .home-title,.home-header-actions{display:flex;align-items:center;gap:7px;min-width:0}
-.home-title h1{font-size:clamp(1.05rem,4.5vw,1.55rem);white-space:nowrap}
-#app-today{border-left:1px solid #aebdca;padding-left:7px;color:#192f56;font-size:clamp(.8rem,3.4vw,1.02rem);font-weight:700}
+.home-title h1{font-size:clamp(1.05rem,4.95vw,1.55rem);white-space:nowrap}
+#app-today{border-left:1px solid #aebdca;padding-left:7px;color:#192f56;font-size:clamp(0.8rem,3.74vw,1.02rem);font-weight:700}
 .home-header-actions{gap:2px}
 .home-header-actions button{background:transparent;color:#113c76;width:38px;min-height:40px;margin:0;padding:0;border-radius:8px;font-size:1.5rem}
 .home-search-icon{display:inline-block;width:15px;height:15px;border:2px solid currentColor;border-radius:50%;position:relative;vertical-align:2px}
 .home-search-icon::after{content:'';position:absolute;width:8px;height:2px;background:currentColor;right:-6px;bottom:-3px;transform:rotate(45deg)}
 .app-quick{grid-template-columns:repeat(2,minmax(0,1.22fr)) repeat(5,minmax(0,1fr));gap:3px;margin-bottom:8px}
-.app-quick button{min-height:48px;padding:3px 1px;font-size:clamp(.68rem,2.75vw,.92rem);border:1px solid #b7cada}
+.app-quick button{min-height:48px;padding:3px 1px;font-size:clamp(0.68rem,3.025vw,0.92rem);border:1px solid #b7cada}
 .app-quick .home-module{display:flex;flex-direction:column;align-items:center;justify-content:center;background:white;color:#142947;line-height:1.15}
 .home-module span{color:#145395;font-size:1.05rem;line-height:1.2}
 #app-today-section{margin:6px 0;padding:3px 7px}
 #app-today-list{flex:1;border-left:1px solid #bccbd8;padding-left:7px}
 .home-chevron{width:32px;min-height:38px;flex:none;margin:0;padding:0;background:transparent;color:#17304b;font-size:1.3rem}
 .home-date-controls{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:4px;margin:6px 0}
-.home-date-controls label{margin:0;font-size:.81rem;font-weight:700;white-space:nowrap}
-.home-date-controls input,.home-date-controls button{min-width:0;margin:0;min-height:38px;padding:4px 5px;font-size:.84rem}
+.home-date-controls label{margin:0;font-size:0.81rem;font-weight:700;white-space:nowrap}
+.home-date-controls input,.home-date-controls button{min-width:0;margin:0;min-height:38px;padding:4px 5px;font-size:0.84rem}
 #home-record-prev,#home-record-next{width:32px;background:white;color:#17304b;border:1px solid #b7cada;font-size:1.15rem}
 #app-today-records-section{background:#f8fbfe;padding:5px 6px}
 .home-record-header{padding:0 2px 3px}
@@ -181,17 +181,17 @@ main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 #home-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:7px;margin:6px 0}
 #home-totals>div{padding:0 6px}
 #home-totals>div+div{border-left:1px solid #b8c8d8}
-#home-totals h2{font-size:.96rem;margin:0 0 4px}
+#home-totals h2{font-size:0.96rem;margin:0 0 4px}
 #home-totals dl,#home-totals dd{margin:0}
-#home-totals dl>div{display:flex;justify-content:space-between;gap:4px;border-top:1px solid #dce5ee;padding:3px 0;font-size:.86rem}
+#home-totals dl>div{display:flex;justify-content:space-between;gap:4px;border-top:1px solid #dce5ee;padding:3px 0;font-size:0.86rem}
 #home-totals dd{font-weight:700;color:#124e95}
 #home-tabs{position:fixed;z-index:5;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,700px);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:white;border-top:1px solid #c3d0de;padding-bottom:env(safe-area-inset-bottom,0px)}
-#home-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;margin:0;padding:4px 2px;background:transparent;color:#233a55;font-size:.84rem}
+#home-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;margin:0;padding:4px 2px;background:transparent;color:#233a55;font-size:0.84rem}
 #home-tabs button span{line-height:1;font-size:1.25rem}
 #home-tabs button[aria-current=page]{color:#0756aa;background:#edf5fd}
 
 .inline-actions,.schedule-actions{display:flex;align-items:center;flex-wrap:wrap;gap:5px;min-width:0;margin:5px 0}
-.inline-actions>button,.schedule-actions>button{width:auto;min-width:44px;min-height:38px;margin:0;padding:4px 9px;font-size:.87rem}
+.inline-actions>button,.schedule-actions>button{width:auto;min-width:44px;min-height:38px;margin:0;padding:4px 9px;font-size:0.87rem}
 .inline-actions>.app-records-callout{margin:0}
 #app-today-section{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 6px;padding:4px 7px}
 #app-today-heading{grid-area:1/1}
@@ -208,9 +208,9 @@ main{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 main:has(#app-screen-entry:not([hidden]) #entry-save-result:not([hidden])) #status{display:none}
 @media(max-width:375px){
   .app-quick{grid-template-columns:repeat(15,minmax(0,1fr));gap:3px}
-  .app-quick>button{grid-column:span 5;min-height:36px;font-size:.82rem}
-  .app-quick>.home-module{grid-column:span 3;min-height:36px;flex-direction:row;gap:2px;font-size:.75rem}
-  .home-module span{font-size:.83rem}
+  .app-quick>button{grid-column:span 5;min-height:36px;font-size:0.82rem}
+  .app-quick>.home-module{grid-column:span 3;min-height:36px;flex-direction:row;gap:2px;font-size:0.75rem}
+  .home-module span{font-size:0.83rem}
 }
 /* The header and tabs stay outside the only page scroll container. */
 body{margin:0;padding:0;overflow:hidden}
@@ -230,12 +230,12 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 #home-record-heading{margin:0}
 #calorie-notice{box-sizing:border-box;width:min(92vw,420px);border:1px solid #b7cada;border-radius:14px;text-align:center;padding:20px;color:#17304b}
 #calorie-notice::backdrop{background:#15233588}
-#calorie-notice-value{display:block;font-size:clamp(2.5rem,12vw,4rem);line-height:1.15}
+#calorie-notice-value{display:block;font-size:clamp(2.5rem,13.2vw,4rem);line-height:1.15}
 #calorie-notice[data-over] #calorie-notice-value,#calorie-notice[data-over] #calorie-notice-message{color:#a51e23}
 #app-top button[aria-current=page],#app-menus button[aria-current=page]{background:#1759a0;color:white}
 #app-top .app-quick button:not([aria-current=page]){background:white;color:#17304b}
 #app-today-list li{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-#app-today-list button,#home-hidden-toggle{width:auto;min-height:36px;margin:0;padding:3px 8px;font-size:.82rem}
+#app-today-list button,#home-hidden-toggle{width:auto;min-height:36px;margin:0;padding:3px 8px;font-size:0.82rem}
 #app-today-list .completed-label{color:#18633a;font-weight:700}
 #home-hidden-toggle{background:#e8eff8;color:#17304b}
 #home-record-heading{flex:1}
@@ -244,13 +244,13 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 #weight-review-chart{height:85px;width:100%;display:block}
 #home-week{margin:5px 0;padding:4px 8px}
 #home-week>summary{min-height:36px;line-height:36px;cursor:pointer;font-weight:700}
-#home-week-list h3{margin:6px 0 2px;font-size:.9rem}
+#home-week-list h3{margin:6px 0 2px;font-size:0.9rem}
 #home-week-list ul{margin:0 0 6px;padding-left:1.2em}
 #home-week-list li{overflow-wrap:anywhere}
 .value-credit,.hula-profit,#calorie-notice-value{color:#1254a0}
 .value-debit,.hula-loss,#home-totals .value-debit{color:#a51e23}
 .compact-record-clock{white-space:nowrap}
-@media(max-width:390px){.compact-record-clock{font-size:.74rem}.compact-record-energy{font-size:.72rem}}
+@media(max-width:390px){.compact-record-clock{font-size:0.74rem}.compact-record-energy{font-size:0.72rem}}
 #food-photo-tools{margin:6px 0}
 #food-photo-tools .inline-actions{margin:4px 0}
 #food-photo-items{width:100%;box-sizing:border-box}
@@ -284,12 +284,20 @@ button:disabled{opacity:.57}
 #app-today-records>.compact-record-row+.compact-record-row{border-top-color:var(--app-border)}
 .compact-record-row>summary{display:flex;align-items:center;gap:5px;min-width:0;min-height:40px}
 .compact-record-text{flex:1;min-width:0}
-.record-values{margin-left:auto;display:flex;flex:none;flex-direction:column;text-align:right;font-size:clamp(.72rem,3vw,.88rem);font-weight:700;line-height:1.25;white-space:nowrap;font-variant-numeric:tabular-nums}
+.record-values{margin-left:auto;display:flex;flex:none;flex-direction:column;text-align:right;font-size:clamp(0.72rem,3.3vw,0.88rem);font-weight:700;line-height:1.25;white-space:nowrap;font-variant-numeric:tabular-nums}
 .compact-record-clock{color:#4b6075;font-variant-numeric:tabular-nums}
 .value-credit,.hula-profit,#calorie-notice-value{color:var(--diary-blue)}
 .value-debit,.hula-loss,#home-totals .value-debit,#calorie-notice[data-over] #calorie-notice-value{color:var(--diary-red)}
 .task-progress{background:#eff7fd;border-radius:12px;padding:6px 8px}
-#home-breakfast-note{grid-column:1/-1;margin:4px 6px 0;color:#634e44;font-size:.78rem}
+#home-breakfast-note{grid-column:1/-1;margin:4px 6px 0;color:#634e44;font-size:0.78rem}
+html{font-size:110%}
+#app-top .app-quick button{min-height:48px}
+#home-tabs button{min-height:61px}
+.inline-actions>button,.schedule-actions>button{min-width:48px;min-height:42px}
+#app-today-list button,#home-hidden-toggle,#home-record-all{min-height:40px}
+.home-date-controls input,.home-date-controls button{min-height:42px}
+.home-title{gap:5px}
+.default-breakfast-row{display:flex;align-items:center;gap:5px;min-height:42px;padding:0 7px;font-size:0.827rem}
 </style>
 </head>
 <body>
@@ -338,6 +346,8 @@ button:disabled{opacity:.57}
 <h2 id="home-record-heading"><button id="home-record-toggle" type="button" aria-expanded="true" aria-controls="app-today-records"><span id="home-record-label">오늘 기록</span><span id="home-record-count" aria-live="polite"></span></button></h2>
 <button id="home-record-all" type="button">전체 보기 ›</button>
 </div>
+<div id="home-default-breakfast" class="default-breakfast-row" hidden>
+<span>기본 아침 식사</span><span id="home-default-breakfast-kcal" class="record-values value-debit"></span></div>
 <div id="app-today-records"></div>
 <button id="home-hidden-toggle" type="button" aria-expanded="false" aria-controls="home-hidden-records">숨긴 기록 보기 (0건)</button>
 <div id="home-hidden-records" hidden></div>
@@ -836,6 +846,7 @@ button:disabled{opacity:.57}
 <h4 id="schedule-form-title">일정 등록</h4>
 <label for="schedule-date">날짜</label>
 <input id="schedule-date" type="date" required>
+<div id="schedule-end-field" hidden><label for="schedule-end">종료일 (연속 일정)</label><input id="schedule-end" type="date"></div>
 <label for="schedule-kind">일정 종류</label>
 <select id="schedule-kind"></select>
 <div id="schedule-personal">
@@ -5048,7 +5059,7 @@ function renderUnifiedHome() {
   const month = now.slice(0, 7);
   const monthEnd = calendarDate(month, calendarDayCount(month));
   const events = availableScheduleEvents().sort((a, b) => a.date.localeCompare(b.date));
-  const todayEvents = events.filter(event => event.date === now);
+  const todayEvents = scheduledOnDay(events, now);
   const upcoming = events.filter(event => event.date > now && !scheduleKinds[event.kind].shift);
   const eventLines = items => items.slice(0, 5).map(event => event.date + ' · ' + eventLabel(event) +
     (event.pickup ? ' · 픽업 ' + event.pickup : ''));
@@ -5114,7 +5125,7 @@ function renderUnifiedSearch() {
   }
   if ((!c.kind || c.kind === 'calendar') && c.min === null && c.max === null) {
     for (const event of availableScheduleEvents()) {
-      if (!scheduleKinds[event.kind].shift && dateMatches(event.date) && terms.every(term =>
+      if (!scheduleKinds[event.kind].shift && (!c.from || scheduleEnd(event) >= c.from) && (!c.to || event.date <= c.to) && terms.every(term =>
         normalizedSearch([eventLabel(event), event.supplies].filter(Boolean).join(' ')).includes(term))) {
         results.push({date: event.date, event});
       }
@@ -5549,7 +5560,7 @@ function renderHomeToday() {
   const list = byId('app-today-list');
   list.replaceChildren();
   const schedules = availableScheduleEvents();
-  const events = schedules.filter(event => event.date === today || renewalOnDate(event, today, true));
+  const events = scheduledOnDay(schedules, today, true);
   const week = byId('home-week-list');
   week.replaceChildren();
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -5558,8 +5569,7 @@ function renderHomeToday() {
     const heading = document.createElement('h3');
     heading.textContent = day + ' (' + weekdays[new Date(day + 'T12:00:00Z').getUTCDay()] + ')';
     const daily = document.createElement('ul');
-    const labels = schedules.filter(event => !scheduleKinds[event.kind].shift &&
-      (event.date === day || renewalOnDate(event, day))).map(event => eventDayLabel(event) +
+    const labels = scheduledOnDay(schedules, day).filter(event => !scheduleKinds[event.kind].shift).map(event => eventDayLabel(event, day) +
       (event.pickup ? ' · 픽업 예정 ' + event.pickup : '') + (event.completedAt ? ' · 완료' : ''));
     for (const text of labels.length ? labels : ['일정 없음']) {
       const item = document.createElement('li');
@@ -5577,7 +5587,7 @@ function renderHomeToday() {
   }
   for (const event of events) {
     const item = document.createElement('li');
-    item.textContent = eventDayLabel(event) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
+    item.textContent = eventDayLabel(event, today) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
     const renewal = scheduleKinds[event.kind].renewal;
     if (renewal) item.classList.add('registration-alert');
     if (event.completedAt) {
@@ -5593,7 +5603,7 @@ function renderHomeToday() {
         try {
           await withSchedule(state => {
             const current = state.events.find(item => item.id === event.id);
-            if (!current || current.completedAt || (current.date !== todayDate() && !renewalOnDate(current, todayDate()))) return;
+            if (!current || current.completedAt || !scheduleOnDate(current, todayDate())) return;
             current.completedAt = new Date().toISOString();
             writeSchedule(state);
           });
@@ -5708,10 +5718,10 @@ function classifyDiary(text, analysis = analyze(text)) {
 }
 
 function speechDate(text, fallback, relativeBase = todayDate()) {
-  const relative = /^(오늘|어제|그제|내일)\s+/.exec(text);
+  const relative = /^(오늘|어제|그제|내일|모레|글피)(?:부터\s*|\s+)/.exec(text);
   if (relative) {
     const day = new Date(relativeBase + 'T12:00:00Z');
-    day.setUTCDate(day.getUTCDate() + {오늘: 0, 어제: -1, 그제: -2, 내일: 1}[relative[1]]);
+    day.setUTCDate(day.getUTCDate() + {오늘: 0, 어제: -1, 그제: -2, 내일: 1, 모레: 2, 글피: 3}[relative[1]]);
     return {day: day.toISOString().slice(0, 10), text: text.slice(relative[0].length)};
   }
   const iso = /^(\d{4}-\d{2}-\d{2})\s+/.exec(text);
@@ -5983,6 +5993,9 @@ function renderTodayRecords() {
   byId('home-record-label').textContent = day === today ? '오늘 기록' : day + ' 기록';
   const records = unifiedRecords.filter(record => record.date === day);
   byId('home-record-count').textContent = records.filter(record => !record.hiddenFromLists).length + '건';
+  const defaultBreakfast = byId('home-default-breakfast');
+  defaultBreakfast.hidden = !energyForDay(day).breakfast || byId('app-today-records').hidden;
+  byId('home-default-breakfast-kcal').textContent = '+' + calorieNumber(defaultBreakfastCalories);
   const hidden = records.filter(record => record.hiddenFromLists);
   byId('home-hidden-toggle').textContent = '숨긴 기록 보기 (' + hidden.length + '건)';
   renderCompactRecords(byId('home-hidden-records'), hidden, '이 날짜에 숨긴 기록이 없습니다.');
@@ -6318,6 +6331,7 @@ function initializeLayout() {
   const recordToggle = byId('home-record-toggle');
   function showRecords(expanded) {
     recordList.hidden = !expanded;
+    byId('home-default-breakfast').hidden = !expanded || !energyForDay(byId('home-record-date').value || todayDate()).breakfast;
     recordToggle.setAttribute('aria-expanded', String(expanded));
   }
   recordToggle.onclick = () => showRecords(recordList.hidden);
@@ -6578,11 +6592,12 @@ function renderWeightReview() {
   for (const [x, y] of coordinates) { ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); }
 }
 
+const defaultBreakfastCalories = 700;
 function energyForDay(day) {
   const {workout = 0, intake = 0, meals = 0} = energyDays.get(day) ?? {};
   const base = readEnergyBaseline() ?? 2000;
   const breakfast = !energyDays.get(day)?.breakfast;
-  const consumed = intake + (breakfast ? 700 : 0);
+  const consumed = intake + (breakfast ? defaultBreakfastCalories : 0);
   return {workout, intake: consumed, meals: meals + Number(breakfast), base, breakfast,
     total: base + workout, balance: consumed - base - workout};
 }
@@ -6870,6 +6885,18 @@ function readSchedule() {
     state.secondScheduleSeeded = true;
     writeSchedule(state);
   }
+  if (!state.ruralWorkNovemberSeeded) {
+    const date = '2026-11-28';
+    const title = '시골 일하기';
+    const existing = state.events.find(event => event.date === date && diaryAppointmentTitle(event.title || '') === diaryAppointmentTitle(title));
+    if (existing) {
+      existing.title = title;
+      existing.time ||= '13:00';
+      existing.end = existing.end && existing.end > '2026-11-29' ? existing.end : '2026-11-29';
+    } else state.events.push({...newSchedule('farm-work', date), title, time: '13:00', end: '2026-11-29'});
+    state.ruralWorkNovemberSeeded = true;
+    writeSchedule(state);
+  }
   return state;
 }
 
@@ -6890,12 +6917,29 @@ function scheduleListOrder(a, b, today) {
     (a.time || a.pickup || (pastA ? '' : '99:99')).localeCompare(b.time || b.pickup || (pastA ? '' : '99:99')) * (pastA ? -1 : 1);
 }
 
+function scheduleEnd(event) {
+  return validScheduleDate(event.end) && event.end >= event.date ? event.end : event.date;
+}
+
+function scheduleOnDate(event, date) {
+  return event.date <= date && date <= scheduleEnd(event);
+}
+
+function scheduleTimeOnDate(event, day) {
+  return event.date === day ? event.time || event.pickup || '99:99' : '99:99';
+}
+
+function scheduledOnDay(events, day, includeReminder = false) {
+  return events.filter(event => scheduleOnDate(event, day) || includeReminder && renewalOnDate(event, day, true))
+    .sort((a, b) => scheduleTimeOnDate(a, day).localeCompare(scheduleTimeOnDate(b, day)));
+}
+
 function availableScheduleEvents() {
   const closures = new Set(calendarEvents.filter(event => event.kind === 'pool' || event.kind === 'gym')
     .map(event => event.date + '|' + event.kind));
   const seen = new Set();
   return calendarEvents.filter(event => {
-    const key = JSON.stringify([event.date, event.kind, scheduleTitleKey(displayScheduleTitle(event)), event.time || '', event.pickup || '', event.people || '']);
+    const key = JSON.stringify([event.date, scheduleEnd(event), event.kind, scheduleTitleKey(displayScheduleTitle(event)), event.time || '', event.pickup || '', event.people || '']);
     if (!scheduleKinds[event.kind] || !eventLabel(event)?.trim() || seen.has(key) || closures.has(event.date + '|' + scheduleKinds[event.kind]?.closure)) return false;
     seen.add(key);
     return true;
@@ -6903,11 +6947,11 @@ function availableScheduleEvents() {
     (a.time || a.pickup || '99:99').localeCompare(b.time || b.pickup || '99:99'));
 }
 
-function eventDayLabel(event) {
+function eventDayLabel(event, day = event.date) {
   const kind = scheduleKinds[event.kind];
   if (kind.renewal) return '남구국민체육센터 1관 · ' + kind.label;
   const label = eventLabel(event, false);
-  return event.time ? event.time + ' · ' + label : label;
+  return event.time && day === event.date ? event.time + ' · ' + label : label;
 }
 
 function eventLabel(event, includeTime = true) {
@@ -6923,6 +6967,17 @@ function eventLabel(event, includeTime = true) {
   return title;
 }
 
+function plannedScheduleEnd(memo, start, savedDay) {
+  const until = /(?:내일|모레|글피)\s*까지/.exec(memo);
+  if (until) {
+    const date = offsetDay(savedDay, until[0].startsWith('내일') ? 1 : until[0].startsWith('모레') ? 2 : 3);
+    return date > start ? date : '';
+  }
+  const duration = /(?:^|[^\d])(\d{1,3}|이틀|사흘|나흘|닷새)\s*(?:일\s*동안|동안)/.exec(memo);
+  const days = duration ? ({이틀: 2, 사흘: 3, 나흘: 4, 닷새: 5}[duration[1]] ?? Number(duration[1])) : 0;
+  return days > 1 && days <= 366 ? offsetDay(start, days - 1) : '';
+}
+
 function plannedDiaryAppointment(record, savedDay) {
   if ((record.foodItems && !plannedMeal(record)) || !validScheduleDate(record.date) || record.date < savedDay) return null;
   const memo = cleanSpokenRecord(record.memo);
@@ -6931,13 +6986,16 @@ function plannedDiaryAppointment(record, savedDay) {
   const explicit = /예정|계획|(?:가|하|먹|만나|들르|받)기로|(?:가|해|만나|들러|받아)야|(?:갈|할|만날|들를|받을)\s*(?:거|것|게)|예약|참석할|방문할|(?:약속|모임|일정)(?:이)?\s*있/.test(memo);
   const concise = /(?:조문|문상|약속|모임|회의|미팅|면담|방문|진료|장례식|픽업|상담|수업)[.!?。！？]*$/.test(memo);
   const upcomingTrip = /시골|밭|농장/.test(memo) && /(?:일하[러로]|작업하러|농사[하일])\s*(?:가는데|가요|가|갑니다)(?:[.!?。！？]|$)/.test(memo);
-  if (!(explicit || concise || upcomingTrip || plannedMeal(record) || record.category === '일정')) return null;
+  const end = plannedScheduleEnd(memo, record.date, savedDay);
+  const ruralWork = /시골/.test(memo) && /일하[기러로]|작업|농사/.test(memo);
+  if (!(explicit || concise || upcomingTrip || end && ruralWork || plannedMeal(record) || record.category === '일정')) return null;
   const title = speechDate(memo, record.date, savedDay).text
     .replace(/^(?:오전|오후|아침|저녁|밤)?\s*(?:[01]?\d|2[0-3])(?::[0-5]\d|시(?:\s*(?:반|[0-5]?\d\s*분))?)(?:에)?\s*/u, '')
     .replace(/\s*(?:갈\s*(?:예정|거(?:야|예요)?)|가야\s*해|가기로\s*(?:했어|했다)?|예정(?:입니다|이야)?|할\s*예정)[.!?。！？]*$/u, '')
     .replace(/일하로(?=\s*가)/g, '일하러')
     .trim().replace(/[.!?。！？]+$/u, '');
-  return title ? {date: record.date, title, time: normalizedClock(record.time) || memoClock(memo)} : null;
+  return title ? {date: record.date, title: diaryAppointmentTitle(title) === '시골일하기' ? '시골 일하기' : title,
+    time: normalizedClock(record.time) || memoClock(memo), ...(end ? {end} : {})} : null;
 }
 
 function existingCondolenceAppointment(records) {
@@ -6951,6 +7009,8 @@ function existingCondolenceAppointment(records) {
 }
 
 function diaryAppointmentTitle(title) {
+  const rural = title.replace(/(?:오늘|오후에|오전에|내일\s*까지|\d+일\s*동안|부터)\s*/g, '').trim();
+  if (/^시골(?:에|에서)?\s+일하(?:기|[러로]\s*가(?:는데|요|겠습니다)?|러\s*갑니다)$/.test(rural)) return '시골일하기';
   return title.normalize('NFKC').replace(/[\s\p{P}]+/gu, '').replace(/문상/g, '조문')
     .replace(/조문예정$/, '조문').replace(/모친상$/, '모친상조문').replace(/대표님/g, '대표');
 }
@@ -6967,7 +7027,7 @@ async function syncDiarySchedules(records) {
     });
     if (record.diaryAppointment && !appointments.length) appointments.push(record.diaryAppointment);
     if (!appointments.length && record.date === today) {
-      const item = plannedDiaryAppointment(record, today);
+      const item = plannedDiaryAppointment(record, recordSavedStamp(record)?.day ?? today);
       if (item) appointments.push(item);
     }
     return appointments.map((item, index) => ({...item, id: index ? record.id + ':appointment:' + index : record.id}));
@@ -6984,14 +7044,18 @@ async function syncDiarySchedules(records) {
       sources.add(item.id);
       dirty = true;
       const title = diaryAppointmentTitle(item.title);
-      const duplicate = state.events.some(event => event.date === item.date && (
+      const duplicate = state.events.find(event => event.date === item.date && (
         event.diarySource === item.id ||
         typeof event.title === 'string' && diaryAppointmentTitle(event.title) === title &&
         (!item.time || !event.time || event.time === item.time)
       ));
-      if (duplicate) continue;
+      const end = validScheduleDate(item.end) && item.end > item.date ? item.end : '';
+      if (duplicate) {
+        if (end && end > scheduleEnd(duplicate)) { duplicate.end = end; added = true; }
+        continue;
+      }
       state.events.push({...newSchedule('personal', item.date), title: item.title,
-        time: normalizedClock(item.time), diarySource: item.id});
+        time: normalizedClock(item.time), ...(end ? {end} : {}), diarySource: item.id});
       added = true;
     }
     if (dirty) {
@@ -7032,7 +7096,7 @@ function renderCalendar() {
   for (const event of availableScheduleEvents()) {
     const monthStart = displayedMonth + '-01';
     const monthEnd = calendarDate(displayedMonth, calendarDayCount(displayedMonth));
-    const end = scheduleKinds[event.kind].renewal ? event.end || event.date : event.date;
+    const end = scheduleEnd(event);
     for (let day = event.date < monthStart ? monthStart : event.date; day <= end && day <= monthEnd; day = offsetDay(day, 1)) {
       if (!grouped.has(day)) grouped.set(day, []);
       grouped.get(day).push(event);
@@ -7047,7 +7111,7 @@ function renderCalendar() {
   }
   for (let day = 1; day <= calendarDayCount(displayedMonth); day++) {
     const value = calendarDate(displayedMonth, day);
-    const entries = grouped.get(value) ?? [];
+    const entries = scheduledOnDay(grouped.get(value) ?? [], value);
     const actual = completed.get(value) ?? [];
     const button = scheduleButton('', () => {
       selectedDay = value;
@@ -7065,12 +7129,9 @@ function renderCalendar() {
     number.textContent = String(day);
     button.append(number);
     for (const item of actual) button.append(scheduleBadge('actual', item.label));
-    const badges = new Set();
     for (const event of entries) {
       if (actual.some(item => plannedMatch(event, item))) continue;
       const short = shortScheduleTitle(event);
-      if (badges.has(short)) continue;
-      badges.add(short);
       button.append(scheduleBadge(event.completedAt ? 'actual' : event.kind, short));
     }
     calendarDays.append(button);
@@ -7078,7 +7139,7 @@ function renderCalendar() {
   const list = byId('schedule-list');
   byId('schedule-day').textContent = selectedDay + (selectedDay < today ? ' · 지난 달력 일정' : selectedDay === today ? ' · 오늘 일정' : ' · 예정 일정');
   list.replaceChildren();
-  const entries = grouped.get(selectedDay) ?? [];
+  const entries = scheduledOnDay(grouped.get(selectedDay) ?? [], selectedDay);
   const actual = completed.get(selectedDay) ?? [];
   if (!entries.length && !actual.length) list.textContent = '등록된 일정이 없습니다.';
   for (const item of actual) {
@@ -7090,7 +7151,7 @@ function renderCalendar() {
   }
   for (const event of entries) {
     const item = document.createElement('article');
-    item.append(scheduleBadge(event.kind, eventDayLabel(event)));
+    item.append(scheduleBadge(event.kind, eventDayLabel(event, selectedDay)));
     if (event.completedAt) item.append(scheduleBadge('actual', '완료'));
     else if (scheduleKinds[event.kind].renewal && renewalOnDate(event, today)) item.append(scheduleBadge(event.kind, '미완료'));
     if (event.kind === 'golf-plan') {
@@ -7153,7 +7214,7 @@ function moveCalendar(offset) {
 
 function scheduleFields() {
   const farm = Boolean(scheduleKinds[scheduleKind.value]?.farm);
-  const timed = scheduleKind.value === 'personal' || Boolean(scheduleKinds[scheduleKind.value]?.appointment || scheduleKinds[scheduleKind.value]?.activity);
+  const timed = farm || scheduleKind.value === 'personal' || Boolean(scheduleKinds[scheduleKind.value]?.appointment || scheduleKinds[scheduleKind.value]?.activity);
   const personal = timed || farm;
   byId('schedule-golf-fields').hidden = !timed;
   for (const id of ['schedule-golf-time', 'schedule-golf-people']) byId(id).disabled = !timed;
@@ -7162,6 +7223,8 @@ function scheduleFields() {
   byId('schedule-reminder').disabled = !farm;
   const evening = scheduleKind.value === 'e';
   byId('schedule-personal').hidden = !personal;
+  byId('schedule-end-field').hidden = !personal;
+  byId('schedule-end').disabled = !personal;
   scheduleTitle.disabled = !personal;
   byId('schedule-pickup').hidden = !evening;
   pickupEnabled.disabled = !evening;
@@ -7193,6 +7256,7 @@ function editSchedule(event) {
   maybeWarnGolf(event);
   scheduleEditingId = event.id;
   scheduleDate.value = event.date;
+  byId('schedule-end').value = scheduleEnd(event) !== event.date ? event.end : '';
   if (event.kind === 'gym-open' && !scheduleKind.querySelector('option[value="gym-open"]')) {
     scheduleKind.append(option(scheduleKinds[event.kind].label, event.kind));
   }
@@ -7233,9 +7297,17 @@ scheduleForm.onsubmit = async event => {
   const entry = newSchedule(scheduleKind.value, scheduleDate.value);
   entry.id = editing ?? entry.id;
   const farm = Boolean(scheduleKinds[entry.kind].farm);
-  const timed = entry.kind === 'personal' || Boolean(scheduleKinds[entry.kind].appointment || scheduleKinds[entry.kind].activity);
+  const timed = farm || entry.kind === 'personal' || Boolean(scheduleKinds[entry.kind].appointment || scheduleKinds[entry.kind].activity);
   const named = timed || farm;
   entry.title = named ? scheduleTitle.value.trim() : '';
+  const end = named ? byId('schedule-end').value : '';
+  if (end) {
+    if (!validScheduleDate(entry.date) || !validScheduleDate(end) || end < entry.date || end > offsetDay(entry.date, 365)) {
+      showScheduleError(new Error('종료일은 시작일부터 1년 이내로 입력해 주세요.'));
+      return;
+    }
+    if (end !== entry.date) entry.end = end;
+  }
   if (timed) {
     entry.time = byId('schedule-golf-time').value;
     entry.people = byId('schedule-golf-people').value.trim();
