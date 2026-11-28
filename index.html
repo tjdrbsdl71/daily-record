@@ -300,6 +300,20 @@ html{font-size:110%}
 .home-date-controls input,.home-date-controls button{min-height:42px}
 .home-title{gap:5px}
 .default-breakfast-row{display:flex;align-items:center;gap:5px;min-height:42px;padding:0 7px;font-size:0.827rem}
+#app-top .app-quick{grid-template-columns:repeat(4,minmax(0,1fr))}
+#app-menu{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#app-menu .app-menu-button{display:grid;grid-template-columns:auto minmax(0,1fr);text-align:left;align-content:center;column-gap:6px;min-height:64px;padding:8px;overflow-wrap:anywhere}
+.app-menu-metric{grid-column:2;font-size:.75rem;color:#425d77;font-weight:400}
+.management-tools{margin:8px 0;padding:8px 12px;border:1px solid #dce7f2;border-radius:12px;background:#fbfdff}
+.management-tools>summary{cursor:pointer;min-height:38px;align-content:center;font-weight:650}
+.management-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0}
+.management-range input{min-width:0;width:100%}
+.management-range p{grid-column:1/-1;margin:0}
+.management-section>h2{margin-top:0}
+.management-summary{display:flex;gap:5px 14px;flex-wrap:wrap;margin:8px 0;font-size:.9rem;color:#294761}
+#card-overview button.card-summary{width:100%;text-align:left}
+#card-overview button.card-summary span{display:block;margin-top:4px;font-weight:400}
+@media(max-width:355px){#app-top .app-quick button{font-size:.69rem}}
 </style>
 </head>
 <body>
@@ -316,17 +330,11 @@ html{font-size:110%}
 <button id="app-voice" type="button" aria-label="음성으로 기록하기">🎙 음성</button>
 <button id="app-menu-toggle" type="button" aria-controls="app-menus" aria-expanded="false">전체 메뉴</button>
 <button id="app-write" type="button" aria-label="문자 입력">✏️ 입력</button>
+<button id="app-photo" type="button" aria-label="사진 기록">📷 사진</button>
 </div>
 </div>
 <div id="app-content">
 <div id="app-menus" hidden>
-<div class="app-quick home-menu-shortcuts">
-<button type="button" class="home-module" data-app-route="fitness"><span aria-hidden="true">🏃</span>운동</button>
-<button type="button" class="home-module" id="home-weight"><span aria-hidden="true">⚖️</span>체중</button>
-<button type="button" class="home-module" data-app-route="finance"><span aria-hidden="true">◉</span>지출</button>
-<button type="button" class="home-module" data-app-route="health"><span aria-hidden="true">✚</span>의료</button>
-<button type="button" class="home-module" data-app-route="calendar"><span aria-hidden="true">▦</span>일정</button>
-</div>
 <nav id="app-menu" aria-label="관리 메뉴"></nav>
 </div>
 <div id="app-home">
@@ -596,6 +604,7 @@ html{font-size:110%}
 <p id="card-registry-status" role="status"></p>
 <section id="card-detail" hidden>
 <h3 id="card-detail-title"></h3>
+<p id="card-detail-summary" class="management-summary"></p>
 <div id="card-detail-records"></div>
 <div id="card-topups" hidden>
 <h4>법인 한도 충전 내역</h4>
@@ -920,10 +929,12 @@ html{font-size:110%}
 <section id="receipt-section">
 <h2>영수증으로 지출 기록</h2>
 <form id="receipt-form">
-<label for="receipt-photo">영수증 촬영 또는 사진 선택</label>
-<input id="receipt-photo" type="file" accept="image/*" capture="environment" aria-describedby="receipt-status">
+<input id="receipt-photo" type="file" accept="image/*" capture="environment" hidden>
+<input id="receipt-gallery" type="file" accept="image/*" hidden>
+<div class="inline-actions"><button id="receipt-camera-button" type="button">영수증 촬영</button><button id="receipt-gallery-button" type="button">사진 선택</button></div>
 <p id="receipt-status" role="status">사진에서 날짜, 사용처, 결제 금액을 읽습니다.</p>
 <button id="receipt-retry" type="button" hidden>영수증 인식 다시 시도</button>
+<button id="receipt-manual" type="button">직접 입력</button>
 <fieldset id="receipt-fields" hidden disabled>
 <legend>인식 결과 확인</legend>
 <label for="receipt-date">결제 날짜</label>
@@ -932,6 +943,7 @@ html{font-size:110%}
 <input id="receipt-merchant" type="text" required>
 <label for="receipt-amount">결제 금액 (원)</label>
 <input id="receipt-amount" type="number" inputmode="numeric" min="1" step="1" required>
+<label for="receipt-card">결제 카드 (선택)</label><select id="receipt-card"><option value="">일반 지출</option></select>
 <button id="receipt-save" type="submit">지출 기록 저장</button>
 </fieldset>
 </form>
@@ -1366,6 +1378,7 @@ function render(records) {
   renderUnified(records);
   if (layoutReady) {
     renderLayoutRecords();
+    renderMenuMetrics();
     renderTodayRecords();
     renderHomeTotals();
     renderCalendar();
@@ -2619,7 +2632,7 @@ async function readFoodPhoto(file) {
     if (run === foodPhotoRun) {
       foodProgress.finish();
       setFoodPhotoBusy(false);
-      byId('food-photo-manual').hidden = true;
+      byId('food-photo-manual').hidden = Boolean(items.value.trim()) || !byId('food-label-review').hidden;
       updateFoodPhotoTotal();
     }
   }
@@ -2643,11 +2656,19 @@ byId('food-photo-clear').onclick = () => {
 const receiptProgress = createTaskProgress(receiptStatus);
 const receiptRetry = byId('receipt-retry');
 let receiptRetryFile;
+const receiptGallery = byId('receipt-gallery');
+const receiptActions = ['receipt-camera-button', 'receipt-gallery-button', 'receipt-manual'].map(byId);
+function disableReceiptActions(disabled) {
+  receiptPhoto.disabled = receiptGallery.disabled = disabled;
+  for (const button of receiptActions) button.disabled = disabled;
+}
+byId('receipt-camera-button').onclick = () => receiptPhoto.click();
+byId('receipt-gallery-button').onclick = () => receiptGallery.click();
 async function recognizeReceipt(photo) {
   if (!photo || receiptPhoto.disabled) return;
   receiptRetryFile = photo;
+  disableReceiptActions(true);
   receiptRetry.hidden = true;
-  receiptPhoto.disabled = true;
   receiptFields.hidden = true;
   receiptFields.disabled = true;
   receiptDate.value = receiptMerchant.value = receiptAmount.value = '';
@@ -2667,14 +2688,20 @@ async function recognizeReceipt(photo) {
     receiptStatus.textContent = '사진을 읽지 못했습니다. 인터넷 연결을 확인하고 다시 촬영하거나 아래 항목을 입력해 주세요.';
   } finally {
     receiptProgress.finish();
-    receiptPhoto.value = '';
-    receiptPhoto.disabled = false;
+    receiptPhoto.value = receiptGallery.value = '';
+    disableReceiptActions(false);
     receiptFields.hidden = false;
     receiptFields.disabled = false;
   }
 }
 receiptPhoto.onchange = () => recognizeReceipt(receiptPhoto.files[0]);
+receiptGallery.onchange = () => recognizeReceipt(receiptGallery.files[0]);
 receiptRetry.onclick = () => recognizeReceipt(receiptRetryFile);
+byId('receipt-manual').onclick = () => {
+  receiptFields.hidden = receiptFields.disabled = false;
+  receiptDate.value ||= todayDate();
+  receiptMerchant.focus();
+};
 
 receiptForm.onsubmit = async event => {
   event.preventDefault();
@@ -2686,7 +2713,7 @@ receiptForm.onsubmit = async event => {
     return;
   }
   receiptSave.disabled = true;
-  receiptPhoto.disabled = true;
+  disableReceiptActions(true);
   receiptRetry.disabled = true;
   receiptProgress.update('영수증 기록 저장 중');
   try {
@@ -2697,7 +2724,24 @@ receiptForm.onsubmit = async event => {
       memo: '사용처: ' + merchant + '\n지출: ' + moneyText(amount),
       receiptAmount: amount,
     };
+    const card = readCards().find(item => !item.archived && item.id === byId('receipt-card').value);
+    if (byId('receipt-card').value && !card) throw new Error('현재 사용할 수 있는 카드를 선택해 주세요.');
+    if (receiptRetryFile && crypto.subtle) {
+      const hash = await crypto.subtle.digest('SHA-256', await receiptRetryFile.arrayBuffer());
+      record.receiptPhotoHash = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    if (card) {
+      const value = {id: card.id, name: card.name, type: card.type, merchant, purpose: '', people: '',
+        amount, advance: 0, refund: 0, onlyCard: false, photo: ''};
+      if (!validCardUse(value)) throw new Error('카드 사용 금액을 확인해 주세요.');
+      record.cardUse = value;
+      delete record.receiptAmount;
+    }
+    record.savedAt = new Date().toISOString();
     await withRecords(records => {
+      if (record.receiptPhotoHash && records.some(item => item.receiptPhotoHash === record.receiptPhotoHash)) {
+        throw new Error('같은 영수증 기록이 있습니다. 기존 기록을 확인해 주세요.');
+      }
       const updated = [record, ...records];
       writeRecords(updated);
       render(updated);
@@ -2707,13 +2751,13 @@ receiptForm.onsubmit = async event => {
     receiptFields.disabled = true;
     receiptRetry.hidden = true;
     receiptRetryFile = undefined;
-    receiptProgress.finish('완료 · 영수증을 지출 기록으로 저장했습니다.');
+    receiptProgress.finish(card ? '완료 · 영수증을 선택한 카드 사용 내역에 저장했습니다.' : '완료 · 영수증을 지출 기록으로 저장했습니다.');
   } catch (error) {
     receiptProgress.finish('저장 실패 · ' + error.message + ' 다시 저장해 주세요.');
   } finally {
     receiptRetry.disabled = false;
     receiptSave.disabled = false;
-    receiptPhoto.disabled = false;
+    disableReceiptActions(false);
   }
 };
 
@@ -3229,6 +3273,7 @@ function openGolfEditor(record) {
     return;
   }
   openAppScreen('golf');
+  byId('golf-form').closest('.management-tools').open = true;
   setGolfEditor(record);
   golfDate.focus();
 }
@@ -3565,6 +3610,7 @@ function openHulaEditor(record) {
     return;
   }
   openAppScreen('hula');
+  byId('hula-form').closest('.management-tools').open = true;
   setHulaEditor(record);
   hulaDate.focus();
 }
@@ -3923,13 +3969,20 @@ function cardUseOptions(preferred = cardSelect.value) {
   for (const id of ['card-use-advance', 'card-use-refund']) byId(id).disabled = !personal;
 }
 
+function renderCardPeriod(records) {
+  const list = byId('card-detail-records');
+  const selected = renderManagementRange(list, records, byId('card-period-filter'), '등록된 사용 내역이 없습니다.');
+  const {used, due, received} = cardSettlement(selected);
+  showManagementSummary(byId('card-detail-summary'), ['카드 사용액 ' + moneyText(used),
+    '받을 돈 ' + moneyText(due), '받은 돈 ' + moneyText(received), '미수금 ' + moneyText(due - received)]);
+}
+
 function showCardDetail(card, records) {
   const panel = byId('card-detail');
   panel.hidden = !card;
   if (!card) return;
   byId('card-detail-title').textContent = card.name + ' 상세 내역';
-  const list = byId('card-detail-records');
-  renderCompactRecords(list, records, '등록된 사용 내역이 없습니다.', true);
+  renderCardPeriod(records);
   const topup = byId('card-topups');
   topup.hidden = card.type !== 'corporate' || card.archived;
   const entries = byId('card-topup-list');
@@ -3948,8 +4001,30 @@ function showCardDetail(card, records) {
   }
 }
 
+function cardSettlement(records) {
+  return records.reduce((totals, {cardUse: value}) => {
+    totals.used += value.amount;
+    if (value.collection?.length) {
+      for (const person of value.collection) {
+        totals.due += person.due;
+        totals.received += person.received;
+      }
+    } else {
+      totals.due += value.advance;
+      totals.received += value.refund;
+    }
+    return totals;
+  }, {used: 0, due: 0, received: 0});
+}
+
 function renderCards(records) {
   cardRecords = records;
+  const receiptCard = byId('receipt-card');
+  const selectedCard = receiptCard.value;
+  receiptCard.replaceChildren(option('일반 지출', ''), ...cardSettings.filter(card => !card.archived)
+    .map(card => option(card.name, card.id)));
+  receiptCard.value =
+    cardSettings.some(card => !card.archived && card.id === selectedCard) ? selectedCard : '';
   const ref = cardReference.value || todayDate();
   const overview = byId('card-overview');
   overview.replaceChildren();
@@ -3988,12 +4063,24 @@ function renderCards(records) {
       '기준일까지 한도 사용 ' + moneyText(stats.period),
       '남은 한도 ' + moneyText(Math.max(0, stats.limit - stats.period)) +
       (stats.period > stats.limit ? ' · 초과 ' + moneyText(stats.period - stats.limit) : ''));
-    const collection = uses.filter(record => record.date <= ref).flatMap(record => record.cardUse.collection ?? []);
-    const due = collection.reduce((sum, person) => sum + person.due, 0);
-    const received = collection.reduce((sum, person) => sum + person.received, 0);
-    if (collection.length) labels.push('받을 돈 ' + moneyText(due), '받은 돈 ' + moneyText(received),
+    const {due, received} = cardSettlement(uses.filter(record => record.date <= ref));
+    if (due) labels.push('받을 돈 ' + moneyText(due), '받은 돈 ' + moneyText(received),
       '미수금 ' + moneyText(due - received));
-    cardLines(box, [cardKind(card.type), ...labels.slice(4)]);
+    title.remove();
+    const cardDetails = () => {
+      openAppScreen('cards');
+      cardDetailId = card.id;
+      showCardDetail(card, uses);
+      byId('card-detail').scrollIntoView({block: 'nearest'});
+    };
+    const cardSummary = scheduleButton(title.textContent, cardDetails);
+    cardSummary.className = 'card-summary';
+    const metric = document.createElement('span');
+    metric.textContent = '이번 달 사용 ' + moneyText(stats.month) +
+      (stats.limit ? ' · 잔여 ' + moneyText(Math.max(0, stats.limit - stats.period)) : '') +
+      (due > received ? ' · 미수 ' + moneyText(due - received) : '');
+    cardSummary.append(metric);
+    box.append(cardSummary);
     cardLines(breakdown, [cardKind(card.type), ...labels]);
     if (stats.limit) {
       const percent = stats.period / stats.limit * 100;
@@ -4013,17 +4100,11 @@ function renderCards(records) {
         breakdown.append(warning.cloneNode(true));
       }
     }
-    const cardDetails = () => {
-      openAppScreen('cards');
-      cardDetailId = card.id;
-      showCardDetail(card, uses);
-      byId('card-detail').scrollIntoView({block: 'nearest'});
-    };
-    const management = inlineActions(scheduleButton('상세 내역 확인', cardDetails));
+    const management = inlineActions();
     breakdown.append(scheduleButton('상세 내역 확인', cardDetails));
     if (!card.archived) management.append(scheduleButton('카드 수정', () => setCardConfig(card)),
       scheduleButton('카드 삭제', () => archiveCard(card)));
-    box.append(management);
+    if (management.childElementCount) box.append(management);
     overview.append(box);
   }
   if (!overview.children.length) overview.textContent = '등록된 카드가 없습니다.';
@@ -4130,6 +4211,7 @@ function openCardUse(record) {
     return;
   }
   openAppScreen('cards');
+  byId('card-use').closest('.management-tools').open = true;
   setCardUse(record);
   cardSelect.focus();
 }
@@ -4385,6 +4467,7 @@ function openVehicleEditor(record, event) {
     return;
   }
   openAppScreen('vehicle');
+  byId('vehicle-form').closest('.management-tools').open = true;
   setVehicleEditor(record, event);
   vehicleDate.focus();
 }
@@ -4652,6 +4735,7 @@ function openFarmEditor(record, event) {
     return;
   }
   openAppScreen('farm');
+  byId('farm-form').closest('.management-tools').open = true;
   setFarmEditor(record, event);
   farmDate.focus();
 }
@@ -5489,6 +5573,7 @@ const appScreens = {};
 const appMenus = {
   calendar: ['📅', '월간 일정'], finance: ['💰', '수입·지출'], fitness: ['🏃', '운동·체중'],
   health: ['🩺', '병원·보험'], golf: ['⛳', '스크린골프'], hula: ['🃏', '전투 훌라'],
+  meals: ['🍚', '식단'], gatherings: ['👥', '모임·가족'],
   cards: ['💳', '카드 관리'], vehicle: ['🚗', '차량·픽업'], farm: ['🌱', '시골·농사'],
   stats: ['📊', '종합 통계'], search: ['🔍', '기록 검색'], settings: ['⚙️', '환경 설정'],
   entry: ['✏️', '기록하기'],
@@ -5496,8 +5581,9 @@ const appMenus = {
 const oldAnchors = {'calendar-heading': 'calendar', 'weight-heading': 'stats', 'golf-heading': 'golf',
   'hula-heading': 'hula', 'cards-heading': 'cards', 'vehicle-heading': 'vehicle', 'farm-heading': 'farm',
   'unified-heading': 'stats'};
-const layoutListScreens = ['finance', 'fitness', 'health', 'golf', 'hula', 'cards', 'vehicle', 'farm'];
+const layoutListScreens = ['finance', 'fitness', 'meals', 'health', 'golf', 'hula', 'vehicle', 'farm', 'gatherings'];
 let activeAppScreen = 'home';
+let entryPhotoMode = false;
 let layoutReady = false;
 let lastHomeDate = '';
 
@@ -5508,6 +5594,7 @@ function screenFromLocation() {
 
 function displayAppScreen(name, focus = true) {
   activeAppScreen = name;
+  if (name !== 'entry') entryPhotoMode = false;
   byId('app-menus').hidden = true;
   byId('app-menu-toggle').setAttribute('aria-expanded', 'false');
   for (const button of document.querySelectorAll('#home-tabs button, #app-menus button, #app-top button')) {
@@ -5535,8 +5622,8 @@ function displayAppScreen(name, focus = true) {
 
 function updateQuickSelection() {
   const selected = !byId('app-menus').hidden ? 'app-menu-toggle' : activeAppScreen === 'entry' ?
-    (byId('entry-voice-controls').hidden ? 'app-write' : 'app-voice') : '';
-  for (const id of ['app-menu-toggle', 'app-write', 'app-voice']) {
+    (entryPhotoMode ? 'app-photo' : byId('entry-voice-controls').hidden ? 'app-write' : 'app-voice') : '';
+  for (const id of ['app-menu-toggle', 'app-write', 'app-voice', 'app-photo']) {
     if (selected === id) byId(id).setAttribute('aria-current', 'page');
     else byId(id).removeAttribute('aria-current');
   }
@@ -5681,44 +5768,122 @@ function startLayoutEntry(kind, focusText = true) {
   if (focusText) memo.focus();
 }
 
+function recordsForScreen(name, records) {
+  return records.filter(record => {
+    if (name === 'cards') return validCardUse(record.cardUse);
+    if (name === 'vehicle') return validVehicle(record.vehicle) || record.category === '차량';
+    if (name === 'farm') return validFarm(record.farm) || record.category === '시골·농사';
+    if (name === 'golf') return unifiedTypes.golf[1](record) || record.category === '골프·훌라' && /골프/.test(record.memo);
+    if (name === 'hula') return unifiedTypes.hula[1](record) || record.category === '골프·훌라' && /훌라/.test(record.memo);
+    if (name === 'fitness') return isWorkoutRecord(record) || recordedWeight(record) !== null ||
+      ['운동', '체중'].includes(record.category);
+    if (name === 'meals') return record.category === '식사' || displayedRecordEnergy(record).foods.length > 0;
+    if (name === 'gatherings') return ['가족', '모임'].includes(record.category) || /모임|회식|동창회|종친회/.test(record.memo);
+    const amounts = recordAmounts(record);
+    if (name === 'health') return isHospital(record) || validInsurance(record.insurance) ||
+      ['병원', '보험', '병원·보험'].includes(record.category) || insuranceAmount(record, amounts) > 0;
+    return Boolean(amounts.income || amounts.expense) || ['수입', '지출', '담배'].includes(record.category);
+  });
+}
+
+function renderManagementRange(list, records, range, empty) {
+  const [first, last] = Array.from(range.querySelectorAll('input'), input => input.value);
+  const hint = range.querySelector('p');
+  hint.textContent = first && last && first > last ? '종료일은 시작일 이후로 선택해 주세요.' : '';
+  list.hidden = Boolean(hint.textContent);
+  const selected = list.hidden ? [] : records.filter(record =>
+    (!first || record.date >= first) && (!last || record.date <= last));
+  renderCompactRecords(list, selected, empty, true);
+  return selected;
+}
+
+function managementRange(id, change) {
+  const range = document.createElement('div');
+  range.id = id;
+  range.className = 'management-range';
+  for (const [suffix, title] of [['from', '시작일'], ['to', '종료일']]) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.id = id + '-' + suffix;
+    input.onchange = change;
+    label.append(title, input);
+    range.append(label);
+  }
+  const hint = document.createElement('p');
+  hint.setAttribute('role', 'status');
+  range.append(hint);
+  return range;
+}
+
 function renderLayoutRecords() {
   const screen = appScreens[activeAppScreen];
   const list = screen?.querySelector('.app-context-records');
   if (!list) return;
-  const relevant = unifiedRecords.filter(record => {
-    if (activeAppScreen === 'cards') return validCardUse(record.cardUse);
-    if (activeAppScreen === 'vehicle') return validVehicle(record.vehicle);
-    if (activeAppScreen === 'farm') return validFarm(record.farm);
-    if (activeAppScreen === 'golf') return validGolf(record.golf) || record.category === '스크린골프' ||
-      record.category === '골프·훌라' && /골프/.test(record.memo);
-    if (activeAppScreen === 'hula') return validHula(record.hula) || record.category === '훌라' ||
-      record.category === '골프·훌라' && /훌라/.test(record.memo);
-    if (activeAppScreen === 'fitness') return isWorkoutRecord(record) || mealEstimate(record.memo, record.category === '식사').length > 0 || recordedWeight(record) !== null ||
-      ['운동', '체중'].includes(record.category);
-    const amounts = recordAmounts(record);
-    if (activeAppScreen === 'health') return isHospital(record) || validInsurance(record.insurance) ||
-      ['병원', '보험', '병원·보험'].includes(record.category) || insuranceAmount(record, amounts) > 0;
-    return Boolean(amounts.income || amounts.expense) || ['수입', '지출', '담배'].includes(record.category);
-  });
-  renderCompactRecords(list, relevant, '저장된 기록이 없습니다.', true);
+  const selected = renderManagementRange(list, recordsForScreen(activeAppScreen, unifiedRecords),
+    screen.querySelector('.management-range'), '선택한 기간에 기록이 없습니다.');
+  const summary = unifiedSummary(dateGroups(selected));
+  const metrics = {
+    finance: () => ['수입 ' + moneyText(summary.income), '지출 ' + moneyText(summary.expense)],
+    health: () => ['미수령 보험금 ' + moneyText(selected.reduce((sum, record) => sum + insuranceUnpaid(record), 0))],
+    fitness: () => ['운동 ' + selected.filter(isWorkoutRecord).length + '회'],
+    meals: () => ['기록된 섭취 +' + calorieNumber(selected.reduce((sum, record) =>
+      sum + displayedRecordEnergy(record).foods.reduce((subtotal, food) => subtotal + food.kcal, 0), 0))],
+  };
+  const lines = metrics[activeAppScreen]?.() ?? [selected.filter(record => !record.hiddenFromLists).length + '건'];
+  showManagementSummary(screen.querySelector('.management-summary'), list.hidden ? [] : lines);
+}
+
+function showManagementSummary(container, lines) {
+  container.replaceChildren(...lines.map(text => {
+    const value = document.createElement('span');
+    appendValueText(value, text);
+    return value;
+  }));
+}
+
+function renderMenuMetrics() {
+  const today = todayDate();
+  const month = today.slice(0, 7);
+  const records = unifiedRecords.filter(record => record.date.startsWith(month) && record.date <= today);
+  const summary = unifiedSummary(dateGroups(records, month + '-01', today));
+  const energy = energyForDay(today);
+  const latest = dailyWeights(unifiedRecords).at(-1);
+  const metrics = {
+    calendar: '오늘 ' + scheduledOnDay(availableScheduleEvents(), today, true).length + '건',
+    finance: '월 지출 ' + moneyText(summary.expense),
+    fitness: latest ? '최근 ' + kg(latest.value) : '이번 달 ' + recordsForScreen('fitness', records).length + '건',
+    meals: '오늘 +' + calorieNumber(energy.intake),
+    health: '미수령 ' + moneyText(unifiedRecords.reduce((sum, record) => sum + insuranceUnpaid(record), 0)),
+    cards: '월 사용 ' + moneyText(recordsForScreen('cards', records).reduce((sum, record) => sum + record.cardUse.amount, 0)),
+  };
+  for (const button of byId('app-menu').querySelectorAll('button[data-screen]')) {
+    const key = button.dataset.screen;
+    button.querySelector('.app-menu-metric').textContent = metrics[key] ??
+      (layoutListScreens.includes(key) ? '이번 달 ' + recordsForScreen(key, records).length + '건' : '');
+  }
 }
 
 function appendRouteRecords(name) {
   const section = document.createElement('section');
+  section.className = 'management-section';
   const heading = document.createElement('h2');
   const list = document.createElement('div');
   heading.textContent = '저장된 기록';
   list.className = 'app-context-records';
-  section.append(heading, list);
+  const summary = document.createElement('p');
+  summary.className = 'management-summary';
+  section.append(heading, managementRange(name + '-record-period', renderLayoutRecords), summary, list);
   appScreens[name].append(section);
 }
 
-function appendRouteEntry(name, label, kind) {
-  const button = scheduleButton(label, () => startLayoutEntry(kind));
-  button.className = 'app-records-callout';
-  const last = appScreens[name].lastElementChild;
-  if (last?.classList.contains('inline-actions')) last.append(button);
-  else appScreens[name].append(inlineActions(button));
+function managementTools(label, ...nodes) {
+  const panel = document.createElement('details');
+  const summary = document.createElement('summary');
+  panel.className = 'management-tools';
+  summary.textContent = label;
+  panel.append(summary, ...nodes);
+  return panel;
 }
 
 function moveStatTail(form, label) {
@@ -6242,27 +6407,41 @@ function initializeLayout() {
     symbol.setAttribute('aria-hidden', 'true');
     symbol.textContent = icon;
     label.textContent = title;
-    button.append(symbol, label);
+    const metric = document.createElement('span');
+    metric.className = 'app-menu-metric';
+    button.append(symbol, label, metric);
     nav.append(button);
   }
   appScreens.calendar.append(byId('calendar-section'));
-  appScreens.entry.append(byId('entry-save-result'), byId('editor-section'));
-  appendRouteEntry('finance', '수입 기록', '수입');
-  appendRouteEntry('finance', '지출 기록', '지출');
-  appScreens.finance.append(byId('receipt-section'));
-  appScreens.fitness.append(byId('energy-dashboard'), byId('weight-review'), scheduleButton('음성으로 운동·식사 기록', () => byId('app-voice').click()));
-  appendRouteEntry('fitness', '운동·체중 기록', '운동');
-  appendRouteEntry('health', '병원 기록', '병원');
-  appendRouteEntry('health', '보험금 기록', '보험');
+  const scheduleEditorPanel = managementTools('일정 추가·수정');
+  byId('schedule-form').before(scheduleEditorPanel);
+  scheduleEditorPanel.append(byId('schedule-form'));
+  const receiptPanel = managementTools('영수증 촬영·입력', byId('receipt-section'));
+  receiptPanel.id = 'entry-receipt-tools';
+  appScreens.entry.append(byId('entry-save-result'), receiptPanel, byId('editor-section'));
+  for (const key of layoutListScreens) appendRouteRecords(key);
+  appScreens.fitness.append(managementTools('체중 입력·칼로리 분석', byId('energy-dashboard'), byId('weight-review')));
   appScreens.golf.append(scheduleButton('스크린골프 약속 등록', () => {
     openAppScreen('calendar');
     resetScheduleForm();
     scheduleKind.value = 'golf-plan';
     scheduleFields();
+    scheduleEditorPanel.open = true;
     scheduleTitle.focus();
   }));
-  for (const key of ['golf', 'hula', 'cards', 'vehicle', 'farm']) appScreens[key].append(byId(key + '-section'));
-  for (const key of layoutListScreens) appendRouteRecords(key);
+  for (const [key, label] of [['golf', '게임 입력·수정'], ['hula', '게임 입력·수정'],
+    ['vehicle', '운행 입력·수정'], ['farm', '방문·작업 입력·수정']]) {
+    appScreens[key].append(managementTools(label, byId(key + '-section')));
+  }
+  appScreens.cards.append(byId('cards-section'));
+  byId('card-detail-summary').before(managementRange('card-period-filter', () => {
+    renderCardPeriod(cardRecords.filter(item => validCardUse(item.cardUse) && item.cardUse.id === cardDetailId));
+  }));
+  const cardForm = byId('card-use');
+  const cardTitle = byId('card-use-title');
+  const cardPanel = managementTools('카드 사용·정산 입력');
+  cardTitle.before(cardPanel);
+  cardPanel.append(cardTitle, cardForm);
   appScreens.stats.append(byId('unified-section'));
   const weights = document.createElement('details');
   const weightLabel = document.createElement('summary');
@@ -6305,10 +6484,6 @@ function initializeLayout() {
   for (const button of document.querySelectorAll('[data-app-route]')) {
     button.onclick = () => openAppScreen(button.dataset.appRoute);
   }
-  byId('home-weight').onclick = () => {
-    openAppScreen('fitness');
-    byId('energy-weight').focus();
-  };
   byId('home-record-prev').onclick = () => moveHomeDate(-1);
   byId('home-record-next').onclick = () => moveHomeDate(1);
   byId('home-record-date').onchange = () => {
@@ -6331,7 +6506,19 @@ function initializeLayout() {
     event.currentTarget.querySelector('summary').textContent = event.currentTarget.open ? '접기' : '일주일 일정 보기';
   };
   byId('app-back-home').onclick = () => openAppScreen('home');
+  byId('app-photo').onclick = () => {
+    startLayoutEntry(undefined, false);
+    if (activeAppScreen === 'entry') {
+      byId('app-menus').hidden = true;
+      byId('app-menu-toggle').setAttribute('aria-expanded', 'false');
+      byId('app-content').scrollTop = 0;
+      entryPhotoMode = true;
+      updateQuickSelection();
+      byId('entry-receipt-tools').querySelector('summary').focus({preventScroll: true});
+    }
+  };
   byId('app-write').onclick = () => {
+    entryPhotoMode = false;
     startLayoutEntry(undefined, false);
     if (voiceInput?.button !== voice) byId('entry-voice-controls').hidden = true;
     byId('app-menus').hidden = true;
@@ -6379,6 +6566,7 @@ function initializeLayout() {
     showRecords(dx > 0);
   }, {passive: false});
   byId('app-voice').onclick = () => {
+    entryPhotoMode = false;
     if (foodPhotoBusy || byId('food-photo-items').value.trim() || foodPhotoHash) {
       report('음식 사진 기록을 먼저 저장하거나 사진 선택을 취소해 주세요.', true);
       return;
@@ -7232,6 +7420,7 @@ function refreshSchedule() {
     renderCalendar();
     updateVehiclePlan();
     renderHomeToday();
+    if (layoutReady) renderMenuMetrics();
     renderUnifiedHome();
     renderUnifiedSearch();
   }).catch(showScheduleError);
@@ -7295,6 +7484,7 @@ function editSchedule(event) {
     byId('registration-' + event.kind.split('-')[0] + '-start').focus();
     return;
   }
+  scheduleForm.closest('.management-tools').open = true;
   maybeWarnGolf(event);
   scheduleEditingId = event.id;
   scheduleDate.value = event.date;
