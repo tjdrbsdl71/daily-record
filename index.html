@@ -40,6 +40,8 @@ button:disabled{opacity:.6}
 .schedule-pool{background:#ccecf5}.schedule-gym{background:#e5d7f7}.schedule-gym-open{background:#d3efdb}
 .calendar-day .schedule-badge{padding:1px 2px;font-size:clamp(0.6rem,2.86vw,0.75rem);line-height:1.25}
 #shift-legend{display:flex;flex-wrap:wrap;gap:5px;padding:0;list-style:none}
+#schedule-task-dialog{width:min(90%,460px);border:1px solid #d7e4ef;border-radius:16px;background:#fff;color:#182d43;padding:16px;box-shadow:0 8px 36px #24486b33}
+#schedule-task-dialog::backdrop{background:#192e4770}
 #schedule-form h4{margin:8px 0}
 #schedule-list article{white-space:normal}
 .schedule-actions{display:flex;gap:8px}
@@ -847,6 +849,11 @@ html{font-size:110%}
 <label for="schedule-date">날짜</label>
 <input id="schedule-date" type="date" required>
 <div id="schedule-end-field" hidden><label for="schedule-end">종료일 (연속 일정)</label><input id="schedule-end" type="date"></div>
+<div id="schedule-tasks-field" hidden>
+<label for="schedule-tasks">날짜별 작업 (선택)</label>
+<textarea id="schedule-tasks" rows="3" placeholder="2026-11-29 배추 뽑기" aria-describedby="schedule-tasks-help"></textarea>
+<small id="schedule-tasks-help">같은 일정의 작업을 한 줄에 하나씩 날짜와 함께 입력하세요.</small>
+</div>
 <label for="schedule-kind">일정 종류</label>
 <select id="schedule-kind"></select>
 <div id="schedule-personal">
@@ -5090,6 +5097,17 @@ function renderUnifiedHome() {
     () => openUnifiedDetails('calendar', todayDate(new Date(Date.now() + 86400000))));
 }
 
+function scheduleTaskDetails(event, label) {
+  return scheduleButton(label, () => {
+    const dialog = byId('schedule-task-dialog');
+    byId('schedule-task-title').textContent = displayScheduleTitle(event);
+    const details = byId('schedule-task-dates');
+    details.replaceChildren();
+    cardLines(details, event.tasks.map(task => task.date.slice(5).replace('-', '월 ') + '일 · ' + task.title));
+    dialog.showModal();
+  });
+}
+
 function unifiedScheduleArticle(event, timeOnly = false) {
   const node = document.createElement('article');
   const heading = document.createElement('strong');
@@ -5097,6 +5115,7 @@ function unifiedScheduleArticle(event, timeOnly = false) {
   node.append(heading);
   cardLines(node, [event.supplies ? '준비물 · ' + event.supplies : '',
     event.pickup ? '픽업 ' + event.pickup : '', event.reminder ? '알림 ' + event.reminder.replace('T', ' ') : ''].filter(Boolean));
+  if (event.tasks?.length) node.append(scheduleTaskDetails(event, '날짜별 작업 보기'));
   node.append(inlineActions(scheduleButton('수정', () => {
     selectedDay = event.date;
     displayedMonth = event.date.slice(0, 7);
@@ -5411,7 +5430,10 @@ async function applySetupSettings(settings) {
     await withSchedule(state => {
       let changed = false;
       for (const reminder of settings.reminders ?? []) {
-        const event = state.events.find(item => item.date === reminder.date && item.title?.trim() === reminder.title);
+        const event = state.events.flatMap(item => [item, ...(item.groupedSources ?? [])]).find(item =>
+          item.date === reminder.date && (item.title?.trim() === reminder.title ||
+          item.date === '2026-11-29' && displayScheduleTitle(item) === '시골 배추 뽑기' &&
+          ['배추뽑기', '시골배추뽑기'].includes(scheduleTitleKey(reminder.title))));
         if (event && event.reminder !== reminder.reminder) {
           Object.assign(event, {kind: 'farm-work', reminder: reminder.reminder});
           changed = true;
@@ -5569,11 +5591,13 @@ function renderHomeToday() {
     const heading = document.createElement('h3');
     heading.textContent = day + ' (' + weekdays[new Date(day + 'T12:00:00Z').getUTCDay()] + ')';
     const daily = document.createElement('ul');
-    const labels = scheduledOnDay(schedules, day).filter(event => !scheduleKinds[event.kind].shift).map(event => eventDayLabel(event, day) +
-      (event.pickup ? ' · 픽업 예정 ' + event.pickup : '') + (event.completedAt ? ' · 완료' : ''));
-    for (const text of labels.length ? labels : ['일정 없음']) {
+    const dayEvents = scheduledOnDay(schedules, day).filter(event => !scheduleKinds[event.kind].shift);
+    for (const event of dayEvents.length ? dayEvents : [null]) {
       const item = document.createElement('li');
-      item.textContent = text;
+      const label = event ? eventDayLabel(event, day) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '') +
+        (event.completedAt ? ' · 완료' : '') : '일정 없음';
+      if (event?.tasks?.length) item.append(scheduleTaskDetails(event, label));
+      else item.textContent = label;
       daily.append(item);
     }
     week.append(heading, daily);
@@ -5587,7 +5611,9 @@ function renderHomeToday() {
   }
   for (const event of events) {
     const item = document.createElement('li');
-    item.textContent = eventDayLabel(event, today) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
+    const text = eventDayLabel(event, today) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
+    if (event.tasks?.length) item.append(scheduleTaskDetails(event, text));
+    else item.textContent = text;
     const renewal = scheduleKinds[event.kind].renewal;
     if (renewal) item.classList.add('registration-alert');
     if (event.completedAt) {
@@ -6885,16 +6911,22 @@ function readSchedule() {
     state.secondScheduleSeeded = true;
     writeSchedule(state);
   }
-  if (!state.ruralWorkNovemberSeeded) {
+  if (!state.ruralWorkNovemberGrouped) {
     const date = '2026-11-28';
+    const end = '2026-11-29';
     const title = '시골 일하기';
-    const existing = state.events.find(event => event.date === date && diaryAppointmentTitle(event.title || '') === diaryAppointmentTitle(title));
-    if (existing) {
-      existing.title = title;
-      existing.time ||= '13:00';
-      existing.end = existing.end && existing.end > '2026-11-29' ? existing.end : '2026-11-29';
-    } else state.events.push({...newSchedule('farm-work', date), title, time: '13:00', end: '2026-11-29'});
-    state.ruralWorkNovemberSeeded = true;
+    const work = state.events.filter(event => event.date === date &&
+      ['personal', 'farm-work'].includes(event.kind) && diaryAppointmentTitle(event.title || '') === '시골일하기');
+    const harvest = state.events.filter(event => event.date === end &&
+      ['personal', 'farm-work'].includes(event.kind) && ['배추뽑기', '시골배추뽑기'].includes(scheduleTitleKey(event.title)));
+    const existing = work.find(event => scheduleTitleKey(event.title) === '시골일하기') ?? work[0];
+    const sources = [...work, ...harvest];
+    const group = {...(existing ?? newSchedule('farm-work', date)), kind: 'farm-work', date, end, title, time: '13:00',
+      tasks: [{date, title}, {date: end, title: '배추 뽑기'}], groupedSources: sources};
+    state.events = state.events.map(event => event === existing ? group : event)
+      .filter(event => !sources.includes(event));
+    if (!existing) state.events.push(group);
+    state.ruralWorkNovemberGrouped = true;
     writeSchedule(state);
   }
   return state;
@@ -7009,6 +7041,7 @@ function existingCondolenceAppointment(records) {
 }
 
 function diaryAppointmentTitle(title) {
+  if (/^시골(?:에|에서)?일하[러로]갈거(?:야|예요)?내일까지$/.test(scheduleTitleKey(title))) return '시골일하기';
   const rural = title.replace(/(?:오늘|오후에|오전에|내일\s*까지|\d+일\s*동안|부터)\s*/g, '').trim();
   if (/^시골(?:에|에서)?\s+일하(?:기|[러로]\s*가(?:는데|요|겠습니다)?|러\s*갑니다)$/.test(rural)) return '시골일하기';
   return title.normalize('NFKC').replace(/[\s\p{P}]+/gu, '').replace(/문상/g, '조문')
@@ -7044,6 +7077,12 @@ async function syncDiarySchedules(records) {
       sources.add(item.id);
       dirty = true;
       const title = diaryAppointmentTitle(item.title);
+      const groupedSource = state.events.some(event => event.groupedSources?.some(source =>
+        source.diarySource === item.id || (source.date === item.date &&
+        diaryAppointmentTitle(source.title) === title && (!item.time || !source.time || source.time === item.time))));
+      if (groupedSource || item.date === '2026-11-29' && ['배추뽑기', '시골배추뽑기'].includes(title) &&
+          state.events.some(event => event.groupedSources && event.date === '2026-11-28' && event.tasks?.some(task =>
+            task.date === item.date && task.title === '배추 뽑기'))) continue;
       const duplicate = state.events.find(event => event.date === item.date && (
         event.diarySource === item.id ||
         typeof event.title === 'string' && diaryAppointmentTitle(event.title) === title &&
@@ -7130,7 +7169,7 @@ function renderCalendar() {
     button.append(number);
     for (const item of actual) button.append(scheduleBadge('actual', item.label));
     for (const event of entries) {
-      if (actual.some(item => plannedMatch(event, item))) continue;
+      if (!event.tasks?.length && actual.some(item => plannedMatch(event, item))) continue;
       const short = shortScheduleTitle(event);
       button.append(scheduleBadge(event.completedAt ? 'actual' : event.kind, short));
     }
@@ -7151,7 +7190,8 @@ function renderCalendar() {
   }
   for (const event of entries) {
     const item = document.createElement('article');
-    item.append(scheduleBadge(event.kind, eventDayLabel(event, selectedDay)));
+    if (event.tasks?.length) item.append(scheduleTaskDetails(event, eventDayLabel(event, selectedDay)));
+    else item.append(scheduleBadge(event.kind, eventDayLabel(event, selectedDay)));
     if (event.completedAt) item.append(scheduleBadge('actual', '완료'));
     else if (scheduleKinds[event.kind].renewal && renewalOnDate(event, today)) item.append(scheduleBadge(event.kind, '미완료'));
     if (event.kind === 'golf-plan') {
@@ -7225,6 +7265,8 @@ function scheduleFields() {
   byId('schedule-personal').hidden = !personal;
   byId('schedule-end-field').hidden = !personal;
   byId('schedule-end').disabled = !personal;
+  byId('schedule-tasks-field').hidden = !personal;
+  byId('schedule-tasks').disabled = !personal;
   scheduleTitle.disabled = !personal;
   byId('schedule-pickup').hidden = !evening;
   pickupEnabled.disabled = !evening;
@@ -7262,6 +7304,7 @@ function editSchedule(event) {
   }
   scheduleKind.value = event.kind;
   scheduleTitle.value = event.title;
+  byId('schedule-tasks').value = (event.tasks ?? []).map(task => task.date + ' ' + task.title).join('\n');
   byId('schedule-golf-time').value = event.time ?? '';
   byId('schedule-golf-people').value = event.people ?? '';
   byId('schedule-supplies').value = event.supplies ?? '';
@@ -7308,6 +7351,19 @@ scheduleForm.onsubmit = async event => {
     }
     if (end !== entry.date) entry.end = end;
   }
+  const taskLines = named ? byId('schedule-tasks').value.split(/\n/).map(line => line.trim()).filter(Boolean) : [];
+  const tasks = [];
+  for (const line of taskLines) {
+    const match = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/.exec(line);
+    if (!match || !validScheduleDate(match[1]) || !scheduleOnDate(entry, match[1])) {
+      showScheduleError(new Error('날짜별 작업은 일정 기간 안의 날짜와 작업 이름을 입력해 주세요.'));
+      return;
+    }
+    if (!tasks.some(task => task.date === match[1] && scheduleTitleKey(task.title) === scheduleTitleKey(match[2]))) {
+      tasks.push({date: match[1], title: match[2]});
+    }
+  }
+  if (tasks.length) entry.tasks = tasks.sort((a, b) => a.date.localeCompare(b.date));
   if (timed) {
     entry.time = byId('schedule-golf-time').value;
     entry.people = byId('schedule-golf-people').value.trim();
@@ -7335,7 +7391,8 @@ scheduleForm.onsubmit = async event => {
         throw new Error('해당 날짜에 같은 종류의 일정이 이미 있습니다. 기존 일정을 수정해 주세요.');
       }
       if (editing) {
-        const source = state.events[index].diarySource;
+        const {diarySource: source, groupedSources} = state.events[index];
+        if (groupedSources) entry.groupedSources = groupedSources;
         const completedAt = state.events[index].completedAt;
         state.events[index] = {...entry, ...(source ? {diarySource: source} : {}), ...(completedAt ? {completedAt} : {})};
       }
@@ -7475,7 +7532,12 @@ async function checkPickupAlerts() {
     const due = await withSchedule(state => {
       const now = Date.now();
       const arrivals = [];
-      for (const event of state.events) {
+      const pending = state.events.flatMap(event => {
+        if (!event.groupedSources) return [event];
+        if (event.completedAt) return [];
+        return [event, ...event.groupedSources.filter(source => source.id !== event.id)];
+      });
+      for (const event of pending) {
         let tag;
         if (event.kind === 'e' && event.pickup) {
           const pickup = pickupMoment(event).getTime();
@@ -7717,5 +7779,10 @@ for (const [id, kind] of [['farm-plan-visit', 'farm-visit'], ['farm-plan-work', 
   };
 }
 </script>
+<dialog id="schedule-task-dialog" aria-labelledby="schedule-task-title">
+  <h3 id="schedule-task-title"></h3>
+  <div id="schedule-task-dates"></div>
+  <form method="dialog"><button>닫기</button></form>
+</dialog>
 </body>
 </html>
