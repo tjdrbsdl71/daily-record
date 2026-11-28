@@ -1038,7 +1038,6 @@ const filterCategory = byId('filter-category');
 const categories = ['일상', '지출', '수입', '차량', '시골·농사', '담배', '식사', '일정', '방문·이동', '운동', '체중', '병원', '보험', '스크린골프',
   '훌라', '가족', '회사 업무', '병원·보험', '골프·훌라', '기타'];
 const categoryRules = [
-  ['스크린골프', /스크린\s*골프|골프존|카카오\s*vx|골프/i],
   ['훌라', /훌라/],
   ['보험', /보험|실손|실비/],
   ['병원', /병원|의원|진료|약국|처방|치과|검진|입원/],
@@ -1094,13 +1093,31 @@ function parseWon(text) {
   return total + group + (number ?? 0);
 }
 
+const diaryMoneyClauseSeparator = /\n|[!?;]|(?<!\d)\.(?!\d)|,(?!\d)|\s+(?:그리고|하지만|반면|또는)\s+/;
+const allowanceContext = /용돈|(?:동계|훈련|연습)\s*(?:훈련\s*)?(?:비|지원금)/u;
+const familyContext = /가족|동생|형제|형님|누나|언니|오빠|아들|조카|딸|부모|엄마|아빠|어머니|아버지|배우자|손주/u;
+const allowancePayment = /줬|주었|줘\s*줬|줌|건넸|건네줬|보냈|보내줬|보내\s*줬|송금|이체|지원했|지급했/u;
+
+function familyAllowance(text) {
+  return allowanceContext.test(text) && (familyContext.test(text) || /용돈/.test(text)) &&
+    allowancePayment.test(text) &&
+    !/받기로|받은\s*용돈|(?:줄|보낼)\s*(?:예정|계획)|(?:안|못)\s*(?:줬|주었|보냈)|주지\s*않/u.test(text);
+}
+
+function screenGolfContext(text) {
+  if (/스크린\s*골프|골프존|카카오\s*vx/i.test(text)) return true;
+  return /스크린\s*(?:게임|경기|한\s*게임|라운드)|(?:골프|라운드).*(?:게임비|내기\s*(?:수익|손실|정산))/i.test(text);
+}
+
+const allowanceMoneyCue = new RegExp(moneyCue.source + '|' + allowancePayment.source, 'g');
+
 function analyze(text, recordedCategory = '') {
   const totals = {income: 0, expense: 0};
   const normalized = text.normalize('NFKC');
   // Keep decimal points and thousands separators inside amounts.
-  const clauses = normalized.split(/\n|[!?;]|(?<!\d)\.(?!\d)|,(?!\d)|\s+(?:그리고|하지만|반면|또는)\s+/);
+  const clauses = normalized.split(diaryMoneyClauseSeparator);
   for (const clause of clauses) {
-    const cues = [...clause.matchAll(moneyCue)];
+    const cues = [...clause.matchAll(familyAllowance(clause) ? allowanceMoneyCue : moneyCue)];
     const amounts = [...clause.matchAll(/₩\s*([\d,]+(?:\.\d+)?)|([\d영공일이삼사오육칠팔구천백십억만][\d,\.\s영공일이삼사오육칠팔구천백십억만]*?)\s*원(?!장|래|인|본|료)/g)];
     // A numeric amount without a currency marker needs an explicit nearby money label.
     for (const cue of cues) {
@@ -1139,8 +1156,9 @@ function analyze(text, recordedCategory = '') {
     }
   }
   const matched = categoryRules.find(([, pattern]) => pattern.test(normalized));
-  let suggested = matched?.[0] ?? '일상';
-  if (!matched) {
+  const allowance = totals.expense > 0 && clauses.some(familyAllowance);
+  let suggested = allowance ? '지출' : screenGolfContext(normalized) ? '스크린골프' : matched?.[0] ?? '일상';
+  if (suggested === '일상') {
     if (totals.expense || /지출|결제|구매|구입|납부|샀/.test(normalized)) suggested = '지출';
     else if (totals.income || /수입|월급|급여|보너스|환급|입금/.test(normalized)) suggested = '수입';
   }
@@ -1313,7 +1331,13 @@ function readRecords() {
   } catch {
     throw new Error('저장된 기록을 읽을 수 없습니다. 브라우저의 사이트 데이터 설정이나 저장 형식을 확인해 주세요.');
   }
-  const migrated = withIds(records);
+  const migrated = withIds(records).map(record => {
+    if (!['스크린골프', '골프·훌라'].includes(record.category) || record.golf || record.hula) return record;
+    // Repair only the reported entry, including ordinary spacing and amount transcription variants.
+    const memo = record.memo.normalize('NFKC').replace(/[\s,，.!?。！？]/gu, '');
+    const duplicateLabel = /^(?:오늘|어제|그제)?동생아들이골프선수라서동계훈련용돈으로(?:50만|오십만|500000)원을?(?:줬어(?:요)?|주었어(?:요)?|줬습니다|주었습니다|줌)$/u;
+    return duplicateLabel.test(memo) ? {...record, category: '지출'} : record;
+  });
   if (migrated.some((record, index) => record !== records[index])) writeRecords(migrated);
   return migrated;
 }
@@ -1510,6 +1534,7 @@ function renderRecordArticle(record, amounts) {
     }
   };
   article.append(heading);
+  if (expenseSubcategory(record, amounts)) cardLines(article, ['지출 › 가족·용돈']);
   if (validFarm(record.farm)) article.append(farmRecordDetails(record.farm));
   else if (validVehicle(record.vehicle)) article.append(vehicleRecordDetails(record.vehicle));
   else if (validCardUse(record.cardUse)) article.append(cardUseDetails(record.cardUse));
@@ -5061,6 +5086,12 @@ const unifiedTypes = {
   calendar: ['일정', () => false],
 };
 
+function expenseSubcategory(record, flow) {
+  return record.category === '지출' && flow.expense > 0 &&
+    record.memo.normalize('NFKC').split(diaryMoneyClauseSeparator)
+      .some(familyAllowance) ? '가족·용돈' : '';
+}
+
 function ledgerGroup(record, flow) {
   if (validFarm(record.farm)) return '시골·농사';
   if (validVehicle(record.vehicle)) return '차량';
@@ -5069,7 +5100,7 @@ function ledgerGroup(record, flow) {
   if (tobaccoEntry(record, flow)) return '담배';
   if (isHospital(record)) return '병원';
   if (validCardUse(record.cardUse)) return '개인카드';
-  return record.category;
+  return expenseSubcategory(record, flow) || record.category;
 }
 
 function isWorkoutRecord(record) {
@@ -5909,6 +5940,7 @@ function moveStatTail(form, label) {
 }
 
 function classifyDiary(text, analysis = analyze(text)) {
+  if (expenseSubcategory({category: analysis.category, memo: text}, analysis)) return '지출';
   if (/담배/.test(text) && /구입|구매|샀|결제|지출|원어치/.test(text)) return '지출';
   if (/팔굽혀펴기|실내\s*자전거|러닝머신|스쿼트|윗몸일으키기/.test(text)) return '운동';
   if (repActivity(text)) return '운동';
