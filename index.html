@@ -261,6 +261,35 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 .task-spinner{width:16px;height:16px;flex:none;border:2px solid #d2e0f0;border-top-color:#2064a8;border-radius:50%;animation:task-spin .8s linear infinite}
 @keyframes task-spin{to{transform:rotate(1turn)}}
 @media(prefers-reduced-motion:reduce){.task-spinner{animation:none}}
+/* Shared surfaces for the mobile screens. */
+:root{--app-border:#dbe6ed;--app-ink:#24384c;--diary-blue:#245785;--diary-red:#a8323e;--diary-shadow:0 3px 12px #2448660c}
+body{background:linear-gradient(160deg,#edf6fd,#fcf8ef 78%);color:var(--app-ink);font-family:system-ui,"Noto Sans KR",sans-serif}
+#app-top{background:#edf6fd;border-color:var(--app-border)}
+#app-content{padding-inline:10px}
+section,article,#home-week,#calorie-notice{border:1px solid var(--app-border);border-radius:16px;background:#fff;box-shadow:var(--diary-shadow)}
+section,#home-week{margin-block:8px}
+article{padding:10px}
+#home-totals{background:#fffcf5}
+#app-today-records-section{background:#f2f8fc}
+button,input,select,textarea,fieldset{border-radius:12px;border-color:var(--app-border)}
+textarea,input,select{background:#fcfdff;color:#24384c}
+input[type=checkbox]{accent-color:#397ab0}
+button{background:#376f9d;color:#fff}
+button:disabled{opacity:.57}
+#app-top button[aria-current=page],#app-menus button[aria-current=page],#home-tabs button[aria-current=page]{background:#d5e9fc;color:#204c76}
+#home-tabs{background:#fff;border-color:var(--app-border)}
+#home-tabs button{border-radius:15px}
+.calendar-day,.app-menu-button{border-color:var(--app-border);border-radius:12px}
+#app-today-records>.compact-record-row,.compact-record-row{border:1px solid var(--app-border);border-radius:12px;background:#fff;box-shadow:none}
+#app-today-records>.compact-record-row+.compact-record-row{border-top-color:var(--app-border)}
+.compact-record-row>summary{display:flex;align-items:center;gap:5px;min-width:0;min-height:40px}
+.compact-record-text{flex:1;min-width:0}
+.record-values{margin-left:auto;display:flex;flex:none;flex-direction:column;text-align:right;font-size:clamp(.72rem,3vw,.88rem);font-weight:700;line-height:1.25;white-space:nowrap;font-variant-numeric:tabular-nums}
+.compact-record-clock{color:#4b6075;font-variant-numeric:tabular-nums}
+.value-credit,.hula-profit,#calorie-notice-value{color:var(--diary-blue)}
+.value-debit,.hula-loss,#home-totals .value-debit,#calorie-notice[data-over] #calorie-notice-value{color:var(--diary-red)}
+.task-progress{background:#eff7fd;border-radius:12px;padding:6px 8px}
+#home-breakfast-note{grid-column:1/-1;margin:4px 6px 0;color:#634e44;font-size:.78rem}
 </style>
 </head>
 <body>
@@ -316,6 +345,7 @@ main{box-sizing:border-box;height:100vh;height:100dvh;display:flex;flex-directio
 <section id="home-totals" aria-label="수입·지출과 운동 요약">
 <div><h2>오늘 합계</h2><dl><div><dt>지출</dt><dd id="home-today-expense"></dd></div><div><dt>기본 소모</dt><dd id="home-today-base"></dd></div><div><dt>음식·음주</dt><dd id="home-today-intake"></dd></div><div><dt>운동 소모</dt><dd id="home-today-energy"></dd></div><div><dt>남은 칼로리</dt><dd id="home-today-balance"></dd></div></dl></div>
 <div><h2 id="home-month-heading">이번 달 합계</h2><dl><div><dt>지출</dt><dd id="home-month-expense"></dd></div><div><dt>총섭취</dt><dd id="home-month-intake"></dd></div><div><dt>총소모</dt><dd id="home-month-energy"></dd></div><div><dt>누적 차이</dt><dd id="home-month-balance"></dd></div></dl></div>
+<p id="home-breakfast-note" hidden>오늘 섭취량에 기본 아침 700kcal가 포함됩니다.</p>
 </section>
 </div>
 <header id="app-detail-header" hidden>
@@ -1301,8 +1331,8 @@ function summaryCard(title, amounts) {
 }
 
 function render(records) {
-  renderCompactRecords(byId('app-hidden-records'), records.filter(record => record.hiddenFromLists), '숨긴 기록이 없습니다.', true);
   renderEnergy(records);
+  renderCompactRecords(byId('app-hidden-records'), records.filter(record => record.hiddenFromLists), '숨긴 기록이 없습니다.', true);
   renderFitnessDashboard(records);
   renderGolf(records);
   renderHula(records);
@@ -1348,7 +1378,7 @@ function renderRecordArticle(record, amounts) {
   const article = document.createElement('article');
   const heading = document.createElement('strong');
   const clock = recordClockLabel(record);
-  heading.textContent = recordDisplayStamp(record) + ' · ';
+  heading.textContent = (record.date || '날짜 미확인') + (clock || recordSavedStamp(record)?.time ? ' ' + (clock || recordSavedStamp(record).time) : '') + ' · ';
   const categoryLabel = document.createElement('span');
   categoryLabel.textContent = record.category;
   colorRecordValue(categoryLabel, record, amounts);
@@ -1485,7 +1515,7 @@ function renderRecordArticle(record, amounts) {
     const stamp = kstStamp(saved);
     cardLines(article, ['입력 시각 ' + stamp.day + ' ' + stamp.time + ' KST']);
   }
-  const energy = energyForRecord(record);
+  const energy = displayedRecordEnergy(record);
   cardLines(article, [
     ...(energy.workout ? ['운동 추가 소모 −약 ' + calorieNumber(energy.workout)] : []),
     ...energy.foods.map(food => food.name + (food.portion ? ' (' + food.portion + ')' : '') + ' +약 ' + calorieNumber(food.kcal)),
@@ -1613,7 +1643,8 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         }
         return previousId || !records.some(record =>
           record.date === item.date && (record.time ?? '') === (item.time ?? '') && voiceMemoKey(record.memo) === voiceMemoKey(item.memo) &&
-          sameFitness(record.fitness, item.fitness) && sameTracking(record, item));
+          sameFitness(record.fitness, item.fitness) && sameTracking(record, item) &&
+          (!record.foodItems || !item.foodItems || JSON.stringify(record.foodItems) === JSON.stringify(item.foodItems)));
       });
       if (!pending.length) {
         memo.value = '';
@@ -3867,16 +3898,7 @@ function showCardDetail(card, records) {
   if (!card) return;
   byId('card-detail-title').textContent = card.name + ' 상세 내역';
   const list = byId('card-detail-records');
-  list.replaceChildren();
-  if (!records.length) list.textContent = '등록된 사용 내역이 없습니다.';
-  for (const record of records.filter(item => !item.hiddenFromLists).sort(recordOrder)) {
-    const article = document.createElement('article');
-    const dateLabel = document.createElement('strong');
-    dateLabel.textContent = recordDisplayStamp(record);
-    article.append(dateLabel, cardUseDetails(record.cardUse),
-      scheduleButton('사용 기록 수정', () => openCardUse(record)));
-    list.append(article);
-  }
+  renderCompactRecords(list, records, '등록된 사용 내역이 없습니다.', true);
   const topup = byId('card-topups');
   topup.hidden = card.type !== 'corporate' || card.archived;
   const entries = byId('card-topup-list');
@@ -5044,10 +5066,10 @@ function renderUnifiedHome() {
     () => openUnifiedDetails('calendar', todayDate(new Date(Date.now() + 86400000))));
 }
 
-function unifiedScheduleArticle(event) {
+function unifiedScheduleArticle(event, timeOnly = false) {
   const node = document.createElement('article');
   const heading = document.createElement('strong');
-  heading.textContent = event.date + ' · ' + eventLabel(event);
+  heading.textContent = (timeOnly ? '' : event.date.slice(5).replace('-', '.') + ' · ') + eventDayLabel(event);
   node.append(heading);
   cardLines(node, [event.supplies ? '준비물 · ' + event.supplies : '',
     event.pickup ? '픽업 ' + event.pickup : '', event.reminder ? '알림 ' + event.reminder.replace('T', ' ') : ''].filter(Boolean));
@@ -5092,8 +5114,10 @@ function renderUnifiedSearch() {
     return scheduleListOrder(a.event, b.event, today);
   });
   const target = byId('search-results');
+  const expanded = new Set([...target.querySelectorAll('details[data-record-id][open]')].map(row => row.dataset.recordId));
+  const oneDay = Boolean(c.from && c.from === c.to);
   target.replaceChildren(...results.slice(0, searchLimit).map(item => item.event
-    ? unifiedScheduleArticle(item.event) : renderRecordArticle(item.record, item.flow)));
+    ? unifiedScheduleArticle(item.event, oneDay) : compactRecordRow(item.record, expanded.has(item.record.id), oneDay)));
   byId('search-status').textContent = results.length ? results.length + '건 중 ' + Math.min(results.length, searchLimit) + '건 표시' : '검색 결과가 없습니다.';
   byId('search-more').hidden = results.length <= searchLimit;
 }
@@ -5472,8 +5496,18 @@ function updateQuickSelection() {
   }
 }
 
+function hasUnsavedFoodDraft() {
+  return !editorSaving && (foodPhotoBusy || Boolean(foodPhotoFile) ||
+    Boolean(byId('food-photo-items').value.trim() && (!editingId || editorSnapshot() !== editorBaseline)));
+}
+
+function confirmFoodNavigation(name) {
+  return activeAppScreen !== 'entry' || name === 'entry' || !hasUnsavedFoodDraft() ||
+    confirm('저장하지 않은 음식 기록이 있습니다. 초안을 남겨 두고 다른 화면으로 이동할까요?');
+}
+
 function openAppScreen(name) {
-  if (!layoutReady || name === activeAppScreen) return;
+  if (!layoutReady || name === activeAppScreen || !confirmFoodNavigation(name)) return;
   const fragment = name === 'home' ? '#home' : '#' + name;
   history.pushState(null, '', fragment);
   displayAppScreen(name);
@@ -5481,7 +5515,12 @@ function openAppScreen(name) {
 
 function syncAppScreen() {
   const screen = screenFromLocation();
-  if (screen !== activeAppScreen) displayAppScreen(screen);
+  if (screen === activeAppScreen) return;
+  if (!confirmFoodNavigation(screen)) {
+    history.pushState(null, '', '#entry');
+    return;
+  }
+  displayAppScreen(screen);
 }
 
 function renderHomeToday() {
@@ -5507,7 +5546,7 @@ function renderHomeToday() {
     heading.textContent = day + ' (' + weekdays[new Date(day + 'T12:00:00Z').getUTCDay()] + ')';
     const daily = document.createElement('ul');
     const labels = schedules.filter(event => !scheduleKinds[event.kind].shift &&
-      (event.date === day || renewalOnDate(event, day))).map(event => eventLabel(event) +
+      (event.date === day || renewalOnDate(event, day))).map(event => eventDayLabel(event) +
       (event.pickup ? ' · 픽업 예정 ' + event.pickup : '') + (event.completedAt ? ' · 완료' : ''));
     for (const text of labels.length ? labels : ['일정 없음']) {
       const item = document.createElement('li');
@@ -5525,7 +5564,7 @@ function renderHomeToday() {
   }
   for (const event of events) {
     const item = document.createElement('li');
-    item.textContent = eventLabel(event) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
+    item.textContent = eventDayLabel(event) + (event.pickup ? ' · 픽업 예정 ' + event.pickup : '');
     const renewal = scheduleKinds[event.kind].renewal;
     if (renewal) item.classList.add('registration-alert');
     if (event.completedAt) {
@@ -5733,10 +5772,12 @@ function memoClock(memoText) {
     const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2]);
     return String(hour).padStart(2, '0') + ':' + match[3];
   }
-  const spoken = /(?:^|[^\d])(?:(오전|오후)\s*)?([01]?\d|2[0-3])\s*시(?!간)(?:\s*([0-5]?\d)\s*분)?/u.exec(memoText);
+  const spoken = /(?:^|[^\d])(?:(오전|오후|아침|저녁|밤)\s*)?([01]?\d|2[0-3])\s*시(?!간)(?:\s*(반|[0-5]?\d\s*분))?/u.exec(memoText);
   if (!spoken) return '';
-  const hour = spoken[1] ? Number(spoken[2]) % 12 + (spoken[1] === '오후' ? 12 : 0) : Number(spoken[2]);
-  return String(hour).padStart(2, '0') + ':' + (spoken[3] ?? '0').padStart(2, '0');
+  const statedHour = Number(spoken[2]);
+  const hour = statedHour > 12 || !spoken[1] ? statedHour :
+    statedHour % 12 + (/오후|저녁|밤/.test(spoken[1]) ? 12 : 0);
+  return String(hour).padStart(2, '0') + ':' + (spoken[3] === '반' ? '30' : (spoken[3]?.match(/\d+/)?.[0] ?? '0').padStart(2, '0'));
 }
 
 function normalizedClock(value) {
@@ -5790,12 +5831,10 @@ function recordSavedStamp(record) {
 }
 
 function recordDisplayStamp(record, timeOnly = false) {
-  const activity = recordClockLabel(record);
-  const saved = recordSavedStamp(record);
-  if (timeOnly) return activity || saved?.time || '';
-  const date = record.date || '날짜 미확인';
-  const time = activity || (saved && saved.day === record.date ? saved.time : '');
-  return date + (time ? ' ' + time : saved ? ' · 저장 ' + saved.day + ' ' + saved.time : '');
+  const time = recordClockLabel(record) || recordSavedStamp(record)?.time || '';
+  if (timeOnly) return time;
+  const date = record.date ? record.date.slice(5).replace('-', '.') : '날짜 미확인';
+  return time ? date + ' ' + time : date;
 }
 
 function recordOrder(a, b) {
@@ -5816,12 +5855,34 @@ function compactRecordText(record) {
     return [record.fitness?.type, Number.isFinite(record.fitness?.minutes) ? hulaTimeText(record.fitness.minutes) : '',
       recordedWeight(record) !== null ? '체중 ' + kg(recordedWeight(record)) : ''].filter(Boolean).join(' · ');
   }
-  if (validCardUse(record.cardUse)) return record.cardUse.merchant + ' ' + moneyText(record.cardUse.amount);
+  if (validCardUse(record.cardUse)) return record.cardUse.merchant;
   if (validFarm(record.farm)) return record.farm.task || record.farm.purpose;
   if (validVehicle(record.vehicle) && record.vehicle.kind === 'trip') return record.vehicle.purpose;
-  if (validInsurance(record.insurance)) return '보험금 수령 ' + moneyText(record.insurance.received);
-  if (validTobacco(record.tobacco) && record.tobacco.cost !== null) return '담배 구매 ' + moneyText(record.tobacco.cost);
+  if (validInsurance(record.insurance)) return '보험금 수령';
+  if (validTobacco(record.tobacco) && record.tobacco.cost !== null) return '담배 구매';
   return record.category;
+}
+
+function recordListValues(record) {
+  const flow = recordAmounts(record);
+  const metrics = [];
+  const addMoney = (amount, income) => {
+    if (amount > 0) metrics.push({text: (income ? '+' : '−') + moneyText(amount), tone: income ? 'credit' : 'debit'});
+  };
+  if (validCardUse(record.cardUse)) {
+    addMoney(record.cardUse.amount, false);
+    addMoney(flow.income, true);
+  } else if (validGolf(record.golf) || validHula(record.hula)) {
+    const net = validGolf(record.golf) ? golfCashFlow(record.golf).net : hulaNet(record.hula);
+    addMoney(Math.abs(net), net > 0);
+  } else {
+    addMoney(flow.income, true);
+    addMoney(flow.expense, false);
+  }
+  const {workout, foods} = displayedRecordEnergy(record);
+  if (foods.length) metrics.push({text: '+' + calorieNumber(foods.reduce((sum, item) => sum + item.kcal, 0)), tone: 'debit'});
+  if (workout) metrics.push({text: '−' + calorieNumber(workout), tone: 'credit'});
+  return metrics;
 }
 
 function compactRecordRow(record, open = false, timeOnly = false) {
@@ -5838,16 +5899,28 @@ function compactRecordRow(record, open = false, timeOnly = false) {
   }
   const preview = document.createElement('span');
   preview.className = 'compact-record-text';
-  preview.textContent = compactRecordText(record);
+  const values = recordListValues(record);
+  let label = compactRecordText(record);
+  if (values.some(value => value.text.endsWith('원'))) {
+    label = label.replace(/(?:[+−-]\s*)?(?:₩\s*([\d,]+)|([\d영공일이삼사오육칠팔구천백십억만][\d,.\s영공일이삼사오육칠팔구천백십억만]*?)\s*원(?!장|래|인|본|료))/gu,
+      (match, prefix, suffix) => values.some(value => value.text.slice(1) === moneyText(parseWon(prefix ?? suffix))) ? '' : match).trim();
+  }
+  if (values.some(value => value.text.endsWith('kcal'))) {
+    label = label.replace(/[+−-]?\s*(\d[\d,]*)\s*(?:kcal|킬로칼로리|칼로리)/gi, (match, amount) =>
+      values.some(value => value.text.slice(1) === calorieNumber(Number(amount.replaceAll(',', '')))) ? '' : match).trim();
+  }
+  preview.textContent = label.replace(/\s+/g, ' ').replace(/[:·,]+\s*$/, '') || record.category;
   colorRecordValue(preview, record, recordAmounts(record));
   heading.append(preview);
-  const energy = energyText(record);
-  for (const value of energy) {
-    const label = document.createElement('span');
-    label.className = 'compact-record-energy ' + (value.startsWith('−') ? 'value-credit' : 'value-debit');
-    label.textContent = ' · ' + value;
-    heading.append(label);
+  const metrics = document.createElement('span');
+  metrics.className = 'record-values';
+  for (const {text, tone} of values) {
+    const amount = document.createElement('span');
+    amount.className = 'value-' + tone;
+    amount.textContent = text;
+    metrics.append(amount);
   }
+  if (metrics.childElementCount) heading.append(metrics);
   row.append(heading);
   row.ontoggle = () => {
     if (!row.open || row.querySelector('article')) return;
@@ -5879,16 +5952,8 @@ function renderCompactRecords(target, records, empty, showDates = false, limit =
     return;
   }
   const ordered = [...records].sort(recordOrder);
-  let previousDate;
   for (const record of ordered.slice(0, limit)) {
-    if (showDates && record.date !== previousDate) {
-      const heading = document.createElement('h3');
-      heading.className = 'compact-record-date';
-      heading.textContent = record.date || '날짜 미확인';
-      target.append(heading);
-      previousDate = record.date;
-    }
-    target.append(compactRecordRow(record, expanded.has(record.id), target.id === 'app-today-records' && record.date === todayDate()));
+    target.append(compactRecordRow(record, expanded.has(record.id), !showDates));
   }
 }
 
@@ -5913,6 +5978,7 @@ function renderHomeTotals() {
   let todayExpense = 0;
   let monthExpense = 0;
   const daily = energyForDay(today);
+  byId('home-breakfast-note').hidden = !daily.breakfast;
   const monthly = summarizeEnergyDays(month + '-01', today);
   for (const record of unifiedRecords) {
     if (!record.date.startsWith(month + '-')) continue;
@@ -6272,6 +6338,11 @@ function initializeLayout() {
     updateQuickSelection();
     voice.click();
   };
+  window.addEventListener('beforeunload', event => {
+    if (!hasUnsavedFoodDraft()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   window.addEventListener('popstate', syncAppScreen);
   window.addEventListener('hashchange', syncAppScreen);
   window.addEventListener('focus', refreshHomeDate);
@@ -6420,11 +6491,9 @@ function calorieNumber(value) {
   return currency.format(Math.abs(value)) + 'kcal';
 }
 
-function energyText(record) {
-  const {workout, foods} = energyForRecord(record);
-  const intake = foods.reduce((sum, food) => sum + food.kcal, 0);
-  return [workout ? '−약 ' + calorieNumber(workout) : '', foods.length ? '+약 ' + calorieNumber(intake) : '']
-    .filter(Boolean);
+let recordEnergy = new Map();
+function displayedRecordEnergy(record) {
+  return recordEnergy.get(record.id) ?? energyForRecord(record);
 }
 
 function offsetDay(day, offset) {
@@ -6504,29 +6573,38 @@ function energyForDay(day) {
 function renderEnergy(records) {
   energyWeights = dailyWeights(records);
   energyDays = new Map();
+  recordEnergy = new Map();
   const actualMeals = new Set(records.filter(record => !plannedMeal(record)).map(record => mealSignature(record, energyForRecord(record).foods)).filter(Boolean));
   const countedPlans = new Set();
   for (const record of records) {
     if (!validScheduleDate(record.date)) continue;
     let {workout, foods} = energyForRecord(record);
+    let alreadyCountedPlan = false;
     if (plannedMeal(record)) {
       const signature = mealSignature(record, foods);
-      if (actualMeals.has(signature) || countedPlans.has(signature)) foods = [];
+      alreadyCountedPlan = actualMeals.has(signature) || countedPlans.has(signature);
+      if (alreadyCountedPlan) foods = [];
       if (signature) countedPlans.add(signature);
     }
-    const breakfast = !record.referenceOnly && !record.sharedMeal && /(?:^|[\s,])(?:아침\s*(?:식사|밥)?|조식)(?=\s|[:：]|은|는|으로|을|를|$)/.test(record.memo)
+    const breakfast = !alreadyCountedPlan && !record.referenceOnly && !record.sharedMeal && /(?:^|[\s,])(?:아침\s*(?:식사|밥)?|조식)(?=\s|[:：]|은|는|으로|을|를|$)/.test(record.memo)
       && !/아침\s*(?:운동|회의|출근)|먹을/.test(record.memo)
       && (foods.length > 0 || record.category === '식사' || /안\s*먹|먹지\s*않|거름|걸렀|생략|대신|먹었|변경|섭취|kcal|칼로리/i.test(record.memo));
     const skipped = breakfast && /안\s*먹|먹지\s*않|거름|걸렀|생략/.test(record.memo);
-    const enteredCalories = breakfast && /([\d,]+)\s*(?:kcal|킬로칼로리|칼로리)/i.exec(record.memo);
+    const mayUseEnteredCalories = !alreadyCountedPlan && !record.referenceOnly && !record.sharedMeal &&
+      !record.foodItems && (breakfast || record.category === '식사' || foods.length);
+    const entered = mayUseEnteredCalories ? [...record.memo.matchAll(/(\d[\d,]*)\s*(?:kcal|킬로칼로리|칼로리)/gi)] : [];
+    const total = entered.length === 1 ? entered[0] : entered.findLast(match =>
+      /(?:총|합계)\s*$/.test(record.memo.slice(0, match.index)));
     const exercise = !record.referenceOnly && isWorkoutRecord(record);
+    const calories = total ? Number(total[1].replaceAll(',', '')) : NaN;
+    if (skipped) foods = [];
+    else if (Number.isSafeInteger(calories) && calories >= 0 && calories <= 15000) foods = [{name: '기록한 섭취량', kcal: calories}];
+    recordEnergy.set(record.id, {workout, foods});
     if (!exercise && !foods.length && !breakfast) continue;
     const previous = energyDays.get(record.date) ?? {workout: 0, intake: 0, meals: 0};
     previous.workout += workout;
     previous.breakfast ||= breakfast;
-    const calories = enteredCalories ? Number(enteredCalories[1].replaceAll(',', '')) : NaN;
-    previous.intake += skipped ? 0 : Number.isFinite(calories) ? calories :
-      foods.reduce((sum, item) => sum + item.kcal, 0);
+    previous.intake += foods.reduce((sum, item) => sum + item.kcal, 0);
     previous.meals += foods.length;
     previous.exerciseCount = (previous.exerciseCount ?? 0) + Number(exercise);
     previous.alcohol = (previous.alcohol ?? 0) +
@@ -6808,16 +6886,23 @@ function availableScheduleEvents() {
     (a.time || a.pickup || '99:99').localeCompare(b.time || b.pickup || '99:99'));
 }
 
-function eventLabel(event) {
+function eventDayLabel(event) {
+  const kind = scheduleKinds[event.kind];
+  if (kind.renewal) return '남구국민체육센터 1관 · ' + kind.label;
+  const label = eventLabel(event, false);
+  return event.time ? event.time + ' · ' + label : label;
+}
+
+function eventLabel(event, includeTime = true) {
   const kind = scheduleKinds[event.kind];
   if (kind.shift) return '자빈이 ' + kind.label;
   if (kind.facility) return '남구국민체육센터 1관 · ' + kind.label;
   const title = displayScheduleTitle(event);
   if (kind.renewal) return '남구국민체육센터 1관 · ' + kind.label + ' · ' +
     event.date.slice(5) + (event.end && event.end !== event.date ? ' ~ ' + event.end.slice(5) : '');
-  if (event.diarySource) return title + (event.time ? ' · ' + event.time : '');
+  if (event.diarySource) return title + (includeTime && event.time ? ' · ' + event.time : '');
   if (kind.appointment || kind.activity || event.time || event.people) return (kind.appointment || kind.activity ? kind.label + ' · ' : '') +
-    title + (event.time ? ' · ' + event.time : '') + (event.people ? ' · ' + event.people : '');
+    title + (includeTime && event.time ? ' · ' + event.time : '') + (event.people ? ' · ' + event.people : '');
   return title;
 }
 
@@ -6972,7 +7057,7 @@ function renderCalendar() {
   }
   for (const event of entries) {
     const item = document.createElement('article');
-    item.append(scheduleBadge(event.kind, eventLabel(event)));
+    item.append(scheduleBadge(event.kind, eventDayLabel(event)));
     if (event.completedAt) item.append(scheduleBadge('actual', '완료'));
     else if (scheduleKinds[event.kind].renewal && renewalOnDate(event, today)) item.append(scheduleBadge(event.kind, '미완료'));
     if (event.kind === 'golf-plan') {
