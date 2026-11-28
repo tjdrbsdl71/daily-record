@@ -6909,14 +6909,16 @@ function eventLabel(event, includeTime = true) {
 function plannedDiaryAppointment(record, savedDay) {
   if ((record.foodItems && !plannedMeal(record)) || !validScheduleDate(record.date) || record.date < savedDay) return null;
   const memo = cleanSpokenRecord(record.memo);
-  if ((!/조문|문상|약속|모임|병원|의원|진료|치료|장례식/.test(memo) && !plannedMeal(record)) ||
-      /다녀왔|다녀옴|갔었|갔다|갔어|갔음|방문했|마쳤|완료|취소|못\s*가|안\s*가|끝났/.test(memo)) return null;
-  const explicit = /예정|계획|먹기로|가기로|하기로|가야|갈\s*(?:거|것|게)|할\s*(?:거|것|게)|예약|참석할|방문할|약속(?:이)?\s*있|모임(?:이)?\s*있/.test(memo);
-  const concise = /(?:조문|문상|약속|모임|병원\s*방문|병원\s*진료|진료|장례식)[.!?。！？]*$/.test(memo);
-  if (!(record.date > savedDay || explicit || concise || plannedMeal(record))) return null;
+  if (record.referenceOnly || /다녀왔|다녀옴|갔었|갔다|갔어|갔음|방문했|마쳤|완료|취소|못\s*가|안\s*가|끝났|먹었|먹음|했어|했음/.test(memo) &&
+      !/(?:가기로|하기로|먹기로|만나기로)\s*했/.test(memo)) return null;
+  const explicit = /예정|계획|(?:가|하|먹|만나|들르|받)기로|(?:가|해|만나|들러|받아)야|(?:갈|할|만날|들를|받을)\s*(?:거|것|게)|예약|참석할|방문할|(?:약속|모임|일정)(?:이)?\s*있/.test(memo);
+  const concise = /(?:조문|문상|약속|모임|회의|미팅|면담|방문|진료|장례식|픽업|상담|수업)[.!?。！？]*$/.test(memo);
+  const upcomingTrip = /시골|밭|농장/.test(memo) && /(?:일하[러로]|작업하러|농사[하일])\s*(?:가는데|가요|가|갑니다)(?:[.!?。！？]|$)/.test(memo);
+  if (!(explicit || concise || upcomingTrip || plannedMeal(record) || record.category === '일정')) return null;
   const title = speechDate(memo, record.date, savedDay).text
-    .replace(/^(?:오전|오후)?\s*(?:[01]?\d|2[0-3])(?::[0-5]\d|시(?:\s*[0-5]?\d\s*분)?)(?:에)?\s*/u, '')
+    .replace(/^(?:오전|오후|아침|저녁|밤)?\s*(?:[01]?\d|2[0-3])(?::[0-5]\d|시(?:\s*(?:반|[0-5]?\d\s*분))?)(?:에)?\s*/u, '')
     .replace(/\s*(?:갈\s*(?:예정|거(?:야|예요)?)|가야\s*해|가기로\s*(?:했어|했다)?|예정(?:입니다|이야)?|할\s*예정)[.!?。！？]*$/u, '')
+    .replace(/일하로(?=\s*가)/g, '일하러')
     .trim().replace(/[.!?。！？]+$/u, '');
   return title ? {date: record.date, title, time: normalizedClock(record.time) || memoClock(memo)} : null;
 }
@@ -6937,8 +6939,22 @@ function diaryAppointmentTitle(title) {
 }
 
 async function syncDiarySchedules(records) {
-  const candidates = records.filter(record => record.diaryAppointment).map(record =>
-    ({...record.diaryAppointment, id: record.id}));
+  const today = todayDate();
+  const candidates = records.flatMap(record => {
+    const text = record.memo;
+    const clauses = text.split(/\n+|(?<=[.!?。！？])\s+|\s+(?:그리고|그다음에)\s+/u);
+    const appointments = clauses.length === 1 ? [] : clauses.flatMap(clause => {
+      const {day} = speechDate(clause.trim(), record.date, recordSavedStamp(record)?.day ?? today);
+      const item = plannedDiaryAppointment({...record, memo: clause.trim(), date: day, time: ''}, today);
+      return item ? [item] : [];
+    });
+    if (record.diaryAppointment && !appointments.length) appointments.push(record.diaryAppointment);
+    if (!appointments.length && record.date === today) {
+      const item = plannedDiaryAppointment(record, today);
+      if (item) appointments.push(item);
+    }
+    return appointments.map((item, index) => ({...item, id: index ? record.id + ':appointment:' + index : record.id}));
+  });
   const condolence = existingCondolenceAppointment(records);
   if (condolence && !candidates.some(candidate => candidate.id === condolence.id)) candidates.push(condolence);
   if (!candidates.length) return;
