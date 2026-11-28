@@ -1209,6 +1209,12 @@ function report(message = '', isError = false) {
   byId('error').textContent = isError ? message : '';
 }
 
+function confirmedFoodKey(items) {
+  return JSON.stringify(items.map(item => JSON.stringify([
+    voiceMemoKey(item.name), voiceMemoKey(item.portion), item.kcal,
+  ])).sort());
+}
+
 function validFoodItems(items) {
   return Array.isArray(items) && items.length > 0 && items.length <= 30 && items.every(item =>
     item && typeof item.name === 'string' && item.name.trim() && item.name.length <= 100 &&
@@ -1413,6 +1419,7 @@ function renderRecordArticle(record, amounts) {
       openGolfEditor(record);
       return;
     }
+    if (hasUnsavedFoodDraft() && !confirm('저장하지 않은 음식 초안이 있습니다. 초안을 닫고 이 기록을 수정할까요?')) return;
     openAppScreen('entry');
     clearEntrySaveResult();
     setEditor(record);
@@ -1641,12 +1648,18 @@ async function saveEditor({fromVoice = false, rawSpeech = '', priorMemo = '', st
         if (item.foodPhotoHash && records.some(record => record.id !== previousId && record.foodPhotoHash === item.foodPhotoHash)) {
           throw new Error('이미 저장한 음식 사진입니다.');
         }
-        return previousId || !records.some(record =>
-          record.date === item.date && (record.time ?? '') === (item.time ?? '') && voiceMemoKey(record.memo) === voiceMemoKey(item.memo) &&
-          sameFitness(record.fitness, item.fitness) && sameTracking(record, item) &&
-          (!record.foodItems || !item.foodItems || JSON.stringify(record.foodItems) === JSON.stringify(item.foodItems)));
+        return previousId || !records.some(record => {
+          if (record.date !== item.date || activityClock(record) !== activityClock(item)) return false;
+          if (record.foodItems && item.foodItems) return confirmedFoodKey(record.foodItems) === confirmedFoodKey(item.foodItems);
+          return voiceMemoKey(record.memo) === voiceMemoKey(item.memo) &&
+            sameFitness(record.fitness, item.fitness) && sameTracking(record, item);
+        });
       });
       if (!pending.length) {
+        if (draft.foodItems) {
+          report('같은 날짜와 시각에 동일한 음식 기록이 있습니다. 초안을 확인해 주세요.', true);
+          return;
+        }
         memo.value = '';
         recordTimeField.value = '';
         showFitnessFields();
@@ -5767,17 +5780,16 @@ function updateEditorSave() {
 }
 
 function memoClock(memoText) {
-  const match = /(?:^|[^\d])(?:(오전|오후)\s*)?([01]?\d|2[0-3]):([0-5]\d)(?!\d)/u.exec(memoText);
-  if (match) {
-    const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2]);
-    return String(hour).padStart(2, '0') + ':' + match[3];
-  }
-  const spoken = /(?:^|[^\d])(?:(오전|오후|아침|저녁|밤)\s*)?([01]?\d|2[0-3])\s*시(?!간)(?:\s*(반|[0-5]?\d\s*분))?/u.exec(memoText);
-  if (!spoken) return '';
-  const statedHour = Number(spoken[2]);
-  const hour = statedHour > 12 || !spoken[1] ? statedHour :
-    statedHour % 12 + (/오후|저녁|밤/.test(spoken[1]) ? 12 : 0);
-  return String(hour).padStart(2, '0') + ':' + (spoken[3] === '반' ? '30' : (spoken[3]?.match(/\d+/)?.[0] ?? '0').padStart(2, '0'));
+  const clock = /(?:^|[^\d])(?:(오전|오후|아침|저녁|밤)\s*)?([01]?\d|2[0-3]):([0-5]\d)(?!\d)/u.exec(memoText);
+  const spoken = clock ? null :
+    /(?:^|[^\d])(?:(오전|오후|아침|저녁|밤)\s*)?([01]?\d|2[0-3])\s*시(?!간)(?:\s*(반|[0-5]?\d\s*분))?/u.exec(memoText);
+  const match = clock || spoken;
+  if (!match) return '';
+  const statedHour = Number(match[2]);
+  const hour = !match[1] || statedHour > 12 ? statedHour :
+    statedHour % 12 + (/오후|저녁|밤/.test(match[1]) ? 12 : 0);
+  const minute = match[3] === '반' ? '30' : (match[3]?.match(/\d+/)?.[0] ?? '0').padStart(2, '0');
+  return String(hour).padStart(2, '0') + ':' + minute;
 }
 
 function normalizedClock(value) {
@@ -5786,9 +5798,14 @@ function normalizedClock(value) {
 }
 
 function activityClock(record) {
-  return normalizedClock(record.time) || normalizedClock(record.golf?.start) ||
+  const entered = normalizedClock(record.time);
+  const spoken = memoClock(record.memo);
+  // Early voice records sometimes stored an hour without the spoken half-hour.
+  if (record.voiceOriginal && entered.endsWith(':00') && spoken === entered.slice(0, 3) + '30' &&
+      /\d\s*시\s*반/.test(record.memo)) return spoken;
+  return entered || normalizedClock(record.golf?.start) ||
     normalizedClock(record.hula?.start) || normalizedClock(record.vehicle?.times?.[0]) ||
-    normalizedClock(record.farm?.depart) || memoClock(record.memo);
+    normalizedClock(record.farm?.depart) || spoken;
 }
 
 function savedInstant(value) {
@@ -6593,10 +6610,10 @@ function renderEnergy(records) {
     const mayUseEnteredCalories = !alreadyCountedPlan && !record.referenceOnly && !record.sharedMeal &&
       !record.foodItems && (breakfast || record.category === '식사' || foods.length);
     const entered = mayUseEnteredCalories ? [...record.memo.matchAll(/(\d[\d,]*)\s*(?:kcal|킬로칼로리|칼로리)/gi)] : [];
-    const total = entered.length === 1 ? entered[0] : entered.findLast(match =>
-      /(?:총|합계)\s*$/.test(record.memo.slice(0, match.index)));
+    const total = entered.findLast(match => /(?:총|합계)\s*$/.test(record.memo.slice(0, match.index)));
     const exercise = !record.referenceOnly && isWorkoutRecord(record);
-    const calories = total ? Number(total[1].replaceAll(',', '')) : NaN;
+    const calories = entered.length ? (total ? [total] : entered).reduce((sum, match) =>
+      sum + Number(match[1].replaceAll(',', '')), 0) : NaN;
     if (skipped) foods = [];
     else if (Number.isSafeInteger(calories) && calories >= 0 && calories <= 15000) foods = [{name: '기록한 섭취량', kcal: calories}];
     recordEnergy.set(record.id, {workout, foods});
